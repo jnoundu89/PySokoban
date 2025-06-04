@@ -40,17 +40,19 @@ class LevelManager:
     
     def _load_level_files(self):
         """
-        Load all level files from the levels directory.
+        Load all level files from the levels directory and subdirectories.
         """
         if not os.path.exists(self.levels_dir):
             print(f"Warning: Levels directory '{self.levels_dir}' not found.")
             return
         
-        # Get all .txt files in the levels directory
-        self.level_files = [
-            os.path.join(self.levels_dir, f) for f in os.listdir(self.levels_dir)
-            if f.endswith('.txt') and os.path.isfile(os.path.join(self.levels_dir, f))
-        ]
+        self.level_files = []
+        
+        # Get all .txt files in the levels directory and subdirectories
+        for root, dirs, files in os.walk(self.levels_dir):
+            for file in files:
+                if file.endswith('.txt'):
+                    self.level_files.append(os.path.join(root, file))
         
         # Sort level files alphabetically
         self.level_files.sort()

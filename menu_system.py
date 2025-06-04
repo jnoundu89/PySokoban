@@ -9,6 +9,7 @@ import os
 import sys
 import pygame
 from constants import TITLE, CELL_SIZE
+from level_selector import LevelSelector
 
 # Forward declaration to avoid circular import
 # This will be used in the _run_loop method to find the EnhancedSokoban instance
@@ -113,19 +114,29 @@ class MenuSystem:
     This class manages the different menu screens and transitions between them.
     """
     
-    def __init__(self, screen_width=800, screen_height=600):
+    def __init__(self, screen=None, screen_width=800, screen_height=600, levels_dir='levels'):
         """
         Initialize the menu system.
         
         Args:
+            screen: Pygame surface to draw on (optional, will create if None).
             screen_width (int): Width of the screen.
             screen_height (int): Height of the screen.
+            levels_dir (str): Directory containing level files.
         """
-        pygame.init()
+        # pygame.init() # Should be initialized by the main game
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
-        pygame.display.set_caption(f"{TITLE} - Menu")
+        self.levels_dir = levels_dir
+        
+        if screen is None:
+            # Standalone mode - create our own screen
+            pygame.init()
+            self.screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
+            pygame.display.set_caption(f"{TITLE} - Menu")
+        else:
+            # Integrated mode - use provided screen
+            self.screen = screen
         
         # Define colors
         self.colors = {
@@ -149,35 +160,89 @@ class MenuSystem:
             'editor': self._editor_menu,
             'settings': self._settings_menu,
             'skins': self._skins_menu,
-            'credits': self._credits_menu
+            'credits': self._credits_menu,
+            'start_game': self._start_game_state
         }
         self.current_state = 'main'
         self.running = False
         
-        # Create buttons for main menu
-        self._create_main_menu_buttons()
+        # Level selector
+        self.level_selector = None
+        self.selected_level_path = None
         
+        # Create buttons for all menu states
+        self.main_menu_buttons = []
+        self.play_menu_buttons = []
+        self.editor_menu_buttons = []
+        self.settings_menu_buttons = []
+        self.skins_menu_buttons = []
+        self.credits_menu_buttons = []
+        
+        self._recreate_all_buttons()
+        
+    def _recreate_all_buttons(self):
+        """Recreate all buttons, typically after a resize."""
+        self._create_main_menu_buttons()
+        self._create_play_menu_buttons()
+        self._create_editor_menu_buttons()
+        self._create_settings_menu_buttons()
+        self._create_skins_menu_buttons()
+        self._create_credits_menu_buttons()
+
     def _create_main_menu_buttons(self):
         """Create buttons for the main menu."""
         button_width = 200
         button_height = 50
         button_x = (self.screen_width - button_width) // 2
-        button_y_start = 200
-        button_spacing = 70
+        button_y_start = self.screen_height // 2 - (6 * button_height + 5 * 20) // 2 # Centered block
+        if button_y_start < 150: button_y_start = 150 # Ensure it's below title
+        
+        button_spacing = button_height + 20 # More robust spacing
         
         self.main_menu_buttons = [
-            Button("Play Game", button_x, button_y_start, button_width, button_height, 
-                   action=lambda: self._change_state('play')),
-            Button("Level Editor", button_x, button_y_start + button_spacing, button_width, button_height, 
-                   action=lambda: self._change_state('editor')),
-            Button("Settings", button_x, button_y_start + button_spacing * 2, button_width, button_height, 
+            Button("Play Game", button_x, button_y_start, button_width, button_height,
+                   action=None),  # Action will be set by EnhancedSokoban
+            Button("Level Editor", button_x, button_y_start + button_spacing, button_width, button_height,
+                   action=None),  # Action will be set by EnhancedSokoban
+            Button("Settings", button_x, button_y_start + button_spacing * 2, button_width, button_height,
                    action=lambda: self._change_state('settings')),
-            Button("Skins", button_x, button_y_start + button_spacing * 3, button_width, button_height, 
-                   action=lambda: self._change_state('skins')),
-            Button("Credits", button_x, button_y_start + button_spacing * 4, button_width, button_height, 
+            Button("Skins", button_x, button_y_start + button_spacing * 3, button_width, button_height,
+                   action=None),  # Action will be set by EnhancedSokoban
+            Button("Credits", button_x, button_y_start + button_spacing * 4, button_width, button_height,
                    action=lambda: self._change_state('credits')),
-            Button("Exit", button_x, button_y_start + button_spacing * 5, button_width, button_height, 
+            Button("Exit", button_x, button_y_start + button_spacing * 5, button_width, button_height,
                    action=self._exit_game, color=(200, 100, 100), hover_color=(255, 130, 130))
+        ]
+
+    def _create_play_menu_buttons(self):
+        """Create buttons for the play menu."""
+        self.play_menu_buttons = [
+            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+        ]
+
+    def _create_editor_menu_buttons(self):
+        """Create buttons for the editor menu."""
+        self.editor_menu_buttons = [
+            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+        ]
+
+    def _create_settings_menu_buttons(self):
+        """Create buttons for the settings menu."""
+        self.settings_menu_buttons = [
+            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+            # Add other settings buttons here if needed
+        ]
+
+    def _create_skins_menu_buttons(self):
+        """Create buttons for the skins menu."""
+        self.skins_menu_buttons = [
+            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+        ]
+
+    def _create_credits_menu_buttons(self):
+        """Create buttons for the credits menu."""
+        self.credits_menu_buttons = [
+            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
         ]
         
     def _change_state(self, new_state):
@@ -210,17 +275,31 @@ class MenuSystem:
                     self.running = False
                 elif event.type == pygame.VIDEORESIZE:
                     self.screen_width, self.screen_height = event.size
-                    self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
-                    self._create_main_menu_buttons()  # Recreate buttons for new size
+                    # Screen is resized by the main game, MenuSystem just needs to know
+                    # self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+                    self._recreate_all_buttons()  # Recreate buttons for new size
                 elif event.type == pygame.KEYDOWN:
                     # Check for ESC to return to main menu if not already there
                     if event.key == pygame.K_ESCAPE and self.current_state != 'main':
                         self._change_state('main')
                 
                 # Handle button events based on current state
+                active_buttons = []
                 if self.current_state == 'main':
-                    for button in self.main_menu_buttons:
-                        button.handle_event(event)
+                    active_buttons = self.main_menu_buttons
+                elif self.current_state == 'play':
+                    active_buttons = self.play_menu_buttons
+                elif self.current_state == 'editor':
+                    active_buttons = self.editor_menu_buttons
+                elif self.current_state == 'settings':
+                    active_buttons = self.settings_menu_buttons
+                elif self.current_state == 'skins':
+                    active_buttons = self.skins_menu_buttons
+                elif self.current_state == 'credits':
+                    active_buttons = self.credits_menu_buttons
+                
+                for button in active_buttons:
+                    button.handle_event(event)
             
             # Update current state
             self.states[self.current_state]()
@@ -260,49 +339,47 @@ class MenuSystem:
         
     def _play_menu(self):
         """Display the play menu (level selection)."""
-        # This will be implemented later
-        # For now, just show a placeholder
-        self.screen.fill(self.colors['background'])
+        # Create level selector if it doesn't exist
+        if self.level_selector is None:
+            self.level_selector = LevelSelector(
+                self.screen, self.screen_width, self.screen_height, self.levels_dir
+            )
         
-        # Draw title
-        title_surface = self.title_font.render("Play Game", True, self.colors['title'])
-        title_rect = title_surface.get_rect(center=(self.screen_width // 2, 100))
-        self.screen.blit(title_surface, title_rect)
+        # Start the level selector
+        selected_level = self.level_selector.start()
         
-        # Draw back button
-        back_button = Button("Back", 20, 20, 100, 40,
-                             action=lambda: self._change_state('main'))
-        back_button.update(pygame.mouse.get_pos())
-        back_button.draw(self.screen)
-        
-        # Handle back button events - we'll handle this in the main loop instead
-        # to avoid event queue issues
-            
-        pygame.display.flip()
+        if selected_level:
+            # A level was selected, store it and signal to start the game
+            self.selected_level_path = selected_level
+            self.current_state = 'start_game'
+        else:
+            # No level selected (user went back), return to main menu
+            self.current_state = 'main'
         
     def _editor_menu(self):
         """Display the editor menu."""
-        # This will be implemented later
         self.screen.fill(self.colors['background'])
         
         # Draw title
         title_surface = self.title_font.render("Level Editor", True, self.colors['title'])
         title_rect = title_surface.get_rect(center=(self.screen_width // 2, 100))
         self.screen.blit(title_surface, title_rect)
-        
-        # Draw back button
-        back_button = Button("Back", 20, 20, 100, 40,
-                             action=lambda: self._change_state('main'))
-        back_button.update(pygame.mouse.get_pos())
-        back_button.draw(self.screen)
-        
-        # Handle back button events - we'll handle this in the main loop instead
+
+        # Draw placeholder text
+        placeholder_text = self.text_font.render("Level editor interface will be here.", True, self.colors['text'])
+        placeholder_rect = placeholder_text.get_rect(center=(self.screen_width // 2, self.screen_height // 2))
+        self.screen.blit(placeholder_text, placeholder_rect)
+
+        # Update and draw buttons for this state
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.editor_menu_buttons:
+            button.update(mouse_pos)
+            button.draw(self.screen)
             
         pygame.display.flip()
         
     def _settings_menu(self):
         """Display the settings menu."""
-        # This will be implemented later
         self.screen.fill(self.colors['background'])
         
         # Draw title
@@ -322,35 +399,38 @@ class MenuSystem:
         instruction_rect = instruction_surface.get_rect(center=(self.screen_width // 2, 240))
         self.screen.blit(instruction_surface, instruction_rect)
         
-        # Draw back button
-        back_button = Button("Back", 20, 20, 100, 40,
-                             action=lambda: self._change_state('main'))
-        back_button.update(pygame.mouse.get_pos())
-        back_button.draw(self.screen)
+        # Update and draw buttons for this state
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.settings_menu_buttons:
+            button.update(mouse_pos)
+            button.draw(self.screen)
             
         pygame.display.flip()
         
     def _skins_menu(self):
         """Display the skins menu."""
-        # This will be implemented later
         self.screen.fill(self.colors['background'])
         
         # Draw title
         title_surface = self.title_font.render("Skins", True, self.colors['title'])
         title_rect = title_surface.get_rect(center=(self.screen_width // 2, 100))
         self.screen.blit(title_surface, title_rect)
-        
-        # Draw back button
-        back_button = Button("Back", 20, 20, 100, 40,
-                             action=lambda: self._change_state('main'))
-        back_button.update(pygame.mouse.get_pos())
-        back_button.draw(self.screen)
+
+        # Draw placeholder text
+        placeholder_text = self.text_font.render("Skin selection will be here.", True, self.colors['text'])
+        placeholder_rect = placeholder_text.get_rect(center=(self.screen_width // 2, self.screen_height // 2))
+        self.screen.blit(placeholder_text, placeholder_rect)
+
+        # Update and draw buttons for this state
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.skins_menu_buttons:
+            button.update(mouse_pos)
+            button.draw(self.screen)
             
         pygame.display.flip()
         
     def _credits_menu(self):
         """Display the credits menu."""
-        # This will be implemented later
         self.screen.fill(self.colors['background'])
         
         # Draw title
@@ -363,23 +443,32 @@ class MenuSystem:
             "Sokoban Game",
             "",
             "Original game concept by Hiroyuki Imabayashi",
-            "This implementation by [Your Name]",
+            "This implementation by Yassine EL IDRISSI",
             "",
             "Thanks for playing!"
         ]
         
+        text_y_start = self.screen_height // 2 - (len(credits) * 30) // 2
+        if text_y_start < 150 : text_y_start = 150
+
         for i, line in enumerate(credits):
             text_surface = self.text_font.render(line, True, self.colors['text'])
-            text_rect = text_surface.get_rect(center=(self.screen_width // 2, 200 + i * 30))
+            text_rect = text_surface.get_rect(center=(self.screen_width // 2, text_y_start + i * 30))
             self.screen.blit(text_surface, text_rect)
         
-        # Draw back button
-        back_button = Button("Back", 20, 20, 100, 40,
-                             action=lambda: self._change_state('main'))
-        back_button.update(pygame.mouse.get_pos())
-        back_button.draw(self.screen)
+        # Update and draw buttons for this state
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.credits_menu_buttons:
+            button.update(mouse_pos)
+            button.draw(self.screen)
             
         pygame.display.flip()
+        
+    def _start_game_state(self):
+        """Handle the start game state - this signals to the parent that a game should start."""
+        # This state is handled by the parent EnhancedSokoban class
+        # We just need to stop the menu loop so the parent can take over
+        self.running = False
 
 
 # Main function to run the menu system standalone

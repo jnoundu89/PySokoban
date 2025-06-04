@@ -122,6 +122,11 @@ class SokobanGUIGame:
         # Get the key name
         key_name = pygame.key.name(event.key)
         
+        # Check for Escape key to return to level selector
+        if key_name == 'escape':
+            self._return_to_level_selector()
+            return
+        
         # First check arrow keys (which work regardless of keyboard layout)
         if key_name == 'up':
             self._handle_movement('up')
@@ -148,7 +153,7 @@ class SokobanGUIGame:
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next' and self.level_manager.current_level_completed():
-                    self._next_level()
+                    self._return_to_level_selector()
                 elif action == 'previous':
                     self._prev_level()
                 elif action == 'undo':
@@ -186,58 +191,16 @@ class SokobanGUIGame:
             # Wait for a moment
             pygame.time.wait(1000)
             
-            # If there's a next level, go to it
-            if self.level_manager.has_next_level():
-                # Show a message to press 'n' for next level
-                waiting_for_next = True
-                while waiting_for_next and self.running:
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            self._quit_game()
-                            return
-                        elif event.type == pygame.KEYDOWN:
-                            # Use the 'n' key directly here for simplicity
-                            if pygame.key.name(event.key) == 'n':
-                                self._next_level()
-                                waiting_for_next = False
-                            elif pygame.key.name(event.key) == 'q':
-                                self._quit_game()
-                                return
-            else:
-                # Game completed!
-                self.renderer.render_game_over_screen(completed_all=True)
-                pygame.display.flip()
-                
-                # Wait for a key press to quit
-                waiting_for_quit = True
-                while waiting_for_quit and self.running:
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            self._quit_game()
-                            return
-                        elif event.type == pygame.KEYDOWN:
-                            self._quit_game()
-                            return
+            # Level completed - return to level selector
+            self._return_to_level_selector()
     
     def _next_level(self):
         """
         Load the next level.
         """
         if not self.level_manager.next_level():
-            # No more levels!
-            self.renderer.render_game_over_screen(completed_all=True)
-            pygame.display.flip()
-            
-            # Wait for a key press to quit
-            waiting_for_quit = True
-            while waiting_for_quit and self.running:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        self._quit_game()
-                        return
-                    elif event.type == pygame.KEYDOWN:
-                        self._quit_game()
-                        return
+            # No more levels - return to level selector
+            self._return_to_level_selector()
     
     def _prev_level(self):
         """
@@ -246,6 +209,18 @@ class SokobanGUIGame:
         if not self.level_manager.prev_level():
             # Already at the first level
             pass
+    
+    def _return_to_level_selector(self):
+        """
+        Return to the level selector.
+        """
+        self.running = False
+    
+    def _return_to_menu(self):
+        """
+        Return to the main menu.
+        """
+        self.running = False
     
     def _quit_game(self):
         """

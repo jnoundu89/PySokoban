@@ -20,6 +20,11 @@ from menu_system import MenuSystem
 from graphical_level_editor import GraphicalLevelEditor
 from sokoban_gui import SokobanGUIGame
 
+# Import for window maximization on Windows
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+
 class EnhancedSokoban:
     """
     Enhanced Sokoban game with additional features.
@@ -42,12 +47,19 @@ class EnhancedSokoban:
         """
         pygame.init()
         
-        # Initialize window
+        # Initialize window - start maximized
+        self.fullscreen = False
+        # Create initial window
         self.screen_width = 1024
         self.screen_height = 768
-        self.fullscreen = False
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
         pygame.display.set_caption(TITLE)
+        
+        # Maximize the window using OS-specific method
+        self._maximize_window()
+        
+        # Get actual screen size after maximizing
+        self.screen_width, self.screen_height = self.screen.get_size()
         
         # Initialize managers
         self.levels_dir = levels_dir
@@ -63,7 +75,7 @@ class EnhancedSokoban:
         self.current_state = 'menu'  # 'menu', 'playing', 'editor'
         
         # Create components
-        self.menu_system = MenuSystem(self.screen_width, self.screen_height)
+        self.menu_system = MenuSystem(self.screen, self.screen_width, self.screen_height, levels_dir)
         self.game = SokobanGUIGame(levels_dir)
         self.editor = GraphicalLevelEditor(levels_dir, screen=self.screen)
         
@@ -74,12 +86,10 @@ class EnhancedSokoban:
         }
         
         # Set up menu actions
-        self.menu_system.main_menu_buttons[0].action = self._start_game  # Play Game
-        self.menu_system.main_menu_buttons[1].action = self._start_editor  # Level Editor
-        self.menu_system.main_menu_buttons[2].action = self._show_settings  # Settings
-        self.menu_system.main_menu_buttons[3].action = self._show_skins  # Skins
-        self.menu_system.main_menu_buttons[4].action = self._show_credits  # Credits
-        self.menu_system.main_menu_buttons[5].action = self._exit_game  # Exit
+        self._setup_menu_actions()
+        
+        # Update all components with the maximized screen size
+        self._update_components_screen_size()
         
     def start(self):
         """Start the enhanced Sokoban game."""
@@ -108,71 +118,119 @@ class EnhancedSokoban:
         """Run the menu system."""
         print("_run_menu method called")
         self.menu_system.running = True
-        print("Menu system running set to True")
+        print(f"Menu system running set to True: {self.menu_system.running}")
         
-        # Add F11 key handler to the menu system
-        original_run_loop = self.menu_system._run_loop
+        clock = pygame.time.Clock()
+        loop_count = 0
         
-        def patched_run_loop():
-            clock = pygame.time.Clock()
+        while self.menu_system.running and self.running:
+            loop_count += 1
+            if loop_count == 1:
+                print(f"Entering menu loop, running: {self.menu_system.running}")
             
-            while self.menu_system.running:
-                # Handle events
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        self.menu_system.running = False
-                    elif event.type == pygame.VIDEORESIZE:
-                        self.screen_width, self.screen_height = event.size
-                        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
-                        self.menu_system.screen_width = self.screen_width
-                        self.menu_system.screen_height = self.screen_height
-                        self.menu_system.screen = self.screen
-                        self.menu_system._create_main_menu_buttons()
-                    elif event.type == pygame.KEYDOWN:
-                        # Check for F11 (fullscreen toggle) or ESC (exit fullscreen)
-                        if event.key == pygame.K_F11:
-                            self.toggle_fullscreen()
-                        elif event.key == pygame.K_ESCAPE and self.fullscreen:
-                            self.exit_fullscreen_if_active()
-                        elif event.key == pygame.K_ESCAPE and self.menu_system.current_state != 'main':
-                            # Return to main menu on ESC if not already there
-                            self.menu_system._change_state('main')
-                    
-                    # Handle button events based on current state
-                    if self.menu_system.current_state == 'main':
-                        for button in self.menu_system.main_menu_buttons:
-                            button.handle_event(event)
+            # Handle events
+            events = pygame.event.get()
+            if loop_count <= 5:  # Debug first few loops
+                print(f"Loop {loop_count}: Got {len(events)} events")
+            
+            for event in events:
+                if event.type == pygame.QUIT:
+                    print("QUIT event received")
+                    self.menu_system.running = False
+                    self.running = False
+                elif event.type == pygame.VIDEORESIZE:
+                    self.screen_width, self.screen_height = event.size
+                    self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+                    self._update_components_screen_size()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+                    elif event.key == pygame.K_ESCAPE and self.fullscreen:
+                        self.exit_fullscreen_if_active()
+                    elif event.key == pygame.K_ESCAPE and self.menu_system.current_state != 'main':
+                        self.menu_system._change_state('main')
                 
-                # Update current state
+                # Handle button events
+                active_buttons = []
+                if self.menu_system.current_state == 'main':
+                    active_buttons = self.menu_system.main_menu_buttons
+                elif self.menu_system.current_state == 'play':
+                    active_buttons = self.menu_system.play_menu_buttons
+                elif self.menu_system.current_state == 'editor':
+                    active_buttons = self.menu_system.editor_menu_buttons
+                elif self.menu_system.current_state == 'settings':
+                    active_buttons = self.menu_system.settings_menu_buttons
+                elif self.menu_system.current_state == 'skins':
+                    active_buttons = self.menu_system.skins_menu_buttons
+                elif self.menu_system.current_state == 'credits':
+                    active_buttons = self.menu_system.credits_menu_buttons
+                
+                for button in active_buttons:
+                    button.handle_event(event)
+            
+            # Update current state
+            try:
                 self.menu_system.states[self.menu_system.current_state]()
-                
-                # Cap the frame rate
-                clock.tick(60)
+            except Exception as e:
+                print(f"Error in menu state update: {e}")
+                break
+            
+            # Cap the frame rate
+            clock.tick(60)
+            
+            # Check if running status changed
+            if loop_count <= 5:
+                print(f"End of loop {loop_count}, running: {self.menu_system.running}")
         
-        # Replace the run loop method
-        self.menu_system._run_loop = patched_run_loop
-        
-        # Run the menu system
-        self.menu_system._run_loop()
-        
-        print("Menu system _run_loop completed")
+        print(f"Menu system loop completed after {loop_count} iterations")
+        print(f"Final menu_system.running: {self.menu_system.running}")
+        print(f"Final self.running: {self.running}")
         
         # Check if we're transitioning to another state or exiting the game
         if not self.menu_system.running and self.current_state == 'menu':
-            # Only exit the game if we're still in the menu state
-            # This means the menu was closed without transitioning to another state
-            print("Menu system running is False and still in menu state, exiting game")
-            self.running = False
+            # Check if a level was selected for playing
+            if self.menu_system.current_state == 'start_game' and self.menu_system.selected_level_path:
+                print(f"Starting game with selected level: {self.menu_system.selected_level_path}")
+                self.current_state = 'playing'
+                # Reset menu state for next time
+                self.menu_system.current_state = 'main'
+            else:
+                print("Menu system running is False and still in menu state, exiting game")
+                self.running = False
         else:
             print(f"Transitioning to state: {self.current_state}")
             
     def _run_game(self):
         """Run the game."""
+        # If a specific level was selected, load it
+        if self.menu_system.selected_level_path:
+            # Load the specific level
+            level_index = -1
+            if self.menu_system.selected_level_path in self.game.level_manager.level_files:
+                level_index = self.game.level_manager.level_files.index(self.menu_system.selected_level_path)
+            
+            if level_index >= 0:
+                self.game.level_manager.load_level(level_index)
+            else:
+                # If level not found in the list, try to load it directly
+                try:
+                    from level import Level
+                    self.game.level_manager.current_level = Level(level_file=self.menu_system.selected_level_path)
+                    self.game.level_manager.current_level_index = -1  # Indicate it's a custom level
+                except Exception as e:
+                    print(f"Failed to load selected level: {e}")
+                    # Fall back to first level
+                    self.game.level_manager.load_level(0)
+            
+            # Clear the selected level path
+            self.menu_system.selected_level_path = None
+        
         self.game.running = True
         self.game.game_loop()
         
-        # When game is closed, return to menu
+        # When game is closed, return to level selector (play menu)
         self.current_state = 'menu'
+        self.menu_system.current_state = 'play'
         
     def _run_editor(self):
         """Run the level editor."""
@@ -196,6 +254,10 @@ class EnhancedSokoban:
         """Start the game."""
         self.current_state = 'playing'
         self.menu_system.running = False
+        
+    def _show_level_selector(self):
+        """Show the level selector."""
+        self.menu_system._change_state('play')
         
     def _start_editor(self):
         """Start the level editor."""
@@ -253,7 +315,13 @@ class EnhancedSokoban:
         self.menu_system.screen_width = self.screen_width
         self.menu_system.screen_height = self.screen_height
         self.menu_system.screen = self.screen
-        self.menu_system._create_main_menu_buttons()
+        if hasattr(self.menu_system, '_recreate_all_buttons'): # Check if method exists from previous step
+            self.menu_system._recreate_all_buttons()
+            # Re-setup menu actions after recreating buttons
+            self._setup_menu_actions()
+        else: # Fallback if the method name was different or apply_diff failed more severely
+            self.menu_system._create_main_menu_buttons() # Attempt old method
+            self._setup_menu_actions()
         
         # Update editor
         self.editor.screen = self.screen
@@ -264,6 +332,45 @@ class EnhancedSokoban:
         if hasattr(self.game, 'renderer'):
             self.game.renderer.window_size = (self.screen_width, self.screen_height)
             self.game.renderer.screen = self.screen
+    
+    def _setup_menu_actions(self):
+        """Set up the actions for menu buttons."""
+        if len(self.menu_system.main_menu_buttons) >= 6:
+            self.menu_system.main_menu_buttons[0].action = self._show_level_selector  # Play Game
+            self.menu_system.main_menu_buttons[1].action = self._start_editor  # Level Editor
+            self.menu_system.main_menu_buttons[2].action = self._show_settings  # Settings
+            self.menu_system.main_menu_buttons[3].action = self._show_skins  # Skins
+            self.menu_system.main_menu_buttons[4].action = self._show_credits  # Credits
+            self.menu_system.main_menu_buttons[5].action = self._exit_game  # Exit
+    
+    def _maximize_window(self):
+        """Maximize the pygame window by setting it to screen size."""
+        try:
+            # Get screen dimensions
+            info = pygame.display.Info()
+            screen_w, screen_h = info.current_w, info.current_h
+            
+            # Set window to nearly full screen size (leave space for taskbar)
+            self.screen_width = screen_w - 10
+            self.screen_height = screen_h - 80  # Leave space for taskbar
+            
+            # Create the maximized window
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+            
+            # Try to position window at top-left if on Windows
+            if sys.platform == "win32":
+                try:
+                    import os
+                    os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'
+                except:
+                    pass
+                    
+        except Exception as e:
+            print(f"Could not maximize window: {e}")
+            # Fallback to default large window size
+            self.screen_width = 1200
+            self.screen_height = 800
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
     
     def _exit_game(self):
         """Exit the game."""
