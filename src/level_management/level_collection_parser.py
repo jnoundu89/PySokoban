@@ -126,8 +126,8 @@ class LevelCollectionParser:
             i += 1
         
         # Parse individual levels
+        # In this format, the title comes AFTER the level data
         current_level_lines = []
-        current_level_title = ""
         
         while i < len(lines):
             line = lines[i]
@@ -135,14 +135,14 @@ class LevelCollectionParser:
             # Check if this is a level title line
             title_match = re.match(r'^Title:\s*(.+)$', line.strip())
             if title_match:
-                # Save previous level if it exists
+                # The title applies to the level data we just collected
                 if current_level_lines:
                     level = LevelCollectionParser._create_level_from_lines(current_level_lines)
                     if level:
-                        collection.add_level(current_level_title, level)
+                        level_title = title_match.group(1).strip()
+                        collection.add_level(level_title, level)
                 
-                # Start new level
-                current_level_title = title_match.group(1).strip()
+                # Reset for next level
                 current_level_lines = []
             else:
                 # Add line to current level (skip empty lines at the start)
@@ -152,11 +152,12 @@ class LevelCollectionParser:
             
             i += 1
         
-        # Add the last level
+        # Add the last level if it exists (level without a title at the end)
         if current_level_lines:
             level = LevelCollectionParser._create_level_from_lines(current_level_lines)
             if level:
-                collection.add_level(current_level_title, level)
+                # This would be a level without a title at the end of the file
+                collection.add_level("Niveau sans titre", level)
         
         return collection
     

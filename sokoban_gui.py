@@ -9,10 +9,10 @@ This is the main module that starts the game with a GUI and handles user input.
 import os
 import sys
 import pygame
-from constants import KEY_BINDINGS, QWERTY, AZERTY, DEFAULT_KEYBOARD
-from level import Level
-from level_manager import LevelManager
-from gui_renderer import GUIRenderer
+from src.core.constants import KEY_BINDINGS, QWERTY, AZERTY, DEFAULT_KEYBOARD
+from src.core.level import Level
+from src.level_management.level_manager import LevelManager
+from src.renderers.gui_renderer import GUIRenderer
 
 
 class SokobanGUIGame:
@@ -37,7 +37,7 @@ class SokobanGUIGame:
         self.renderer = GUIRenderer()
         
         # Enhanced skin manager for directional sprites
-        from enhanced_skin_manager import EnhancedSkinManager
+        from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
         self.skin_manager = EnhancedSkinManager()
         self.running = False
         self.show_help = False

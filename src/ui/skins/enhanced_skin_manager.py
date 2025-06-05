@@ -237,9 +237,9 @@ class EnhancedSkinManager:
         
         # Base color depends on state
         if 'push' in direction:
-            player_color = (colors['player'][0] + 30, colors['player'][1], colors['player'][2])
+            player_color = (min(255, colors['player'][0] + 30), colors['player'][1], colors['player'][2])
         elif 'blocked' in direction:
-            player_color = (colors['player'][0], colors['player'][1], colors['player'][2] + 30)
+            player_color = (colors['player'][0], colors['player'][1], min(255, colors['player'][2] + 30))
         else:
             player_color = colors['player']
             

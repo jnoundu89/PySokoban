@@ -12,12 +12,12 @@ This module provides an enhanced version of the Sokoban game with additional fea
 import os
 import sys
 import pygame
-from constants import TITLE, CELL_SIZE
-from level import Level
-from level_manager import LevelManager
-from enhanced_skin_manager import EnhancedSkinManager
-from menu_system import MenuSystem
-from enhanced_level_editor import EnhancedLevelEditor
+from src.core.constants import TITLE, CELL_SIZE
+from src.core.level import Level
+from src.level_management.level_manager import LevelManager
+from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+from src.ui.menu_system import MenuSystem
+from src.editors.enhanced_level_editor import EnhancedLevelEditor
 from sokoban_gui import SokobanGUIGame
 
 # Import for window maximization on Windows
@@ -189,8 +189,8 @@ class EnhancedSokoban:
         # Check if we're transitioning to another state or exiting the game
         if not self.menu_system.running and self.current_state == 'menu':
             # Check if a level was selected for playing
-            if self.menu_system.current_state == 'start_game' and self.menu_system.selected_level_path:
-                print(f"Starting game with selected level: {self.menu_system.selected_level_path}")
+            if self.menu_system.current_state == 'start_game' and self.menu_system.selected_level_info:
+                print(f"Starting game with selected level: {self.menu_system.selected_level_info}")
                 self.current_state = 'playing'
                 # Reset menu state for next time
                 self.menu_system.current_state = 'main'
@@ -203,27 +203,38 @@ class EnhancedSokoban:
     def _run_game(self):
         """Run the game."""
         # If a specific level was selected, load it
-        if self.menu_system.selected_level_path:
-            # Load the specific level
-            level_index = -1
-            if self.menu_system.selected_level_path in self.game.level_manager.level_files:
-                level_index = self.game.level_manager.level_files.index(self.menu_system.selected_level_path)
+        if self.menu_system.selected_level_info:
+            level_info = self.menu_system.selected_level_info
             
-            if level_index >= 0:
-                self.game.level_manager.load_level(level_index)
-            else:
-                # If level not found in the list, try to load it directly
-                try:
-                    from level import Level
-                    self.game.level_manager.current_level = Level(level_file=self.menu_system.selected_level_path)
+            try:
+                from src.core.level import Level
+                from src.level_management.level_collection_parser import LevelCollectionParser
+                
+                if level_info['type'] == 'collection_level':
+                    # Load from collection
+                    collection = LevelCollectionParser.parse_file(level_info['collection_file'])
+                    level_title, level_object = collection.get_level(level_info['level_index'])
+                    # The collection parser already returns a Level object, so we can use it directly
+                    self.game.level_manager.current_level = level_object
                     self.game.level_manager.current_level_index = -1  # Indicate it's a custom level
-                except Exception as e:
-                    print(f"Failed to load selected level: {e}")
-                    # Fall back to first level
-                    self.game.level_manager.load_level(0)
+                    print(f"Loaded collection level: {level_title}")
+                elif level_info['type'] == 'single_level':
+                    # Load single level file
+                    self.game.level_manager.current_level = Level(level_file=level_info['file_path'])
+                    self.game.level_manager.current_level_index = -1  # Indicate it's a custom level
+                    print(f"Loaded single level: {level_info['title']}")
+                else:
+                    raise ValueError(f"Unknown level type: {level_info['type']}")
+                    
+            except Exception as e:
+                print(f"Failed to load selected level: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fall back to first level
+                self.game.level_manager.load_level(0)
             
-            # Clear the selected level path
-            self.menu_system.selected_level_path = None
+            # Clear the selected level info
+            self.menu_system.selected_level_info = None
         
         self.game.running = True
         self.game.game_loop()

@@ -58,7 +58,12 @@ class Level:
         Args:
             level_string (str): Level data as a string.
         """
-        lines = level_string.strip().split('\n')
+        lines = level_string.split('\n')
+        # Remove empty lines from the beginning and end, but preserve internal spacing
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
         self._parse_level(lines)
     
     def load_from_file(self, filename):
@@ -90,9 +95,17 @@ class Level:
         self.boxes = []
         self.targets = []
         
-        # Normalize line lengths
+        # Normalize line lengths while preserving original spacing
         max_width = max(len(line) for line in lines)
-        lines = [line.ljust(max_width) for line in lines]
+        # Only pad lines that are shorter than max_width, preserving original content
+        normalized_lines = []
+        for line in lines:
+            if len(line) < max_width:
+                # Pad with spaces to the right to reach max_width
+                normalized_lines.append(line + ' ' * (max_width - len(line)))
+            else:
+                normalized_lines.append(line)
+        lines = normalized_lines
         
         self.height = len(lines)
         self.width = max_width
