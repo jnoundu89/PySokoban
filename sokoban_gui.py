@@ -35,9 +35,21 @@ class SokobanGUIGame:
         """
         self.level_manager = LevelManager(levels_dir)
         self.renderer = GUIRenderer()
+        
+        # Enhanced skin manager for directional sprites
+        from enhanced_skin_manager import EnhancedSkinManager
+        self.skin_manager = EnhancedSkinManager()
         self.running = False
         self.show_help = False
+        self.show_grid = False  # Grid toggle functionality
         self.keyboard_layout = keyboard_layout
+        
+        # Zoom and scroll for better level viewing
+        self.zoom_level = 1.0
+        self.min_zoom = 0.5
+        self.max_zoom = 3.0
+        self.scroll_x = 0
+        self.scroll_y = 0
         
         # Check if keyboard layout is valid
         if self.keyboard_layout not in [QWERTY, AZERTY]:
@@ -93,6 +105,12 @@ class SokobanGUIGame:
                                 continue
                     else:
                         self._handle_key_event(event)
+                elif event.type == pygame.MOUSEWHEEL:
+                    # Handle zoom with mouse wheel
+                    if event.y > 0:  # Scroll up - zoom in
+                        self.zoom_level = min(self.max_zoom, self.zoom_level * 1.1)
+                    else:  # Scroll down - zoom out
+                        self.zoom_level = max(self.min_zoom, self.zoom_level / 1.1)
                 elif event.type == pygame.VIDEORESIZE:
                     # Update renderer with new screen size
                     self.renderer.window_size = (event.w, event.h)
@@ -102,7 +120,8 @@ class SokobanGUIGame:
             if self.show_help:
                 self.renderer.render_help()
             else:
-                self.renderer.render_level(self.level_manager.current_level, self.level_manager)
+                self.renderer.render_level(self.level_manager.current_level, self.level_manager,
+                                         self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager)
             
             # Cap the frame rate
             clock.tick(60)
@@ -160,6 +179,8 @@ class SokobanGUIGame:
                     self.level_manager.current_level.undo()
                 elif action == 'help':
                     self.show_help = True
+                elif action == 'grid':
+                    self.show_grid = not self.show_grid
     
     def _handle_movement(self, direction):
         """
@@ -179,13 +200,31 @@ class SokobanGUIGame:
         elif direction == 'right':
             dx = 1
         
+        # Check if move would push a box
+        player_x, player_y = self.level_manager.current_level.player_pos
+        new_x, new_y = player_x + dx, player_y + dy
+        is_pushing = (new_x, new_y) in self.level_manager.current_level.boxes
+        
+        # Check if move is blocked using the existing can_move method
+        is_blocked = not self.level_manager.current_level.can_move(dx, dy)
+        if is_pushing:
+            # Check if box can be pushed
+            box_new_x, box_new_y = new_x + dx, new_y + dy
+            # Check if the box destination is valid (not a wall and not another box)
+            is_blocked = (self.level_manager.current_level.is_wall(box_new_x, box_new_y) or
+                         self.level_manager.current_level.is_box(box_new_x, box_new_y))
+        
+        # Update player state in skin manager
+        self.skin_manager.update_player_state(direction, is_pushing, is_blocked)
+        
         # Try to move the player
         moved = self.level_manager.current_level.move(dx, dy)
         
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():
             # Render the completed level
-            self.renderer.render_level(self.level_manager.current_level, self.level_manager)
+            self.renderer.render_level(self.level_manager.current_level, self.level_manager,
+                                     self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager)
             pygame.display.flip()
             
             # Wait for a moment

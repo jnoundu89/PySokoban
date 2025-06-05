@@ -64,6 +64,7 @@ KEY_BINDINGS = {
         'p': 'previous',
         'u': 'undo',
         'h': 'help',
+        'g': 'grid',
         'f11': 'fullscreen'
     },
     AZERTY: {
@@ -81,6 +82,7 @@ KEY_BINDINGS = {
         'p': 'previous',
         'u': 'undo',
         'h': 'help',
+        'g': 'grid',
         'f11': 'fullscreen'
     }
 }

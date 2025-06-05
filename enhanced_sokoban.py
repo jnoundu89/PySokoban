@@ -15,9 +15,9 @@ import pygame
 from constants import TITLE, CELL_SIZE
 from level import Level
 from level_manager import LevelManager
-from skin_manager import SkinManager
+from enhanced_skin_manager import EnhancedSkinManager
 from menu_system import MenuSystem
-from graphical_level_editor import GraphicalLevelEditor
+from enhanced_level_editor import EnhancedLevelEditor
 from sokoban_gui import SokobanGUIGame
 
 # Import for window maximization on Windows
@@ -64,7 +64,7 @@ class EnhancedSokoban:
         # Initialize managers
         self.levels_dir = levels_dir
         self.level_manager = LevelManager(levels_dir)
-        self.skin_manager = SkinManager()
+        self.skin_manager = EnhancedSkinManager()
         
         # Check if levels directory exists, create it if not
         if not os.path.exists(levels_dir):
@@ -77,7 +77,7 @@ class EnhancedSokoban:
         # Create components
         self.menu_system = MenuSystem(self.screen, self.screen_width, self.screen_height, levels_dir)
         self.game = SokobanGUIGame(levels_dir)
-        self.editor = GraphicalLevelEditor(levels_dir, screen=self.screen)
+        self.editor = EnhancedLevelEditor(levels_dir, screen=self.screen)
         
         # Set up fullscreen toggle key handler
         self.key_handlers = {

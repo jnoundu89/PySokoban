@@ -49,7 +49,9 @@ class Button:
         self.hover_color = hover_color
         self.text_color = text_color
         self.current_color = self.color
-        self.font = pygame.font.Font(None, 32)
+        # Responsive font size based on button height
+        font_size = min(max(16, height // 2), 36)
+        self.font = pygame.font.Font(None, font_size)
         
     def draw(self, screen):
         """
@@ -148,10 +150,11 @@ class MenuSystem:
             'title': (70, 70, 150)
         }
         
-        # Load fonts
-        self.title_font = pygame.font.Font(None, 64)
-        self.subtitle_font = pygame.font.Font(None, 36)
-        self.text_font = pygame.font.Font(None, 24)
+        # Load fonts (will be updated in _update_fonts)
+        self.title_font = None
+        self.subtitle_font = None
+        self.text_font = None
+        self._update_fonts()
         
         # Menu states
         self.states = {
@@ -180,8 +183,20 @@ class MenuSystem:
         
         self._recreate_all_buttons()
         
+    def _update_fonts(self):
+        """Update fonts based on screen size."""
+        # Responsive font sizing
+        title_size = min(max(32, self.screen_width // 20), 80)
+        subtitle_size = min(max(24, self.screen_width // 30), 48)
+        text_size = min(max(16, self.screen_width // 50), 32)
+        
+        self.title_font = pygame.font.Font(None, title_size)
+        self.subtitle_font = pygame.font.Font(None, subtitle_size)
+        self.text_font = pygame.font.Font(None, text_size)
+
     def _recreate_all_buttons(self):
         """Recreate all buttons, typically after a resize."""
+        self._update_fonts()
         self._create_main_menu_buttons()
         self._create_play_menu_buttons()
         self._create_editor_menu_buttons()
@@ -191,13 +206,14 @@ class MenuSystem:
 
     def _create_main_menu_buttons(self):
         """Create buttons for the main menu."""
-        button_width = 200
-        button_height = 50
+        # Responsive button sizing based on screen size
+        button_width = min(max(200, self.screen_width // 6), 300)
+        button_height = min(max(40, self.screen_height // 20), 60)
         button_x = (self.screen_width - button_width) // 2
         button_y_start = self.screen_height // 2 - (6 * button_height + 5 * 20) // 2 # Centered block
         if button_y_start < 150: button_y_start = 150 # Ensure it's below title
         
-        button_spacing = button_height + 20 # More robust spacing
+        button_spacing = button_height + max(15, self.screen_height // 40) # Responsive spacing
         
         self.main_menu_buttons = [
             Button("Play Game", button_x, button_y_start, button_width, button_height,
@@ -216,33 +232,53 @@ class MenuSystem:
 
     def _create_play_menu_buttons(self):
         """Create buttons for the play menu."""
+        button_width = min(max(80, self.screen_width // 12), 120)
+        button_height = min(max(30, self.screen_height // 25), 50)
+        margin = max(15, self.screen_width // 60)
+        
         self.play_menu_buttons = [
-            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+            Button("Back", margin, self.screen_height - button_height - margin, button_width, button_height, action=lambda: self._change_state('main'))
         ]
 
     def _create_editor_menu_buttons(self):
         """Create buttons for the editor menu."""
+        button_width = min(max(80, self.screen_width // 12), 120)
+        button_height = min(max(30, self.screen_height // 25), 50)
+        margin = max(15, self.screen_width // 60)
+        
         self.editor_menu_buttons = [
-            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+            Button("Back", margin, self.screen_height - button_height - margin, button_width, button_height, action=lambda: self._change_state('main'))
         ]
 
     def _create_settings_menu_buttons(self):
         """Create buttons for the settings menu."""
+        button_width = min(max(80, self.screen_width // 12), 120)
+        button_height = min(max(30, self.screen_height // 25), 50)
+        margin = max(15, self.screen_width // 60)
+        
         self.settings_menu_buttons = [
-            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+            Button("Back", margin, self.screen_height - button_height - margin, button_width, button_height, action=lambda: self._change_state('main'))
             # Add other settings buttons here if needed
         ]
 
     def _create_skins_menu_buttons(self):
         """Create buttons for the skins menu."""
+        button_width = min(max(80, self.screen_width // 12), 120)
+        button_height = min(max(30, self.screen_height // 25), 50)
+        margin = max(15, self.screen_width // 60)
+        
         self.skins_menu_buttons = [
-            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+            Button("Back", margin, self.screen_height - button_height - margin, button_width, button_height, action=lambda: self._change_state('main'))
         ]
 
     def _create_credits_menu_buttons(self):
         """Create buttons for the credits menu."""
+        button_width = min(max(80, self.screen_width // 12), 120)
+        button_height = min(max(30, self.screen_height // 25), 50)
+        margin = max(15, self.screen_width // 60)
+        
         self.credits_menu_buttons = [
-            Button("Back", 20, self.screen_height - 60, 100, 40, action=lambda: self._change_state('main'))
+            Button("Back", margin, self.screen_height - button_height - margin, button_width, button_height, action=lambda: self._change_state('main'))
         ]
         
     def _change_state(self, new_state):
@@ -409,25 +445,17 @@ class MenuSystem:
         
     def _skins_menu(self):
         """Display the skins menu."""
-        self.screen.fill(self.colors['background'])
+        # Import here to avoid circular imports
+        from skins_menu import SkinsMenu
+        from enhanced_skin_manager import EnhancedSkinManager
         
-        # Draw title
-        title_surface = self.title_font.render("Skins", True, self.colors['title'])
-        title_rect = title_surface.get_rect(center=(self.screen_width // 2, 100))
-        self.screen.blit(title_surface, title_rect)
-
-        # Draw placeholder text
-        placeholder_text = self.text_font.render("Skin selection will be here.", True, self.colors['text'])
-        placeholder_rect = placeholder_text.get_rect(center=(self.screen_width // 2, self.screen_height // 2))
-        self.screen.blit(placeholder_text, placeholder_rect)
-
-        # Update and draw buttons for this state
-        mouse_pos = pygame.mouse.get_pos()
-        for button in self.skins_menu_buttons:
-            button.update(mouse_pos)
-            button.draw(self.screen)
-            
-        pygame.display.flip()
+        # Create and run the skins menu
+        skin_manager = EnhancedSkinManager()
+        skins_menu = SkinsMenu(self.screen, self.screen_width, self.screen_height, skin_manager)
+        skins_menu.start()
+        
+        # Return to main menu after skins menu closes
+        self.current_state = 'main'
         
     def _credits_menu(self):
         """Display the credits menu."""

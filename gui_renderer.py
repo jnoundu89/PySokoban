@@ -170,13 +170,18 @@ class GUIRenderer:
                                      CELL_SIZE*2//3, CELL_SIZE*2//3))
         return surface
     
-    def render_level(self, level, level_manager=None):
+    def render_level(self, level, level_manager=None, show_grid=False, zoom_level=1.0, scroll_x=0, scroll_y=0, skin_manager=None):
         """
         Render the current level state in the GUI.
         
         Args:
             level: The Level object to render.
             level_manager: Optional LevelManager object for additional information.
+            show_grid: Whether to show grid lines.
+            zoom_level: Zoom level for the display.
+            scroll_x: Horizontal scroll offset.
+            scroll_y: Vertical scroll offset.
+            skin_manager: Optional enhanced skin manager for directional sprites.
             
         Returns:
             pygame.Surface: The updated screen surface.
@@ -185,40 +190,68 @@ class GUIRenderer:
         current_screen_width, current_screen_height = self.screen.get_size()
         
         # Calculate base window size needed for the level
-        base_window_width = level.width * CELL_SIZE
-        base_window_height = level.height * CELL_SIZE + 50  # Extra space for stats
+        base_cell_size = CELL_SIZE * zoom_level
+        base_window_width = level.width * base_cell_size
+        base_window_height = level.height * base_cell_size + 100  # Extra space for stats
         
         # Check if we're in a resized window (including fullscreen)
         if current_screen_width > base_window_width or current_screen_height > base_window_height:
             # We're in a larger window, calculate scaling
             width_scale = current_screen_width / base_window_width
             height_scale = current_screen_height / base_window_height
-            self.scale_factor = min(width_scale, height_scale) * 0.9  # Use 90% of available space
+            self.scale_factor = min(width_scale, height_scale, zoom_level) * 0.9  # Use 90% of available space
             
-            # Calculate centered position
-            offset_x = (current_screen_width - (base_window_width * self.scale_factor)) // 2
-            offset_y = (current_screen_height - (base_window_height * self.scale_factor)) // 2
+            # Calculate centered position with scroll offset
+            offset_x = (current_screen_width - (base_window_width * self.scale_factor / zoom_level)) // 2 + scroll_x
+            offset_y = (current_screen_height - (base_window_height * self.scale_factor / zoom_level)) // 2 + scroll_y
         else:
-            # We're in a normal window, use default size
-            self.window_size = (base_window_width, base_window_height)
-            self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
-            self.scale_factor = 1.0
-            offset_x = 0
-            offset_y = 0
+            # We're in a normal window, use zoom level directly
+            if base_window_width <= current_screen_width and base_window_height <= current_screen_height:
+                self.scale_factor = zoom_level
+                offset_x = (current_screen_width - base_window_width) // 2 + scroll_x
+                offset_y = (current_screen_height - base_window_height) // 2 + scroll_y
+            else:
+                # Need to fit in window
+                width_scale = current_screen_width / base_window_width
+                height_scale = (current_screen_height - 100) / (base_window_height - 100)
+                self.scale_factor = min(width_scale, height_scale) * 0.9
+                offset_x = (current_screen_width - (level.width * CELL_SIZE * self.scale_factor)) // 2 + scroll_x
+                offset_y = (current_screen_height - (level.height * CELL_SIZE * self.scale_factor + 100)) // 2 + scroll_y
         
         # Clear the screen
         self.screen.fill(self.colors['background'])
         
-        # Scale assets if needed
-        scaled_assets = {}
-        if self.scale_factor != 1.0:
-            scaled_size = int(CELL_SIZE * self.scale_factor)
-            for key, asset in self.assets.items():
-                scaled_assets[key] = pygame.transform.scale(asset, (scaled_size, scaled_size))
+        # Get assets from skin manager if available, otherwise use default
+        if skin_manager:
+            assets_to_use = skin_manager.get_skin()
+            # Update tile size if different
+            if skin_manager.get_current_tile_size() != CELL_SIZE:
+                # Scale assets to match expected cell size
+                scaled_assets = {}
+                target_size = int(CELL_SIZE * self.scale_factor)
+                for key, asset in assets_to_use.items():
+                    scaled_assets[key] = pygame.transform.scale(asset, (target_size, target_size))
+            else:
+                # Scale assets if needed
+                scaled_assets = {}
+                if self.scale_factor != 1.0:
+                    scaled_size = int(CELL_SIZE * self.scale_factor)
+                    for key, asset in assets_to_use.items():
+                        scaled_assets[key] = pygame.transform.scale(asset, (scaled_size, scaled_size))
+                else:
+                    scaled_assets = assets_to_use
         else:
-            scaled_assets = self.assets
+            # Use default assets
+            scaled_assets = {}
+            if self.scale_factor != 1.0:
+                scaled_size = int(CELL_SIZE * self.scale_factor)
+                for key, asset in self.assets.items():
+                    scaled_assets[key] = pygame.transform.scale(asset, (scaled_size, scaled_size))
+            else:
+                scaled_assets = self.assets
         
         # Render the level
+        cell_size_scaled = int(CELL_SIZE * self.scale_factor)
         for y in range(level.height):
             for x in range(level.width):
                 char = level.get_display_char(x, y)
@@ -227,24 +260,65 @@ class GUIRenderer:
                 pos = (pos_x, pos_y)
                 
                 if char == WALL:
-                    self.screen.blit(scaled_assets['wall'], pos)
+                    if WALL in scaled_assets:
+                        self.screen.blit(scaled_assets[WALL], pos)
                 elif char == PLAYER:
-                    self.screen.blit(scaled_assets['floor'], pos)
-                    self.screen.blit(scaled_assets['player'], pos)
+                    if FLOOR in scaled_assets:
+                        self.screen.blit(scaled_assets[FLOOR], pos)
+                    # Use directional player sprite if available
+                    if skin_manager:
+                        player_sprite = skin_manager.get_player_sprite()
+                        if player_sprite:
+                            # Scale the sprite if needed
+                            if self.scale_factor != 1.0:
+                                target_size = int(CELL_SIZE * self.scale_factor)
+                                player_sprite = pygame.transform.scale(player_sprite, (target_size, target_size))
+                            self.screen.blit(player_sprite, pos)
+                    elif PLAYER in scaled_assets:
+                        self.screen.blit(scaled_assets[PLAYER], pos)
                 elif char == BOX:
-                    self.screen.blit(scaled_assets['floor'], pos)
-                    self.screen.blit(scaled_assets['box'], pos)
+                    if FLOOR in scaled_assets:
+                        self.screen.blit(scaled_assets[FLOOR], pos)
+                    if BOX in scaled_assets:
+                        self.screen.blit(scaled_assets[BOX], pos)
                 elif char == TARGET:
-                    self.screen.blit(scaled_assets['floor'], pos)
-                    self.screen.blit(scaled_assets['target'], pos)
+                    if FLOOR in scaled_assets:
+                        self.screen.blit(scaled_assets[FLOOR], pos)
+                    if TARGET in scaled_assets:
+                        self.screen.blit(scaled_assets[TARGET], pos)
                 elif char == PLAYER_ON_TARGET:
-                    self.screen.blit(scaled_assets['floor'], pos)
-                    self.screen.blit(scaled_assets['player_on_target'], pos)
+                    if FLOOR in scaled_assets:
+                        self.screen.blit(scaled_assets[FLOOR], pos)
+                    if PLAYER_ON_TARGET in scaled_assets:
+                        self.screen.blit(scaled_assets[PLAYER_ON_TARGET], pos)
                 elif char == BOX_ON_TARGET:
-                    self.screen.blit(scaled_assets['floor'], pos)
-                    self.screen.blit(scaled_assets['box_on_target'], pos)
+                    if FLOOR in scaled_assets:
+                        self.screen.blit(scaled_assets[FLOOR], pos)
+                    if BOX_ON_TARGET in scaled_assets:
+                        self.screen.blit(scaled_assets[BOX_ON_TARGET], pos)
                 else:  # FLOOR
-                    self.screen.blit(scaled_assets['floor'], pos)
+                    if FLOOR in scaled_assets:
+                        self.screen.blit(scaled_assets[FLOOR], pos)
+        
+        # Draw grid if enabled
+        if show_grid and self.scale_factor >= 0.5:  # Only show grid when zoomed in enough
+            grid_color = (100, 100, 100, 128)  # Semi-transparent gray
+            
+            # Vertical lines
+            for x in range(level.width + 1):
+                line_x = offset_x + int(x * CELL_SIZE * self.scale_factor)
+                start_y = offset_y
+                end_y = offset_y + int(level.height * CELL_SIZE * self.scale_factor)
+                if 0 <= line_x <= current_screen_width:
+                    pygame.draw.line(self.screen, grid_color[:3], (line_x, start_y), (line_x, end_y), 1)
+            
+            # Horizontal lines
+            for y in range(level.height + 1):
+                line_y = offset_y + int(y * CELL_SIZE * self.scale_factor)
+                start_x = offset_x
+                end_x = offset_x + int(level.width * CELL_SIZE * self.scale_factor)
+                if 0 <= line_y <= current_screen_height:
+                    pygame.draw.line(self.screen, grid_color[:3], (start_x, line_y), (end_x, line_y), 1)
         
         # Render game statistics
         stats_text = f"Moves: {level.moves}  Pushes: {level.pushes}"
