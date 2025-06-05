@@ -11,6 +11,7 @@ This module provides an interactive menu for managing skins and sprite settings:
 import os
 import pygame
 from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+from src.ui.skins.custom_skin_importer import CustomSkinImporter
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, TITLE
 
 class SkinsMenu:
@@ -37,6 +38,9 @@ class SkinsMenu:
             self.skin_manager = skin_manager
         else:
             self.skin_manager = EnhancedSkinManager()
+            
+        # Initialize custom skin importer
+        self.skin_importer = CustomSkinImporter(skins_directory=self.skin_manager.skins_dir, screen=screen)
             
         # Menu state
         self.running = False
@@ -89,6 +93,22 @@ class SkinsMenu:
             'rect': pygame.Rect(20, self.screen_height - 60, 100, 40),
             'text': 'Back',
             'action': self._go_back,
+            'type': 'navigation'
+        })
+        
+        # Import Skin button
+        self.buttons.append({
+            'rect': pygame.Rect(self.screen_width - 350, self.screen_height - 60, 120, 40),
+            'text': 'Import Skin',
+            'action': self._import_custom_skin,
+            'type': 'navigation'
+        })
+        
+        # Refresh button
+        self.buttons.append({
+            'rect': pygame.Rect(self.screen_width - 220, self.screen_height - 60, 80, 40),
+            'text': 'Refresh',
+            'action': self._refresh_skins,
             'type': 'navigation'
         })
         
@@ -180,6 +200,41 @@ class SkinsMenu:
         """Go back to the previous menu."""
         self.running = False
         
+    def _import_custom_skin(self):
+        """Import a custom skin from PNG files."""
+        try:
+            # Get current tile size
+            current_tile_size = self.available_tile_sizes[self.selected_tile_size_index]
+            
+            # Import skin
+            imported_skin_name = self.skin_importer.import_skin(current_tile_size)
+            
+            if imported_skin_name:
+                # Refresh the available skins
+                self._refresh_skins()
+                
+                # Select the newly imported skin
+                if imported_skin_name in self.available_skins:
+                    self.selected_skin_index = self.available_skins.index(imported_skin_name)
+                    self._update_preview()
+                    
+        except Exception as e:
+            print(f"Error importing custom skin: {e}")
+            
+    def _refresh_skins(self):
+        """Refresh the list of available skins."""
+        # Rediscover skins
+        self.skin_manager._discover_skins()
+        self.available_skins = self.skin_manager.get_available_skins()
+        
+        # Validate current selection
+        if self.selected_skin_index >= len(self.available_skins):
+            self.selected_skin_index = 0
+            
+        # Recreate UI elements to reflect new skins
+        self._create_ui_elements()
+        self._update_preview()
+        
     def start(self):
         """Start the skins menu."""
         self.running = True
@@ -230,6 +285,7 @@ class SkinsMenu:
         self._draw_skin_selection()
         self._draw_tile_size_selection()
         self._draw_preview()
+        self._draw_import_info()
         self._draw_buttons()
         
         # Update display
@@ -364,6 +420,37 @@ class SkinsMenu:
         info_surface = self.text_font.render(info_text, True, self.colors['text'])
         info_rect = info_surface.get_rect(center=(self.preview_rect.centerx, info_y))
         self.screen.blit(info_surface, info_rect)
+        
+    def _draw_import_info(self):
+        """Draw import information and instructions."""
+        # Draw import instructions panel
+        info_y = 450
+        info_width = min(600, self.screen_width - 100)
+        info_height = 120
+        info_x = (self.screen_width - info_width) // 2
+        
+        # Panel background
+        info_rect = pygame.Rect(info_x, info_y, info_width, info_height)
+        pygame.draw.rect(self.screen, self.colors['panel'], info_rect, 0, 10)
+        pygame.draw.rect(self.screen, self.colors['border'], info_rect, 2, 10)
+        
+        # Title
+        title_surface = self.subtitle_font.render("Custom Skin Import", True, self.colors['text'])
+        title_rect = title_surface.get_rect(center=(info_rect.centerx, info_y + 20))
+        self.screen.blit(title_surface, title_rect)
+        
+        # Instructions
+        instructions = [
+            f"• Click 'Import Skin' to add custom sprites",
+            f"• PNG files should be {self.available_tile_sizes[self.selected_tile_size_index]}x{self.available_tile_sizes[self.selected_tile_size_index]} pixels for current tile size",
+            f"• Required: wall, floor, player, box, target sprites",
+            f"• Optional: directional player sprites, background image"
+        ]
+        
+        for i, instruction in enumerate(instructions):
+            text_surface = self.small_font.render(instruction, True, self.colors['text'])
+            text_y = info_y + 45 + i * 18
+            self.screen.blit(text_surface, (info_x + 20, text_y))
         
     def _draw_buttons(self):
         """Draw navigation buttons."""

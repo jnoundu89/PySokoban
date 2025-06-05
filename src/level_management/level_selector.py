@@ -8,6 +8,7 @@ import os
 import pygame
 from src.core.constants import TITLE, CELL_SIZE
 from src.level_management.level_collection_parser import LevelCollectionParser
+from src.ui.level_preview import LevelPreview
 
 class LevelCategory:
     """Represents a category of levels."""
@@ -140,6 +141,10 @@ class LevelSelector:
         # Scroll management
         self.scroll_offset = 0
         self.max_visible_buttons = 10  # Maximum buttons visible at once
+        
+        # Level preview
+        self.level_preview = LevelPreview(screen, screen_width, screen_height)
+        self.popup_open = False  # Flag to track if popup is open
         
         # Load level categories
         self.categories = self._load_level_categories()
@@ -372,23 +377,35 @@ class LevelSelector:
         self._create_level_buttons()
     
     def _select_level_info(self, level_info):
-        """Select a level from level info and exit the selector."""
-        if level_info.is_from_collection:
-            # Store collection info for the game to use
-            self.selected_level = {
-                'type': 'collection_level',
-                'collection_file': level_info.collection_file,
-                'level_index': level_info.level_index,
-                'title': level_info.title
-            }
-        else:
-            # Single level file
-            self.selected_level = {
-                'type': 'single_level',
-                'file_path': level_info.collection_file,
-                'title': level_info.title
-            }
-        self.running = False
+        """Show level preview and handle the user's choice."""
+        # Set popup flag to disable level button handling
+        self.popup_open = True
+        
+        # Show the level preview popup
+        action = self.level_preview.show_level_preview(level_info)
+        
+        # Reset popup flag
+        self.popup_open = False
+        
+        if action == 'play':
+            # User wants to play the level
+            if level_info.is_from_collection:
+                # Store collection info for the game to use
+                self.selected_level = {
+                    'type': 'collection_level',
+                    'collection_file': level_info.collection_file,
+                    'level_index': level_info.level_index,
+                    'title': level_info.title
+                }
+            else:
+                # Single level file
+                self.selected_level = {
+                    'type': 'single_level',
+                    'file_path': level_info.collection_file,
+                    'title': level_info.title
+                }
+            self.running = False
+        # If action is 'back', we just continue in the level selection
     
     def _select_level(self, level_path):
         """Select a level and exit the selector (legacy method)."""
@@ -452,17 +469,18 @@ class LevelSelector:
                     self.screen_width, self.screen_height = event.size
                     self._create_buttons()
                 
-                # Handle button events
-                active_buttons = []
-                if self.current_view == 'categories':
-                    active_buttons = self.category_buttons
-                elif self.current_view == 'levels':
-                    active_buttons = self.level_buttons
-                
-                active_buttons.append(self.back_button)
-                
-                for button in active_buttons:
-                    button.handle_event(event)
+                # Handle button events only if popup is not open
+                if not self.popup_open:
+                    active_buttons = []
+                    if self.current_view == 'categories':
+                        active_buttons = self.category_buttons
+                    elif self.current_view == 'levels':
+                        active_buttons = self.level_buttons
+                    
+                    active_buttons.append(self.back_button)
+                    
+                    for button in active_buttons:
+                        button.handle_event(event)
             
             # Render the current view
             if self.current_view == 'categories':

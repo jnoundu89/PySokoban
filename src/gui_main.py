@@ -193,32 +193,32 @@ class GUIGame(Game):
                     self.show_help = True
                 elif action == 'grid':
                     self.show_grid = not self.show_grid
-   
-   def _handle_continuous_movement(self):
-       """
-       Handle continuous movement when keys are held down.
-       """
-       if self.show_help:
-           return
-       
-       # Check for movement keys
-       movement_keys = {
-           pygame.K_UP: 'up',
-           pygame.K_DOWN: 'down',
-           pygame.K_LEFT: 'left',
-           pygame.K_RIGHT: 'right',
-           pygame.K_w: 'up',
-           pygame.K_s: 'down',
-           pygame.K_a: 'left',
-           pygame.K_d: 'right'
-       }
-       
-       for key in self.keys_pressed:
-           if key in movement_keys:
-               self._handle_movement(movement_keys[key])
-               break  # Only handle one movement at a time
-   
-   def _handle_movement(self, direction):
+    
+    def _handle_continuous_movement(self):
+        """
+        Handle continuous movement when keys are held down.
+        """
+        if self.show_help:
+            return
+        
+        # Check for movement keys
+        movement_keys = {
+            pygame.K_UP: 'up',
+            pygame.K_DOWN: 'down',
+            pygame.K_LEFT: 'left',
+            pygame.K_RIGHT: 'right',
+            pygame.K_w: 'up',
+            pygame.K_s: 'down',
+            pygame.K_a: 'left',
+            pygame.K_d: 'right'
+        }
+        
+        for key in self.keys_pressed:
+            if key in movement_keys:
+                self._handle_movement(movement_keys[key])
+                break  # Only handle one movement at a time
+    
+    def _handle_movement(self, direction):
         """
         Handle player movement.
         

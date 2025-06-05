@@ -18,15 +18,16 @@ class EnhancedSkinManager:
     Enhanced class for managing game skins and sprites.
     """
     
-    def __init__(self, skins_dir='assets'):
+    def __init__(self, skins_dir='skins'):
         """
         Initialize the enhanced skin manager.
         
         Args:
             skins_dir (str): Directory containing skin files.
         """
-        # Update the skins directory to be relative to this file
-        self.skins_dir = os.path.join(os.path.dirname(__file__), skins_dir)
+        # Update the skins directory to be relative to project root
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        self.skins_dir = os.path.join(project_root, skins_dir)
         self.current_skin = 'default'
         self.tile_size = 64  # Current tile size
         self.available_tile_sizes = [8, 16, 32, 64, 128]
