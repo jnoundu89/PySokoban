@@ -1,0 +1,1 @@
+# Level editors module for PySokoban

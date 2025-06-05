@@ -1,0 +1,4 @@
+include README.md
+recursive-include levels *.txt
+recursive-include skins *.png
+recursive-include docs *.md
