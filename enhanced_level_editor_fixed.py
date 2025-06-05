@@ -608,4 +608,491 @@ class EnhancedLevelEditor:
         status_lines = [
             f"Mode: {'Test' if self.test_mode else 'Edit'}",
             f"Element: {next((e['name'] for e in self.palette if e['char'] == self.current_element), 'None')}",
-            f"Zoom: {self.zoom_level:.1f}x
+            f"Zoom: {self.zoom_level:.1f}x",
+            f"Grid: {'On' if self.show_grid else 'Off'}",
+            f"Unsaved: {'Yes' if self.unsaved_changes else 'No'}"
+        ]
+        
+        # Calculate spacing to distribute status info evenly, avoiding button areas
+        available_width = self.screen_width - 300  # Leave more space for buttons
+        status_spacing = available_width // len(status_lines)
+        
+        for i, line in enumerate(status_lines):
+            status_surface = self.small_font.render(line, True, self.colors['text'])
+            x_pos = self.ui_margin + i * status_spacing
+            self.screen.blit(status_surface, (x_pos, status_y))
+        
+        # Draw bottom buttons
+        for button in self.buttons:
+            if button['section'] == 'bottom':
+                self._draw_button(button)
+                
+    def _draw_button(self, button):
+        """Draw a button."""
+        # Button background
+        if button['rect'].collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(self.screen, self.colors['button_hover'], button['rect'], 0, 5)
+        else:
+            pygame.draw.rect(self.screen, self.colors['button'], button['rect'], 0, 5)
+        
+        # Button border
+        pygame.draw.rect(self.screen, self.colors['border'], button['rect'], 1, 5)
+        
+        # Button text
+        text_surface = self.small_font.render(button['text'], True, self.colors['button_text'])
+        text_rect = text_surface.get_rect(center=button['rect'].center)
+        self.screen.blit(text_surface, text_rect)
+        
+    def _draw_slider(self, slider):
+        """Draw a slider."""
+        # Label
+        label_surface = self.small_font.render(f"{slider['label']}: {slider['value']}",
+                                             True, self.colors['text'])
+        self.screen.blit(label_surface, (slider['rect'].x, slider['rect'].y - 20))
+        
+        # Slider track
+        pygame.draw.rect(self.screen, (200, 200, 200), slider['rect'])
+        pygame.draw.rect(self.screen, self.colors['border'], slider['rect'], 1)
+        
+        # Slider handle
+        handle_pos = (slider['value'] - slider['min']) / (slider['max'] - slider['min'])
+        handle_x = slider['rect'].x + handle_pos * (slider['rect'].width - 10)
+        handle_rect = pygame.Rect(handle_x, slider['rect'].y - 2, 10, slider['rect'].height + 4)
+        pygame.draw.rect(self.screen, self.colors['button'], handle_rect)
+        pygame.draw.rect(self.screen, self.colors['border'], handle_rect, 1)
+        
+    def _draw_help_overlay(self):
+        """Draw the help overlay."""
+        # Semi-transparent overlay
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0, 0))
+        
+        # Help content
+        help_width = 600
+        help_height = 500
+        help_x = (self.screen_width - help_width) // 2
+        help_y = (self.screen_height - help_height) // 2
+        
+        help_rect = pygame.Rect(help_x, help_y, help_width, help_height)
+        pygame.draw.rect(self.screen, (240, 240, 240), help_rect)
+        pygame.draw.rect(self.screen, self.colors['border'], help_rect, 2)
+        
+        # Help text
+        help_lines = [
+            "Enhanced Level Editor Help",
+            "",
+            "Mouse Controls:",
+            "• Left Click: Place selected element",
+            "• Right Click: Place floor (erase)",
+            "• Middle Click + Drag: Pan view",
+            "• Mouse Wheel: Zoom in/out",
+            "",
+            "Keyboard Shortcuts:",
+            "• G: Toggle grid",
+            "• T: Toggle test mode",
+            "• H: Toggle help",
+            "• Arrow Keys: Scroll map (in edit mode)",
+            "• WASD: Move player (in test mode)",
+            "• Escape: Exit test mode or editor",
+            "",
+            "Features:",
+            "• Auto-fit zoom on level creation",
+            "• White grid lines for visibility",
+            "• Complete state restoration in test mode",
+            "• Right-click always places floor",
+            "",
+            "Press any key to close help"
+        ]
+        
+        # Draw help text
+        for i, line in enumerate(help_lines):
+            if line == "":
+                continue
+            color = self.colors['text'] if not line.startswith("Enhanced") else (0, 100, 200)
+            line_surface = self.text_font.render(line, True, color)
+            self.screen.blit(line_surface, (help_x + 30, help_y + 40 + i * 20))
+            
+    def _draw_metrics_overlay(self):
+        """Draw the metrics overlay with current level information."""
+        if not self.current_level:
+            return
+            
+        # Metrics panel on the right
+        metrics_width = 300
+        metrics_height = 400
+        metrics_x = self.screen_width - metrics_width - 20
+        metrics_y = 100
+        
+        metrics_rect = pygame.Rect(metrics_x, metrics_y, metrics_width, metrics_height)
+        
+        # Semi-transparent background
+        overlay = pygame.Surface((metrics_width, metrics_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (metrics_x, metrics_y))
+        
+        # Border
+        pygame.draw.rect(self.screen, self.colors['border'], metrics_rect, 2)
+        
+        # Title
+        title_surface = self.title_font.render("Level Metrics", True, (255, 255, 255))
+        self.screen.blit(title_surface, (metrics_x + 20, metrics_y + 20))
+        
+        # Calculate level statistics
+        wall_count = sum(row.count(WALL) for row in self.current_level.map_data)
+        floor_count = sum(row.count(FLOOR) for row in self.current_level.map_data)
+        total_cells = self.current_level.width * self.current_level.height
+        
+        # Metrics content
+        metrics_text = [
+            f"Size: {self.current_level.width}x{self.current_level.height}",
+            f"Total cells: {total_cells}",
+            f"Walls: {wall_count}",
+            f"Floors: {floor_count}",
+            f"Boxes: {len(self.current_level.boxes)}",
+            f"Targets: {len(self.current_level.targets)}",
+            f"Player: {'Set' if self.current_level.player_pos != (0, 0) else 'Not set'}",
+            f"Zoom: {self.zoom_level:.2f}x",
+            f"Valid: {'Yes' if len(self.current_level.boxes) == len(self.current_level.targets) and len(self.current_level.boxes) > 0 and self.current_level.player_pos != (0, 0) else 'No'}"
+        ]
+        
+        for i, text in enumerate(metrics_text):
+            text_surface = self.text_font.render(text, True, (255, 255, 255))
+            self.screen.blit(text_surface, (metrics_x + 20, metrics_y + 60 + i * 25))
+            
+    # Dialog methods
+    def _show_new_level_dialog(self):
+        """Show dialog to create a new level."""
+        self._create_new_level(self.map_width, self.map_height)
+        
+    def _show_open_level_dialog(self):
+        """Show dialog to open an existing level."""
+        # Get list of level files
+        level_files = self.level_manager.level_files
+        if not level_files:
+            return
+            
+        # Simple implementation - just load the first level for now
+        # In a full implementation, this would show a proper dialog
+        try:
+            self.current_level = Level(level_file=level_files[0])
+            self.unsaved_changes = False
+            self._reset_view()
+        except Exception as e:
+            print(f"Error opening level: {e}")
+            
+    def _show_save_level_dialog(self):
+        """Show dialog to save the current level."""
+        if not self.current_level:
+            return
+            
+        # Simple implementation - save with timestamp
+        import time
+        filename = f"level_{int(time.time())}.txt"
+        self._save_level(filename)
+        
+    def _save_level(self, filename):
+        """Save the current level to a file."""
+        if not filename:
+            return
+            
+        # Add .txt extension if not provided
+        if not filename.endswith('.txt'):
+            filename += '.txt'
+            
+        # Create full path
+        level_path = os.path.join(self.levels_dir, filename)
+        
+        # Save the level
+        level_string = self.current_level.get_state_string()
+        
+        try:
+            with open(level_path, 'w') as file:
+                file.write(level_string)
+                
+            self.unsaved_changes = False
+            
+            # Reload level files in level manager
+            self.level_manager._load_level_files()
+        except Exception as e:
+            print(f"Error saving level: {e}")
+            
+    def _toggle_test_mode(self):
+        """Toggle test mode to play the current level."""
+        if self._validate_level(show_dialog=False):
+            self.test_mode = not self.test_mode
+            
+            if self.test_mode:
+                # Save complete initial state for testing
+                self.initial_level_state = {
+                    'player_pos': self.current_level.player_pos,
+                    'boxes': self.current_level.boxes.copy(),
+                    'targets': self.current_level.targets.copy(),
+                    'map_data': [row[:] for row in self.current_level.map_data]  # Deep copy
+                }
+            else:
+                # Restore complete initial state after testing
+                if self.initial_level_state:
+                    self.current_level.player_pos = self.initial_level_state['player_pos']
+                    self.current_level.boxes = self.initial_level_state['boxes'].copy()
+                    self.current_level.targets = self.initial_level_state['targets'].copy()
+                    self.current_level.map_data = [row[:] for row in self.initial_level_state['map_data']]
+                
+    def _validate_level(self, show_dialog=True):
+        """Validate the current level."""
+        if not self.current_level:
+            return False
+            
+        # Check if level has a player
+        has_player = self.current_level.player_pos != (0, 0)
+        
+        # Check if level has at least one box and target
+        has_boxes = len(self.current_level.boxes) > 0
+        has_targets = len(self.current_level.targets) > 0
+        
+        # Check if number of boxes matches number of targets
+        boxes_match_targets = len(self.current_level.boxes) == len(self.current_level.targets)
+        
+        # Check if level is valid
+        is_valid = has_player and has_boxes and has_targets and boxes_match_targets
+        
+        if show_dialog:
+            # Simple validation message (in a full implementation, this would be a proper dialog)
+            status = "Valid" if is_valid else "Invalid"
+            print(f"Level validation: {status}")
+            if not is_valid:
+                print(f"Player: {has_player}, Boxes: {has_boxes}, Targets: {has_targets}, Match: {boxes_match_targets}")
+                
+        return is_valid
+        
+    def _show_generate_dialog(self):
+        """Show dialog to generate a random level."""
+        # Simple implementation - generate with default parameters
+        try:
+            params = {
+                'min_width': 10,
+                'max_width': 15,
+                'min_height': 10,
+                'max_height': 15,
+                'min_boxes': 3,
+                'max_boxes': 6,
+                'wall_density': 0.2
+            }
+            
+            if self.level_manager.generate_random_level(params):
+                self.current_level = self.level_manager.current_level
+                self.unsaved_changes = True
+                self._reset_view()
+        except Exception as e:
+            print(f"Error generating level: {e}")
+            
+    def _toggle_help(self):
+        """Toggle help screen."""
+        self.show_help = not self.show_help
+        
+    def _toggle_metrics(self):
+        """Toggle metrics display."""
+        self.show_metrics = not self.show_metrics
+        
+    def _exit_editor(self):
+        """Exit the editor."""
+        if self.unsaved_changes:
+            # In a full implementation, this would show a confirmation dialog
+            print("Warning: Unsaved changes will be lost!")
+        self.running = False
+        
+    def _handle_slider_click(self, mouse_pos, slider):
+        """Handle slider interaction."""
+        if slider['rect'].collidepoint(mouse_pos):
+            # Calculate new value based on mouse position
+            relative_x = mouse_pos[0] - slider['rect'].x
+            ratio = relative_x / slider['rect'].width
+            ratio = max(0, min(1, ratio))  # Clamp to 0-1
+            
+            new_value = int(slider['min'] + ratio * (slider['max'] - slider['min']))
+            if new_value != slider['value']:
+                slider['value'] = new_value
+                slider['callback'](new_value)
+                
+    def start(self):
+        """Start the enhanced level editor."""
+        try:
+            self.running = True
+            clock = pygame.time.Clock()
+            
+            # Store the current display caption to restore it later
+            original_caption = pygame.display.get_caption()[0]
+            if not self.using_shared_screen:
+                pygame.display.set_caption(f"{TITLE} - Enhanced Level Editor")
+            
+            while self.running:
+                # Handle events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self._exit_editor()
+                    elif event.type == pygame.KEYDOWN:
+                        self._handle_key_event(event)
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        self._handle_mouse_down(event)
+                    elif event.type == pygame.MOUSEBUTTONUP:
+                        self._handle_mouse_up(event)
+                    elif event.type == pygame.MOUSEMOTION:
+                        self._handle_mouse_motion(event)
+                    elif event.type == pygame.MOUSEWHEEL:
+                        self._handle_mouse_wheel(event)
+                    elif event.type == pygame.VIDEORESIZE:
+                        self._handle_resize(event)
+                
+                # Draw the editor
+                self._draw_editor()
+                
+                # Cap the frame rate
+                clock.tick(60)
+            
+            # Restore original caption when exiting
+            if not self.using_shared_screen:
+                pygame.display.set_caption(original_caption)
+                pygame.quit()
+            
+        except Exception as e:
+            print(f"Error in enhanced level editor: {e}")
+            import traceback
+            traceback.print_exc()
+            
+    def _handle_key_event(self, event):
+        """Handle keyboard events."""
+        if event.key == pygame.K_ESCAPE:
+            if self.show_help:
+                self.show_help = False
+            elif self.test_mode:
+                self._toggle_test_mode()
+            else:
+                self._exit_editor()
+        elif event.key == pygame.K_h:
+            self._toggle_help()
+        elif event.key == pygame.K_g:
+            self._toggle_grid()
+        elif event.key == pygame.K_t:
+            self._toggle_test_mode()
+        elif event.key == pygame.K_m:
+            self._toggle_metrics()
+        elif self.test_mode:
+            # Handle keyboard movement in test mode
+            dx, dy = 0, 0
+            if event.key == pygame.K_UP or event.key == pygame.K_w:
+                dy = -1
+            elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                dy = 1
+            elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
+                dx = -1
+            elif event.key == pygame.K_RIGHT or event.key == pygame.K_d:
+                dx = 1
+                
+            if dx != 0 or dy != 0:
+                self.current_level.move(dx, dy)
+        else:
+            # Handle scrolling in edit mode
+            scroll_speed = 20
+            if event.key == pygame.K_UP:
+                self._handle_scroll(0, scroll_speed)
+            elif event.key == pygame.K_DOWN:
+                self._handle_scroll(0, -scroll_speed)
+            elif event.key == pygame.K_LEFT:
+                self._handle_scroll(scroll_speed, 0)
+            elif event.key == pygame.K_RIGHT:
+                self._handle_scroll(-scroll_speed, 0)
+                
+    def _handle_mouse_down(self, event):
+        """Handle mouse button down events."""
+        mouse_pos = pygame.mouse.get_pos()
+        
+        # Check button clicks
+        for button in self.buttons:
+            if button['rect'].collidepoint(mouse_pos):
+                button['action']()
+                return
+                
+        # Check slider clicks
+        for slider in self.sliders:
+            if slider['rect'].collidepoint(mouse_pos):
+                self._handle_slider_click(mouse_pos, slider)
+                return
+                
+        # Check palette clicks (left panel) or right panel clicks
+        if mouse_pos[0] < self.tool_panel_width:
+            self._handle_palette_click(mouse_pos)
+            return
+        elif mouse_pos[0] > self.screen_width - self.right_panel_width:
+            # Right panel clicks are handled by button checks above
+            return
+            
+        # Check map area clicks
+        if self._is_in_map_area(mouse_pos):
+            if event.button == 2:  # Middle mouse button - start dragging
+                self.mouse_dragging = True
+                self.drag_start_pos = mouse_pos
+                self.drag_start_scroll = (self.scroll_x, self.scroll_y)
+            else:
+                self.paint_mode = True
+                self.last_painted_cell = None
+                self._handle_grid_click(mouse_pos, event.button)
+            
+    def _handle_mouse_up(self, event):
+        """Handle mouse button up events."""
+        if event.button == 2:  # Middle mouse button
+            self.mouse_dragging = False
+            self.drag_start_pos = None
+            self.drag_start_scroll = None
+        else:
+            self.paint_mode = False
+            self.last_painted_cell = None
+        
+    def _handle_mouse_motion(self, event):
+        """Handle mouse motion events."""
+        mouse_pos = pygame.mouse.get_pos()
+        
+        if self.mouse_dragging and self.drag_start_pos and self.drag_start_scroll:
+            # Handle middle mouse dragging for panning
+            dx = mouse_pos[0] - self.drag_start_pos[0]
+            dy = mouse_pos[1] - self.drag_start_pos[1]
+            
+            self.scroll_x = self.drag_start_scroll[0] + dx
+            self.scroll_y = self.drag_start_scroll[1] + dy
+            
+            # Apply scroll limits
+            if self.current_level:
+                max_scroll_x = max(0, self.current_level.width * CELL_SIZE * self.zoom_level - self.map_area_width)
+                max_scroll_y = max(0, self.current_level.height * CELL_SIZE * self.zoom_level - self.map_area_height)
+                
+                self.scroll_x = max(-self.map_area_width // 2, min(max_scroll_x, self.scroll_x))
+                self.scroll_y = max(-self.map_area_height // 2, min(max_scroll_y, self.scroll_y))
+                
+        elif self.paint_mode and self._is_in_map_area(mouse_pos):
+            # Continue painting while dragging
+            self._handle_grid_click(mouse_pos, 1, is_drag=True)
+            
+    def _handle_mouse_wheel(self, event):
+        """Handle mouse wheel events for zooming."""
+        if self._is_in_map_area(pygame.mouse.get_pos()):
+            if event.y > 0:
+                self._zoom_in()
+            else:
+                self._zoom_out()
+                
+    def _handle_resize(self, event):
+        """Handle window resize events."""
+        self.screen_width, self.screen_height = event.size
+        if not self.using_shared_screen:
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+        self._update_ui_layout()
+
+
+# Main function to run the enhanced level editor standalone
+def main():
+    """Main function to run the enhanced level editor."""
+    editor = EnhancedLevelEditor()
+    editor.start()
+
+
+if __name__ == "__main__":
+    main()
