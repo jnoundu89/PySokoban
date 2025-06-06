@@ -44,6 +44,15 @@ class SokobanGUIGame:
         self.show_grid = False  # Grid toggle functionality
         self.keyboard_layout = keyboard_layout
         
+        # Load config manager for movement cooldown
+        from src.core.config_manager import get_config_manager
+        self.config_manager = get_config_manager()
+        
+        # Movement cooldown system
+        self.movement_cooldown = self.config_manager.get('game', 'movement_cooldown', 200)
+        self.last_movement_time = 0
+        self.held_keys = set()  # Track which keys are currently held down
+        
         # Zoom and scroll for better level viewing
         self.zoom_level = 1.0
         self.min_zoom = 0.5
@@ -88,6 +97,8 @@ class SokobanGUIGame:
         clock = pygame.time.Clock()
         
         while self.running:
+            current_time = pygame.time.get_ticks()
+            
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -104,7 +115,12 @@ class SokobanGUIGame:
                             except:
                                 continue
                     else:
+                        # Add key to held keys set
+                        self.held_keys.add(event.key)
                         self._handle_key_event(event)
+                elif event.type == pygame.KEYUP:
+                    # Remove key from held keys set
+                    self.held_keys.discard(event.key)
                 elif event.type == pygame.MOUSEWHEEL:
                     # Handle zoom with mouse wheel
                     if event.y > 0:  # Scroll up - zoom in
@@ -115,6 +131,10 @@ class SokobanGUIGame:
                     # Update renderer with new screen size
                     self.renderer.window_size = (event.w, event.h)
                     self.renderer.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+            
+            # Handle held keys with cooldown (for continuous movement)
+            if current_time - self.last_movement_time >= self.movement_cooldown:
+                self._handle_held_keys(current_time)
             
             # Render the current state
             if self.show_help:
@@ -128,7 +148,7 @@ class SokobanGUIGame:
     
     def _handle_key_event(self, event):
         """
-        Handle keyboard events.
+        Handle keyboard events (immediate response for first press).
         
         Args:
             event: Pygame key event.
@@ -137,6 +157,9 @@ class SokobanGUIGame:
         if self.show_help:
             self.show_help = False
             return
+        
+        # Refresh movement cooldown from config in case it was changed
+        self.movement_cooldown = self.config_manager.get('game', 'movement_cooldown', 200)
         
         # Get the key name
         key_name = pygame.key.name(event.key)
@@ -148,25 +171,25 @@ class SokobanGUIGame:
         
         # First check arrow keys (which work regardless of keyboard layout)
         if key_name == 'up':
-            self._handle_movement('up')
+            self._handle_movement('up', immediate=True)
         elif key_name == 'down':
-            self._handle_movement('down')
+            self._handle_movement('down', immediate=True)
         elif key_name == 'left':
-            self._handle_movement('left')
+            self._handle_movement('left', immediate=True)
         elif key_name == 'right':
-            self._handle_movement('right')
+            self._handle_movement('right', immediate=True)
         else:
             # Check against the current keyboard layout bindings
             action = KEY_BINDINGS[self.keyboard_layout].get(key_name)
             if action:
                 if action == 'up':
-                    self._handle_movement('up')
+                    self._handle_movement('up', immediate=True)
                 elif action == 'down':
-                    self._handle_movement('down')
+                    self._handle_movement('down', immediate=True)
                 elif action == 'left':
-                    self._handle_movement('left')
+                    self._handle_movement('left', immediate=True)
                 elif action == 'right':
-                    self._handle_movement('right')
+                    self._handle_movement('right', immediate=True)
                 elif action == 'reset':
                     self.level_manager.reset_current_level()
                 elif action == 'quit':
@@ -182,13 +205,55 @@ class SokobanGUIGame:
                 elif action == 'grid':
                     self.show_grid = not self.show_grid
     
-    def _handle_movement(self, direction):
+    def _handle_held_keys(self, current_time):
         """
-        Handle player movement.
+        Handle keys that are being held down (with cooldown for continuous movement).
+        
+        Args:
+            current_time: Current time in milliseconds.
+        """
+        if not self.held_keys:
+            return
+            
+        # Check for movement keys in held keys
+        movement_keys = []
+        
+        # Check arrow keys
+        if pygame.K_UP in self.held_keys:
+            movement_keys.append('up')
+        if pygame.K_DOWN in self.held_keys:
+            movement_keys.append('down')
+        if pygame.K_LEFT in self.held_keys:
+            movement_keys.append('left')
+        if pygame.K_RIGHT in self.held_keys:
+            movement_keys.append('right')
+        
+        # Check keyboard layout specific keys
+        for key in self.held_keys:
+            key_name = pygame.key.name(key)
+            action = KEY_BINDINGS[self.keyboard_layout].get(key_name)
+            if action in ['up', 'down', 'left', 'right'] and action not in movement_keys:
+                movement_keys.append(action)
+        
+        # If we have movement keys held, execute the first one found
+        if movement_keys:
+            self._handle_movement(movement_keys[0], immediate=False)
+    
+    def _handle_movement(self, direction, immediate=False):
+        """
+        Handle player movement with cooldown control.
         
         Args:
             direction (str): Direction to move ('up', 'down', 'left', 'right').
+            immediate (bool): Whether this is an immediate response (first key press) or continuous movement.
         """
+        current_time = pygame.time.get_ticks()
+        
+        # For immediate movements (first key press), allow without cooldown check
+        # For continuous movements, check cooldown
+        if not immediate and current_time - self.last_movement_time < self.movement_cooldown:
+            return
+        
         dx, dy = 0, 0
         
         if direction == 'up':
@@ -219,6 +284,10 @@ class SokobanGUIGame:
         
         # Try to move the player
         moved = self.level_manager.current_level.move(dx, dy)
+        
+        # Update last movement time only if the move was successful
+        if moved:
+            self.last_movement_time = current_time
         
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():

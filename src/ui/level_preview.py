@@ -130,28 +130,34 @@ class LevelPreview:
         while self.running:
             # Handle events
             for event in pygame.event.get():
+                event_handled = False
+                
                 if event.type == pygame.QUIT:
                     self.selected_action = 'back'
                     self.running = False
+                    event_handled = True
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.selected_action = 'back'
                         self.running = False
+                        event_handled = True
                     elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                         self.selected_action = 'play'
                         self.running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN:
+                        event_handled = True
+                elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEBUTTONUP:
                     if event.button == 1:  # Left click
-                        # Check if click is outside popup to close
-                        mouse_x, mouse_y = pygame.mouse.get_pos()
-                        if not (self.popup_x <= mouse_x <= self.popup_x + self.popup_width and
-                                self.popup_y <= mouse_y <= self.popup_y + self.popup_height):
-                            self.selected_action = 'back'
-                            self.running = False
-                
-                # Handle button events
-                self.play_button.handle_event(event)
-                self.back_button.handle_event(event)
+                        # First check if buttons handle the event
+                        if self.play_button.handle_event(event) or self.back_button.handle_event(event):
+                            event_handled = True
+                        elif event.type == pygame.MOUSEBUTTONUP:
+                            # Check if click release is outside popup to close (only on UP event)
+                            mouse_x, mouse_y = pygame.mouse.get_pos()
+                            if not (self.popup_x <= mouse_x <= self.popup_x + self.popup_width and
+                                    self.popup_y <= mouse_y <= self.popup_y + self.popup_height):
+                                self.selected_action = 'back'
+                                self.running = False
+                                event_handled = True
             
             # Render
             self._render()
@@ -287,7 +293,7 @@ class LevelPreview:
 class Button:
     """A clickable button for the level preview."""
     
-    def __init__(self, text, x, y, width, height, action=None, color=(100, 100, 200), 
+    def __init__(self, text, x, y, width, height, action=None, color=(100, 100, 200),
                  hover_color=(130, 130, 255), text_color=(255, 255, 255)):
         """Initialize a button."""
         self.text = text
@@ -301,6 +307,7 @@ class Button:
         self.text_color = text_color
         self.current_color = self.color
         self.font = pygame.font.Font(None, 32)
+        self.is_pressed = False  # Track if button is being pressed
         
     def draw(self, screen):
         """Draw the button on the screen."""
@@ -325,7 +332,13 @@ class Button:
         """Handle mouse events for the button."""
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.is_hovered(pygame.mouse.get_pos()):
+                self.is_pressed = True
+                return True
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            if self.is_pressed and self.is_hovered(pygame.mouse.get_pos()):
+                self.is_pressed = False
                 if self.action:
                     self.action()
                 return True
+            self.is_pressed = False
         return False

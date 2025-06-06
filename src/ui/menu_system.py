@@ -109,6 +109,129 @@ class Button:
                     self.action()
                 return True
         return False
+
+class Slider:
+    """
+    A slider component for adjusting numerical values.
+    """
+    
+    def __init__(self, x, y, width, height, min_value, max_value, current_value, label="",
+                 color=(100, 100, 200), handle_color=(255, 255, 255), text_color=(255, 255, 255)):
+        """
+        Initialize a slider.
+        
+        Args:
+            x (int): X position of the slider.
+            y (int): Y position of the slider.
+            width (int): Width of the slider.
+            height (int): Height of the slider.
+            min_value (float): Minimum value.
+            max_value (float): Maximum value.
+            current_value (float): Current value.
+            label (str): Label text for the slider.
+            color: RGB color tuple for the slider track.
+            handle_color: RGB color tuple for the slider handle.
+            text_color: RGB color tuple for the text.
+        """
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.min_value = min_value
+        self.max_value = max_value
+        self.current_value = current_value
+        self.label = label
+        self.color = color
+        self.handle_color = handle_color
+        self.text_color = text_color
+        self.dragging = False
+        
+        # Calculate handle properties
+        self.handle_width = 20
+        self.handle_height = height + 4
+        self.track_height = height // 3
+        
+        # Font for text
+        font_size = min(max(14, height), 24)
+        self.font = pygame.font.Font(None, font_size)
+        
+    def get_handle_x(self):
+        """Get the X position of the handle based on current value."""
+        ratio = (self.current_value - self.min_value) / (self.max_value - self.min_value)
+        return self.x + ratio * (self.width - self.handle_width)
+        
+    def draw(self, screen):
+        """
+        Draw the slider on the screen.
+        
+        Args:
+            screen: Pygame surface to draw on.
+        """
+        # Draw label
+        if self.label:
+            label_surface = self.font.render(self.label, True, self.text_color)
+            screen.blit(label_surface, (self.x, self.y - 25))
+        
+        # Draw track
+        track_y = self.y + (self.height - self.track_height) // 2
+        pygame.draw.rect(screen, self.color,
+                        (self.x, track_y, self.width, self.track_height), 0, 5)
+        
+        # Draw handle
+        handle_x = self.get_handle_x()
+        handle_y = self.y - 2
+        pygame.draw.rect(screen, self.handle_color,
+                        (handle_x, handle_y, self.handle_width, self.handle_height), 0, 8)
+        
+        # Draw current value
+        value_text = f"{int(self.current_value)}"
+        value_surface = self.font.render(value_text, True, self.text_color)
+        value_rect = value_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height + 20))
+        screen.blit(value_surface, value_rect)
+        
+    def handle_event(self, event):
+        """
+        Handle mouse events for the slider.
+        
+        Args:
+            event: Pygame event to handle.
+            
+        Returns:
+            bool: True if the value changed, False otherwise.
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouse_x, mouse_y = event.pos
+            handle_x = self.get_handle_x()
+            
+            # Check if clicking on handle
+            if (handle_x <= mouse_x <= handle_x + self.handle_width and
+                self.y - 2 <= mouse_y <= self.y + self.handle_height - 2):
+                self.dragging = True
+                return False
+            
+            # Check if clicking on track
+            elif (self.x <= mouse_x <= self.x + self.width and
+                  self.y <= mouse_y <= self.y + self.height):
+                # Set value based on click position
+                ratio = (mouse_x - self.x) / self.width
+                old_value = self.current_value
+                self.current_value = self.min_value + ratio * (self.max_value - self.min_value)
+                self.current_value = max(self.min_value, min(self.max_value, self.current_value))
+                return old_value != self.current_value
+                
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.dragging = False
+            
+        elif event.type == pygame.MOUSEMOTION and self.dragging:
+            mouse_x = event.pos[0]
+            ratio = (mouse_x - self.x) / self.width
+            old_value = self.current_value
+            self.current_value = self.min_value + ratio * (self.max_value - self.min_value)
+            self.current_value = max(self.min_value, min(self.max_value, self.current_value))
+            return old_value != self.current_value
+            
+        return False
+
 class MenuSystem:
     """
     Main menu system for the Sokoban game.
@@ -132,6 +255,10 @@ class MenuSystem:
         self.screen_height = screen_height
         self.levels_dir = levels_dir
         self.skin_manager = skin_manager
+        
+        # Initialize config manager
+        from src.core.config_manager import get_config_manager
+        self.config_manager = get_config_manager()
         
         if screen is None:
             # Standalone mode - create our own screen
@@ -183,6 +310,9 @@ class MenuSystem:
         self.settings_menu_buttons = []
         self.skins_menu_buttons = []
         self.credits_menu_buttons = []
+        
+        # Create slider for movement cooldown
+        self.movement_cooldown_slider = None
         
         self._recreate_all_buttons()
         
@@ -263,6 +393,20 @@ class MenuSystem:
             Button("Back", margin, self.screen_height - button_height - margin, button_width, button_height, action=lambda: self._change_state('main'))
             # Add other settings buttons here if needed
         ]
+        
+        # Create movement cooldown slider
+        slider_width = min(max(200, self.screen_width // 4), 400)
+        slider_height = 30
+        slider_x = (self.screen_width - slider_width) // 2
+        slider_y = 300
+        
+        current_cooldown = self.config_manager.get('game', 'movement_cooldown', 200)
+        self.movement_cooldown_slider = Slider(
+            slider_x, slider_y, slider_width, slider_height,
+            min_value=50, max_value=500, current_value=current_cooldown,
+            label="Movement Cooldown (ms)",
+            color=(100, 100, 200), handle_color=(255, 255, 255), text_color=(50, 50, 50)
+        )
 
     def _create_skins_menu_buttons(self):
         """Create buttons for the skins menu."""
@@ -339,6 +483,13 @@ class MenuSystem:
                 
                 for button in active_buttons:
                     button.handle_event(event)
+                
+                # Handle slider events in settings menu
+                if self.current_state == 'settings' and self.movement_cooldown_slider:
+                    if self.movement_cooldown_slider.handle_event(event):
+                        # Slider value changed, update config
+                        new_value = int(self.movement_cooldown_slider.current_value)
+                        self.config_manager.set('game', 'movement_cooldown', new_value, save=True)
             
             # Update current state
             self.states[self.current_state]()
@@ -438,11 +589,17 @@ class MenuSystem:
         instruction_rect = instruction_surface.get_rect(center=(self.screen_width // 2, 240))
         self.screen.blit(instruction_surface, instruction_rect)
         
+        # Draw movement cooldown slider
+        if self.movement_cooldown_slider:
+            self.movement_cooldown_slider.draw(self.screen)
+        
         # Update and draw buttons for this state
         mouse_pos = pygame.mouse.get_pos()
         for button in self.settings_menu_buttons:
             button.update(mouse_pos)
             button.draw(self.screen)
+            
+        pygame.display.flip()
             
         pygame.display.flip()
         

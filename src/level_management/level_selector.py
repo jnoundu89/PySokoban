@@ -64,6 +64,7 @@ class Button:
         self.text_color = text_color
         self.current_color = self.color
         self.font = pygame.font.Font(None, 32)
+        self.is_pressed = False  # Track if button is being pressed
         
     def draw(self, screen):
         """Draw the button on the screen."""
@@ -88,9 +89,15 @@ class Button:
         """Handle mouse events for the button."""
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.is_hovered(pygame.mouse.get_pos()):
+                self.is_pressed = True
+                return True
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            if self.is_pressed and self.is_hovered(pygame.mouse.get_pos()):
+                self.is_pressed = False
                 if self.action:
                     self.action()
                 return True
+            self.is_pressed = False
         return False
 
 class LevelSelector:
@@ -145,6 +152,8 @@ class LevelSelector:
         # Level preview
         self.level_preview = LevelPreview(screen, screen_width, screen_height)
         self.popup_open = False  # Flag to track if popup is open
+        self.popup_close_time = 0  # Time when popup was closed
+        self.click_protection_delay = 200  # ms to ignore clicks after popup closes
         
         # Load level categories
         self.categories = self._load_level_categories()
@@ -384,8 +393,13 @@ class LevelSelector:
         # Show the level preview popup
         action = self.level_preview.show_level_preview(level_info)
         
-        # Reset popup flag
+        # Clear any remaining events from the pygame queue to prevent
+        # click events from leaking to level buttons
+        pygame.event.clear()
+        
+        # Reset popup flag and record close time
         self.popup_open = False
+        self.popup_close_time = pygame.time.get_ticks()
         
         if action == 'play':
             # User wants to play the level
@@ -469,8 +483,11 @@ class LevelSelector:
                     self.screen_width, self.screen_height = event.size
                     self._create_buttons()
                 
-                # Handle button events only if popup is not open
-                if not self.popup_open:
+                # Handle button events only if popup is not open and protection delay has passed
+                current_time = pygame.time.get_ticks()
+                protection_active = (current_time - self.popup_close_time) < self.click_protection_delay
+                
+                if not self.popup_open and not protection_active:
                     active_buttons = []
                     if self.current_view == 'categories':
                         active_buttons = self.category_buttons
