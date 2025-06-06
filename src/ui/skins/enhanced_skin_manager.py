@@ -12,6 +12,7 @@ This module provides an improved skin management system with support for:
 import os
 import pygame
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET, CELL_SIZE
+from src.core.config_manager import get_config_manager
 
 class EnhancedSkinManager:
     """
@@ -28,8 +29,14 @@ class EnhancedSkinManager:
         # Update the skins directory to be relative to project root
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
         self.skins_dir = os.path.join(project_root, skins_dir)
-        self.current_skin = 'default'
-        self.tile_size = 64  # Current tile size
+        
+        # Get configuration manager
+        self.config_manager = get_config_manager()
+        
+        # Load settings from configuration
+        skin_config = self.config_manager.get_skin_config()
+        self.current_skin = skin_config.get('current_skin', 'default')
+        self.tile_size = skin_config.get('tile_size', 64)
         self.available_tile_sizes = [8, 16, 32, 64, 128]
         
         # Player states for directional sprites
@@ -355,6 +362,8 @@ class EnhancedSkinManager:
         """Set the tile size and reload skins."""
         if size in self.available_tile_sizes:
             self.tile_size = size
+            # Save to configuration
+            self.config_manager.set_skin_config(self.current_skin, self.tile_size)
             # Clear cache to force reload
             self.skins_cache.clear()
             self._load_current_skin()
@@ -363,6 +372,8 @@ class EnhancedSkinManager:
         """Set the current skin."""
         if skin_name in self.available_skins:
             self.current_skin = skin_name
+            # Save to configuration
+            self.config_manager.set_skin_config(self.current_skin, self.tile_size)
             self._load_current_skin()
             
     def update_player_state(self, direction=None, is_pushing=False, is_blocked=False):

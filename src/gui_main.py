@@ -23,7 +23,7 @@ class GUIGame(Game):
     This class extends the base Game class with GUI-specific functionality.
     """
     
-    def __init__(self, levels_dir='levels', keyboard_layout=DEFAULT_KEYBOARD):
+    def __init__(self, levels_dir='levels', keyboard_layout=DEFAULT_KEYBOARD, skin_manager=None):
         """
         Initialize the GUI version of the Sokoban game.
         
@@ -32,14 +32,19 @@ class GUIGame(Game):
                                        Defaults to 'levels'.
             keyboard_layout (str, optional): Keyboard layout to use ('qwerty' or 'azerty').
                                            Defaults to DEFAULT_KEYBOARD.
+            skin_manager (EnhancedSkinManager, optional): Existing skin manager to use.
+                                                         If None, creates a new one.
         """
         level_manager = LevelManager(levels_dir)
         renderer = GUIRenderer(window_title=TITLE)
         super().__init__(level_manager, renderer, keyboard_layout)
         
         # Enhanced skin manager for directional sprites
-        from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
-        self.skin_manager = EnhancedSkinManager()
+        if skin_manager:
+            self.skin_manager = skin_manager
+        else:
+            from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+            self.skin_manager = EnhancedSkinManager()
         self.show_help = False
         self.show_grid = False  # Grid toggle functionality
         

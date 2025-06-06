@@ -1,0 +1,16 @@
+{
+  "skin": {
+    "current_skin": "demo_programmatic",
+    "tile_size": 64
+  },
+  "display": {
+    "window_width": 900,
+    "window_height": 700,
+    "fullscreen": false
+  },
+  "game": {
+    "keyboard_layout": "qwerty",
+    "show_grid": false,
+    "zoom_level": 1.0
+  }
+}

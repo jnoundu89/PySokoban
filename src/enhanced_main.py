@@ -77,8 +77,8 @@ class EnhancedSokoban:
         self.current_state = 'menu'  # 'menu', 'playing', 'editor'
         
         # Create components
-        self.menu_system = MenuSystem(self.screen, self.screen_width, self.screen_height, levels_dir)
-        self.game = GUIGame(levels_dir)
+        self.menu_system = MenuSystem(self.screen, self.screen_width, self.screen_height, levels_dir, self.skin_manager)
+        self.game = GUIGame(levels_dir, skin_manager=self.skin_manager)
         self.editor = EnhancedLevelEditor(levels_dir, screen=self.screen)
         
         # Set up fullscreen toggle key handler

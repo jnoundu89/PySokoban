@@ -116,7 +116,7 @@ class MenuSystem:
     This class manages the different menu screens and transitions between them.
     """
     
-    def __init__(self, screen=None, screen_width=800, screen_height=600, levels_dir='levels'):
+    def __init__(self, screen=None, screen_width=800, screen_height=600, levels_dir='levels', skin_manager=None):
         """
         Initialize the menu system.
         
@@ -125,11 +125,13 @@ class MenuSystem:
             screen_width (int): Width of the screen.
             screen_height (int): Height of the screen.
             levels_dir (str): Directory containing level files.
+            skin_manager: Shared skin manager instance.
         """
         # pygame.init() # Should be initialized by the main game
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.levels_dir = levels_dir
+        self.skin_manager = skin_manager
         
         if screen is None:
             # Standalone mode - create our own screen
@@ -448,10 +450,15 @@ class MenuSystem:
         """Display the skins menu."""
         # Import here to avoid circular imports
         from src.ui.skins_menu import SkinsMenu
-        from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+        
+        # Use the shared skin manager or create one if not provided
+        if self.skin_manager:
+            skin_manager = self.skin_manager
+        else:
+            from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+            skin_manager = EnhancedSkinManager()
         
         # Create and run the skins menu
-        skin_manager = EnhancedSkinManager()
         skins_menu = SkinsMenu(self.screen, self.screen_width, self.screen_height, skin_manager)
         skins_menu.start()
         

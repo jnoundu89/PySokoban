@@ -47,6 +47,11 @@ class SkinsMenu:
         self.selected_skin_index = 0
         self.selected_tile_size_index = 0
         
+        # Message display
+        self.show_applied_message = False
+        self.applied_message_time = 0
+        self.message_duration = 2000  # 2 seconds
+        
         # Get available options
         self.available_skins = self.skin_manager.get_available_skins()
         self.available_tile_sizes = self.skin_manager.get_available_tile_sizes()
@@ -190,11 +195,15 @@ class SkinsMenu:
         selected_skin = self.available_skins[self.selected_skin_index]
         selected_tile_size = self.available_tile_sizes[self.selected_tile_size_index]
         
+        # Apply changes to skin manager (this will save to config automatically)
         self.skin_manager.set_skin(selected_skin)
         self.skin_manager.set_tile_size(selected_tile_size)
         
-        # Save settings (in a real implementation, this would save to a config file)
-        print(f"Applied skin: {selected_skin}, tile size: {selected_tile_size}")
+        # Show confirmation message
+        self.show_applied_message = True
+        self.applied_message_time = pygame.time.get_ticks()
+        
+        print(f"✓ Skin appliqué: {selected_skin}, taille des tuiles: {selected_tile_size}x{selected_tile_size}")
         
     def _go_back(self):
         """Go back to the previous menu."""
@@ -243,6 +252,8 @@ class SkinsMenu:
         clock = pygame.time.Clock()
         
         while self.running:
+            current_time = pygame.time.get_ticks()
+            
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -257,6 +268,10 @@ class SkinsMenu:
                 elif event.type == pygame.VIDEORESIZE:
                     self.screen_width, self.screen_height = event.size
                     self._create_ui_elements()
+            
+            # Check if applied message should be hidden
+            if self.show_applied_message and current_time - self.applied_message_time > self.message_duration:
+                self.show_applied_message = False
                     
             # Draw the menu
             self._draw_menu()
@@ -287,6 +302,10 @@ class SkinsMenu:
         self._draw_preview()
         self._draw_import_info()
         self._draw_buttons()
+        
+        # Draw applied message if shown
+        if self.show_applied_message:
+            self._draw_applied_message()
         
         # Update display
         pygame.display.flip()
@@ -469,6 +488,27 @@ class SkinsMenu:
                 text_surface = self.text_font.render(button['text'], True, self.colors['button_text'])
                 text_rect = text_surface.get_rect(center=button['rect'].center)
                 self.screen.blit(text_surface, text_rect)
+    
+    def _draw_applied_message(self):
+        """Draw the applied settings confirmation message."""
+        # Create message surface
+        message_text = "✓ Paramètres appliqués et sauvegardés!"
+        message_surface = self.subtitle_font.render(message_text, True, (0, 150, 0))
+        
+        # Create background for message
+        message_width = message_surface.get_width() + 40
+        message_height = message_surface.get_height() + 20
+        message_x = (self.screen_width - message_width) // 2
+        message_y = 20
+        
+        # Draw message background
+        message_rect = pygame.Rect(message_x, message_y, message_width, message_height)
+        pygame.draw.rect(self.screen, (240, 255, 240), message_rect, 0, 10)
+        pygame.draw.rect(self.screen, (0, 150, 0), message_rect, 2, 10)
+        
+        # Draw message text
+        text_rect = message_surface.get_rect(center=message_rect.center)
+        self.screen.blit(message_surface, text_rect)
 
 
 # Main function to run the skins menu standalone
