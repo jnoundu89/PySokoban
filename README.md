@@ -19,18 +19,14 @@ Sokoban ("gardien d'entrepôt" en japonais) est un jeu de puzzle classique où l
 
 Le projet est organisé de manière modulaire:
 
-- `constants.py` - Définit toutes les constantes utilisées dans le jeu
-- `level.py` - Classe pour gérer un niveau individuel et sa logique
-- `level_manager.py` - Gère plusieurs niveaux et la navigation entre eux
-- `terminal_renderer.py` - Affiche le jeu dans un terminal
-- `gui_renderer.py` - Affiche le jeu avec une interface graphique
-- `sokoban.py` - Point d'entrée pour jouer en mode terminal
-- `sokoban_gui.py` - Point d'entrée pour jouer en mode graphique
-- `level_editor.py` - Éditeur de niveaux en mode terminal
-- `graphical_level_editor.py` - Éditeur de niveaux graphique avec drag-and-drop
-- `menu_system.py` - Système de menu central (hub)
-- `skin_manager.py` - Gestionnaire de skins/sprites
-- `enhanced_sokoban.py` - Point d'entrée principal avec toutes les fonctionnalités améliorées
+- `src/` - Package principal contenant tout le code source
+  - `core/` - Contient les classes de base et les constantes
+  - `renderers/` - Contient les différents renderers (terminal, GUI)
+  - `level_management/` - Gestion des niveaux et collections
+  - `editors/` - Éditeurs de niveaux
+  - `ui/` - Interface utilisateur et système de menu
+  - `generation/` - Génération procédurale de niveaux
+  - `main.py` - Point d'entrée unique pour toutes les versions du jeu
 - `levels/` - Répertoire contenant les fichiers de niveaux
 - `skins/` - Répertoire contenant les différents thèmes visuels
 
@@ -62,12 +58,20 @@ Le système de skins permet de personnaliser l'apparence du jeu:
 
 ## Comment jouer
 
+Le jeu dispose désormais d'un point d'entrée unique via le module `src.main`. Vous pouvez lancer différentes versions du jeu en utilisant l'option `--mode`.
+
 ### Mode Amélioré (Recommandé)
 
-Pour lancer le jeu avec toutes les fonctionnalités améliorées:
+Pour lancer le jeu avec toutes les fonctionnalités améliorées (mode par défaut):
 
 ```bash
-python enhanced_sokoban.py
+python -m src.main
+```
+
+ou explicitement:
+
+```bash
+python -m src.main --mode enhanced
 ```
 
 ### Mode Terminal
@@ -75,25 +79,7 @@ python enhanced_sokoban.py
 Pour jouer en mode terminal:
 
 ```bash
-python sokoban.py
-```
-
-Vous pouvez spécifier un répertoire de niveaux différent:
-
-```bash
-python sokoban.py chemin/vers/niveaux
-```
-
-Ou avec des arguments nommés:
-
-```bash
-python sokoban.py --levels chemin/vers/niveaux
-```
-
-Pour choisir une disposition de clavier spécifique (qwerty ou azerty):
-
-```bash
-python sokoban.py --keyboard azerty
+python -m src.main --mode terminal
 ```
 
 ### Mode GUI (Interface graphique)
@@ -101,21 +87,41 @@ python sokoban.py --keyboard azerty
 Pour jouer avec l'interface graphique:
 
 ```bash
-python sokoban_gui.py
+python -m src.main --mode gui
 ```
 
-Les mêmes options de ligne de commande sont disponibles:
-
-```bash
-python sokoban_gui.py --levels chemin/vers/niveaux --keyboard azerty
-```
-
-### Éditeur de Niveaux Graphique
+### Éditeur de Niveaux
 
 Pour lancer l'éditeur de niveaux graphique:
 
 ```bash
-python graphical_level_editor.py
+python -m src.main --mode editor
+```
+
+### Options supplémentaires
+
+Vous pouvez spécifier un répertoire de niveaux différent:
+
+```bash
+python -m src.main --levels chemin/vers/niveaux
+```
+
+Pour choisir une disposition de clavier spécifique (qwerty ou azerty):
+
+```bash
+python -m src.main --keyboard azerty
+```
+
+Toutes les options peuvent être combinées:
+
+```bash
+python -m src.main --mode gui --levels chemin/vers/niveaux --keyboard azerty
+```
+
+Pour voir toutes les options disponibles:
+
+```bash
+python -m src.main --help
 ```
 
 ## Contrôles

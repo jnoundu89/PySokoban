@@ -1,7 +1,7 @@
 {
   "skin": {
     "current_skin": "demo_programmatic",
-    "tile_size": 64
+    "tile_size": 32
   },
   "display": {
     "window_width": 900,
@@ -9,7 +9,7 @@
     "fullscreen": false
   },
   "game": {
-    "keyboard_layout": "qwerty",
+    "keyboard_layout": "azerty",
     "show_grid": false,
     "zoom_level": 1.0,
     "movement_cooldown": 300
