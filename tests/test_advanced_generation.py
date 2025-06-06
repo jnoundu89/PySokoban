@@ -8,13 +8,13 @@ This script tests the basic functionality of the advanced procedural generation 
 import unittest
 import os
 import sys
-from src.generation.advanced import (
+from advanced_generation import (
     AdvancedProceduralGenerator,
     PatternBasedGenerator,
     StyleTransferEngine,
     MachineLearningSystem
 )
-from src.core.level import Level
+from level import Level
 
 
 class TestAdvancedGeneration(unittest.TestCase):

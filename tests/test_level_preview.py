@@ -7,7 +7,7 @@ import sys
 import os
 
 # Add the src directory to the path
-sys.path.append('src')
+sys.path.append('../src')
 
 from src.level_management.level_selector import LevelSelector
 

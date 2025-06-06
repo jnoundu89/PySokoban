@@ -166,11 +166,11 @@ def save_level(level, filename):
         filename (str): The filename to save to.
     """
     # Create levels directory if it doesn't exist
-    if not os.path.exists('levels'):
-        os.makedirs('levels')
+    if not os.path.exists('../levels'):
+        os.makedirs('../levels')
     
     # Save level
-    with open(os.path.join('levels', filename), 'w') as file:
+    with open(os.path.join('../levels', filename), 'w') as file:
         file.write(level.get_state_string())
 
 

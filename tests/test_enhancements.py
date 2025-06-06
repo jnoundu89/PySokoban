@@ -19,7 +19,7 @@ def test_responsive_menu():
     print("Testing responsive menu system...")
     
     try:
-        from src.ui.menu_system import MenuSystem
+        from menu_system import MenuSystem
         
         # Test different screen sizes
         test_sizes = [(800, 600), (1200, 800), (1920, 1080)]
@@ -51,7 +51,7 @@ def test_enhanced_level_editor():
     print("Testing enhanced level editor...")
     
     try:
-        from src.editors.enhanced_level_editor import EnhancedLevelEditor
+        from enhanced_level_editor import EnhancedLevelEditor
         
         pygame.init()
         screen = pygame.display.set_mode((1200, 800))
@@ -92,7 +92,7 @@ def test_enhanced_skin_system():
     print("Testing enhanced skin system...")
     
     try:
-        from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+        from enhanced_skin_manager import EnhancedSkinManager
         
         skin_manager = EnhancedSkinManager()
         
@@ -139,8 +139,8 @@ def test_skins_menu():
     print("Testing skins menu...")
     
     try:
-        from src.ui.skins_menu import SkinsMenu
-        from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+        from skins_menu import SkinsMenu
+        from enhanced_skin_manager import EnhancedSkinManager
         
         pygame.init()
         screen = pygame.display.set_mode((900, 700))
@@ -180,7 +180,7 @@ def test_game_integration():
     print("Testing game integration...")
     
     try:
-        from src.core.enhanced_sokoban import EnhancedSokoban
+        from enhanced_sokoban import EnhancedSokoban
         
         # Test game initialization
         game = EnhancedSokoban()

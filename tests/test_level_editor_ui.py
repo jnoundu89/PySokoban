@@ -8,7 +8,10 @@ import pygame
 import sys
 import os
 
-from src.editors.enhanced_level_editor import EnhancedLevelEditor
+# Add the current directory to the path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from enhanced_level_editor import EnhancedLevelEditor
 
 def test_level_editor_ui():
     """Test the enhanced level editor with improved UI layout."""

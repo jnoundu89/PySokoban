@@ -67,7 +67,7 @@ def create_sample_sprites():
     from PIL import Image
     
     # Create sample directory
-    sample_dir = "sample_sprites"
+    sample_dir = "../sample_sprites"
     os.makedirs(sample_dir, exist_ok=True)
     
     # Sample sprite size

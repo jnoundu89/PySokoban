@@ -3,7 +3,7 @@ Démonstration de la nouvelle fonctionnalité de prévisualisation de niveaux in
 """
 
 import sys
-sys.path.append('src')
+sys.path.append('../src')
 
 def main():
     """Démonstration de la prévisualisation de niveaux."""

@@ -8,10 +8,10 @@ random levels, solving them, and displaying metrics.
 
 import time
 import os
-from src.generation.procedural_generator import ProceduralGenerator
-from src.generation.level_solver import SokobanSolver
-from src.generation.level_metrics import LevelMetrics
-from src.core.level import Level
+from procedural_generator import ProceduralGenerator
+from level_solver import SokobanSolver
+from level_metrics import LevelMetrics
+from level import Level
 
 
 def test_generation(count=5, params=None):
@@ -106,11 +106,11 @@ def save_level(level, filename):
         filename (str): The filename to save to.
     """
     # Create levels directory if it doesn't exist
-    if not os.path.exists('levels'):
-        os.makedirs('levels')
+    if not os.path.exists('../levels'):
+        os.makedirs('../levels')
     
     # Save level
-    with open(os.path.join('levels', filename), 'w') as file:
+    with open(os.path.join('../levels', filename), 'w') as file:
         file.write(level.get_state_string())
 
 

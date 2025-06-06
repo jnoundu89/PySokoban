@@ -78,7 +78,7 @@ def main():
     print("=" * 40)
     
     # Check if Original.txt exists
-    if not os.path.exists('levels/Original/Original.txt'):
+    if not os.path.exists('../levels/Original/Original.txt'):
         print("Error: levels/Original/Original.txt not found!")
         return False
     
