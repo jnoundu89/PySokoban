@@ -11,7 +11,7 @@ import os
 # Add the current directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from enhanced_level_editor import EnhancedLevelEditor
+from src.editors.enhanced_level_editor import EnhancedLevelEditor
 
 def test_level_editor_ui():
     """Test the enhanced level editor with improved UI layout."""
@@ -32,21 +32,21 @@ def test_level_editor_ui():
     print("• Bottom: Status information and main controls")
     print("=" * 50)
     print("\nLaunching Enhanced Level Editor...")
-    
+
     try:
         # Initialize the enhanced level editor
         editor = EnhancedLevelEditor()
-        
+
         # Print layout information
         print(f"Screen size: {editor.screen_width}x{editor.screen_height}")
         print(f"Left panel width: {editor.tool_panel_width}px")
         print(f"Right panel width: {editor.right_panel_width}px")
         print(f"Map area: {editor.map_area_width}x{editor.map_area_height}px")
         print(f"Bottom panel height: {editor.bottom_panel_height}px")
-        
+
         # Start the editor
         editor.start()
-        
+
     except Exception as e:
         print(f"Error running level editor: {e}")
         import traceback
