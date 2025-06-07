@@ -1,6 +1,6 @@
-pygame>=2.0.0
-pillow>=8.0.0
-numpy>=1.20.0
-matplotlib>=3.3.0
-scikit-learn>=0.24.0
-tensorflow>=2.6.0
+pygame
+pillow
+numpy
+matplotlib
+scikit-learn
+tensorflow
