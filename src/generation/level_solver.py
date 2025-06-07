@@ -7,6 +7,7 @@ if one exists.
 """
 
 import copy
+import time
 from collections import deque
 from src.core.level import Level
 
@@ -20,15 +21,18 @@ class SokobanSolver:
     the solution path.
     """
     
-    def __init__(self, max_states=1000000):
+    def __init__(self, max_states=50000, max_time=5.0):
         """
         Initialize the solver.
         
         Args:
             max_states (int, optional): Maximum number of states to explore before giving up.
-                                       Defaults to 1,000,000.
+                                       Defaults to 50,000 (reduced for faster generation).
+            max_time (float, optional): Maximum time in seconds to spend solving.
+                                       Defaults to 5.0 seconds.
         """
         self.max_states = max_states
+        self.max_time = max_time
         self.visited_states = set()
         self.solution = None
         self.states_explored = 0
@@ -68,6 +72,7 @@ class SokobanSolver:
         # Reset state
         self.visited_states = set()
         self.states_explored = 0
+        start_time = time.time()
         
         # Create a queue for BFS
         queue = deque()
@@ -80,8 +85,8 @@ class SokobanSolver:
         queue.append((initial_state, []))  # (state, moves)
         self.visited_states.add(initial_hash)
         
-        # BFS loop
-        while queue and self.states_explored < self.max_states:
+        # BFS loop with time and state limits
+        while queue and self.states_explored < self.max_states and (time.time() - start_time) < self.max_time:
             # Get the next state and moves from the queue
             state, moves = queue.popleft()
             self.states_explored += 1

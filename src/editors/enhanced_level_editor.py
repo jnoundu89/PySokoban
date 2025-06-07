@@ -870,14 +870,14 @@ class EnhancedLevelEditor:
         # Simple implementation - generate with default parameters
         try:
             params = {
-                'min_width': 10,
-                'max_width': 15,
-                'min_height': 10,
-                'max_height': 15,
-                'min_boxes': 3,
-                'max_boxes': 6,
-                'wall_density': 0.2,
-                'timeout': 10.0  # Increased timeout for better chance of success
+                'min_width': 8,
+                'max_width': 12,
+                'min_height': 8,
+                'max_height': 12,
+                'min_boxes': 2,
+                'max_boxes': 4,
+                'wall_density': 0.15,
+                'timeout': 30.0  # Increased timeout for better chance of success
             }
 
             # Show a message to indicate generation is in progress

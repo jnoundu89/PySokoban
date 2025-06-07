@@ -46,7 +46,8 @@ class ProceduralGenerator:
         self.max_boxes = max_boxes
         self.wall_density = wall_density
         self.timeout = timeout
-        self.solver = SokobanSolver()
+        # Use optimized solver settings for faster generation
+        self.solver = SokobanSolver(max_states=25000, max_time=3.0)
         self.metrics = LevelMetrics()
 
         # Statistics
@@ -105,7 +106,10 @@ class ProceduralGenerator:
             # Validate the level
             if self._validate_level(level):
                 # Check if the level is solvable
+                solve_start = time.time()
                 if self.solver.is_solvable(level):
+                    solve_time = time.time() - solve_start
+                    # print(f"DEBUG: Level {self.attempts} solved in {solve_time:.2f}s with {self.solver.states_explored} states")
                     self.generation_time = time.time() - start_time
 
                     # Calculate metrics for the level
@@ -127,6 +131,12 @@ class ProceduralGenerator:
                         })
 
                     return level
+                else:
+                    solve_time = time.time() - solve_start
+                    # print(f"DEBUG: Level {self.attempts} not solvable (checked in {solve_time:.2f}s, {self.solver.states_explored} states)")
+            else:
+                pass
+                # print(f"DEBUG: Level {self.attempts} failed validation")
 
         # If we get here, we couldn't generate a solvable level within the timeout
         if progress_callback:

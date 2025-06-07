@@ -264,7 +264,10 @@ class LevelManager:
 
             # Set a reasonable timeout if not provided
             if 'timeout' not in params:
-                params['timeout'] = 5.0  # 5 seconds timeout to prevent UI freezing
+                params['timeout'] = 30.0  # 30 seconds timeout for level generation
+            
+            # Debug logging (can be commented out for production)
+            # print(f"DEBUG: Level generation parameters: {params}")
 
             # Create a generator with the parameters
             generator = ProceduralGenerator(**params)
@@ -310,8 +313,8 @@ class LevelManager:
             # Store metrics for UI access
             self.current_level_metrics = generator.level_metrics
 
-            # Print additional information (already printed by the default callback)
-            if generator.level_metrics and progress_callback == default_progress_callback:
+            # Print additional information for console output
+            if generator.level_metrics:
                 print(f"Difficulty score: {generator.level_metrics['difficulty']['overall_score']:.1f}/100")
 
             return True
