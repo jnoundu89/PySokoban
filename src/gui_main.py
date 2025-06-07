@@ -14,6 +14,7 @@ from src.core.level import Level
 from src.level_management.level_manager import LevelManager
 from src.renderers.gui_renderer import GUIRenderer
 from src.core.game import Game
+from src.core.auto_solver import AutoSolver
 
 
 class GUIGame(Game):
@@ -60,6 +61,9 @@ class GUIGame(Game):
         self.last_move_time = 0
         self.move_delay = 150  # milliseconds between moves when holding key
         self.initial_move_delay = 300  # milliseconds before starting continuous movement
+        
+        # Auto solver for solving levels
+        self.auto_solver = None
     
     def start(self):
         """
@@ -198,6 +202,10 @@ class GUIGame(Game):
                     self.show_help = True
                 elif action == 'grid':
                     self.show_grid = not self.show_grid
+        
+        # Check for solve key (S key)
+        if key_name == 's':
+            self._solve_current_level()
     
     def _handle_continuous_movement(self):
         """
@@ -313,6 +321,102 @@ class GUIGame(Game):
         """
         self.running = False
     
+    def _solve_current_level(self):
+        """
+        Solve the current level automatically and animate the solution.
+        """
+        if not self.level_manager.current_level:
+            return
+            
+        # Don't solve if already solving
+        if self.auto_solver and self.auto_solver.is_solving:
+            return
+            
+        # Create auto solver for current level
+        self.auto_solver = AutoSolver(
+            self.level_manager.current_level,
+            self.renderer,
+            self.skin_manager
+        )
+        
+        # Show solving message
+        def progress_callback(message):
+            # Render current level with overlay
+            self.renderer.render_level(
+                self.level_manager.current_level,
+                self.level_manager,
+                self.show_grid,
+                self.zoom_level,
+                self.scroll_x,
+                self.scroll_y,
+                self.skin_manager
+            )
+            
+            # Add solving overlay
+            self._render_solving_overlay(message)
+            pygame.display.flip()
+        
+        # Try to solve the level
+        success = self.auto_solver.solve_level(progress_callback)
+        
+        if success:
+            # Execute the solution live - AI takes control
+            self.auto_solver.execute_solution_live(
+                move_delay=400,  # 400ms between moves for smoother experience
+                show_grid=self.show_grid,
+                zoom_level=self.zoom_level,
+                scroll_x=self.scroll_x,
+                scroll_y=self.scroll_y,
+                level_manager=self.level_manager
+            )
+        else:
+            # Show "no solution" message
+            self.renderer.render_level(
+                self.level_manager.current_level,
+                self.level_manager,
+                self.show_grid,
+                self.zoom_level,
+                self.scroll_x,
+                self.scroll_y,
+                self.skin_manager
+            )
+            self._render_solving_overlay("No solution found! Press any key to continue...")
+            pygame.display.flip()
+            
+            # Wait for user input
+            waiting = True
+            while waiting:
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN or event.type == pygame.QUIT:
+                        waiting = False
+    
+    def _render_solving_overlay(self, text):
+        """
+        Render an overlay with solving progress text.
+        
+        Args:
+            text (str): Text to display.
+        """
+        # Create semi-transparent overlay
+        overlay = pygame.Surface(self.renderer.screen.get_size(), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))
+        self.renderer.screen.blit(overlay, (0, 0))
+        
+        # Render text
+        font = pygame.font.Font(None, 36)
+        text_surface = font.render(text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(self.renderer.screen.get_width() // 2,
+                                                 self.renderer.screen.get_height() // 2))
+        self.renderer.screen.blit(text_surface, text_rect)
+        
+        # Add instruction text
+        instruction_font = pygame.font.Font(None, 24)
+        instruction_text = "Press S to solve level | Press ESC to cancel"
+        instruction_surface = instruction_font.render(instruction_text, True, (200, 200, 200))
+        instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2,
+                                                              text_rect.bottom + 30))
+        self.renderer.screen.blit(instruction_surface, instruction_rect)
+
     def _quit_game(self):
         """
         Quit the game.

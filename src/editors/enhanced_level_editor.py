@@ -20,6 +20,7 @@ from ..core.level import Level
 from ..level_management.level_manager import LevelManager
 from ..ui.skins.enhanced_skin_manager import EnhancedSkinManager
 from ..generation.procedural_generator import ProceduralGenerator
+from ..core.auto_solver import AutoSolver
 
 class EnhancedLevelEditor:
     """
@@ -173,12 +174,14 @@ class EnhancedLevelEditor:
             {'rect': pygame.Rect(button_x, tools_section_y + spacing, button_width, button_height),
              'text': 'Validate', 'action': self._validate_level, 'section': 'tools'},
             {'rect': pygame.Rect(button_x, tools_section_y + spacing * 2, button_width, button_height),
+             'text': 'Solve Level', 'action': self._solve_level, 'section': 'tools'},
+            {'rect': pygame.Rect(button_x, tools_section_y + spacing * 3, button_width, button_height),
              'text': 'Generate', 'action': self._show_generate_dialog, 'section': 'tools'},
         ])
 
         # View controls section - moved to right panel
         right_panel_x = self.screen_width - self.right_panel_width + 10
-        view_section_y = start_y
+        view_section_y = start_y + spacing * 0.5  # Adjusted for new button
         view_button_width = self.right_panel_width - 20
 
         self.buttons.extend([
@@ -864,6 +867,78 @@ class EnhancedLevelEditor:
                 print(f"Player: {has_player}, Boxes: {has_boxes}, Targets: {has_targets}, Match: {boxes_match_targets}")
 
         return is_valid
+
+    def _solve_level(self):
+        """Solve the current level and let AI take control to solve it automatically."""
+        if not self.current_level:
+            print("No level to solve")
+            return
+            
+        if not self._validate_level(show_dialog=False):
+            print("Level is not valid - cannot solve")
+            return
+            
+        try:
+            # Create a renderer for the editor context
+            class EditorRenderer:
+                def __init__(self, editor):
+                    self.editor = editor
+                    self.screen = editor.screen
+                
+                def render_level(self, level, level_manager, show_grid, zoom_level, scroll_x, scroll_y, skin_manager):
+                    # Use the editor's drawing method
+                    self.editor._draw_editor()
+                
+                def get_size(self):
+                    return self.screen.get_size()
+            
+            # Create auto solver with editor renderer
+            auto_solver = AutoSolver(self.current_level, EditorRenderer(self), self.skin_manager)
+            
+            # Show solving message
+            print("\n" + "="*60)
+            print("AI TAKING CONTROL OF LEVEL")
+            print("="*60)
+            
+            def progress_callback(message):
+                print(f"AI: {message}")
+            
+            # Solve the level
+            success = auto_solver.solve_level(progress_callback)
+            
+            if success:
+                solution_info = auto_solver.get_solution_info()
+                print(f"SUCCESS: Solution found!")
+                print(f"Solution length: {solution_info['moves']} moves")
+                print(f"AI will now take control and solve the level...")
+                print("="*60)
+                
+                # Let AI take control and solve the level
+                ai_success = auto_solver.execute_solution_live(
+                    move_delay=600,  # Slightly slower for editor visibility
+                    show_grid=self.show_grid,
+                    zoom_level=self.zoom_level,
+                    scroll_x=self.scroll_x,
+                    scroll_y=self.scroll_y,
+                    level_manager=None
+                )
+                
+                if ai_success:
+                    print("AI successfully solved the level!")
+                    self.unsaved_changes = True  # Mark as changed since level state changed
+                else:
+                    print("AI failed to execute the solution")
+                
+            else:
+                print("FAILED: No solution found for this level")
+                print("The level might be unsolvable or too complex")
+                print("="*60)
+                
+        except Exception as e:
+            print(f"ERROR: Exception during AI level solving: {e}")
+            import traceback
+            traceback.print_exc()
+            print("="*60)
 
     def _show_generate_dialog(self):
         """Show dialog to generate a random level."""
