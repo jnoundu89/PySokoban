@@ -27,10 +27,59 @@ class AutoSolver:
         self.level = level
         self.renderer = renderer
         self.skin_manager = skin_manager
-        self.solver = SokobanSolver(max_states=100000, max_time=10.0)
+        
+        # Automatically adjust solver parameters based on level complexity
+        max_states, max_time = self._calculate_solver_limits(level)
+        self.solver = SokobanSolver(max_states=max_states, max_time=max_time)
+        
         self.solution = None
         self.is_solving = False
         self.is_animating = False
+    
+    def _calculate_solver_limits(self, level):
+        """
+        Calculate appropriate solver limits based on level complexity.
+        
+        Args:
+            level (Level): The level to analyze.
+            
+        Returns:
+            tuple: (max_states, max_time) appropriate for this level.
+        """
+        # Calculate complexity metrics
+        level_size = level.width * level.height
+        box_count = len(level.boxes)
+        target_count = len(level.targets)
+        
+        # Calculate complexity score
+        complexity_score = (level_size * 0.1) + (box_count * 10) + (target_count * 5)
+        
+        # Determine solver limits based on complexity
+        if complexity_score <= 50:
+            # Simple levels (small, few boxes)
+            max_states = 25000
+            max_time = 5.0
+            complexity_level = "Simple"
+        elif complexity_score <= 100:
+            # Medium levels
+            max_states = 75000
+            max_time = 10.0
+            complexity_level = "Medium"
+        elif complexity_score <= 200:
+            # Complex levels
+            max_states = 150000
+            max_time = 20.0
+            complexity_level = "Complex"
+        else:
+            # Very complex levels (like original Sokoban levels)
+            max_states = 300000
+            max_time = 30.0
+            complexity_level = "Very Complex"
+        
+        print(f"Level complexity: {complexity_level} (score: {complexity_score:.1f})")
+        print(f"Solver limits: {max_states} states, {max_time}s timeout")
+        
+        return max_states, max_time
         
     def solve_level(self, progress_callback=None):
         """

@@ -370,7 +370,7 @@ class GUIGame(Game):
                 level_manager=self.level_manager
             )
         else:
-            # Show "no solution" message
+            # Show "no solution" message with more details
             self.renderer.render_level(
                 self.level_manager.current_level,
                 self.level_manager,
@@ -380,7 +380,17 @@ class GUIGame(Game):
                 self.scroll_y,
                 self.skin_manager
             )
-            self._render_solving_overlay("No solution found! Press any key to continue...")
+            
+            # Create detailed message
+            level_size = self.level_manager.current_level.width * self.level_manager.current_level.height
+            box_count = len(self.level_manager.current_level.boxes)
+            
+            if level_size > 100 or box_count > 8:
+                message = f"Level too complex for AI! ({box_count} boxes, {level_size} cells)\nTry a simpler level. Press any key to continue..."
+            else:
+                message = "AI couldn't find solution in time limit.\nLevel might be unsolvable. Press any key to continue..."
+            
+            self._render_solving_overlay(message)
             pygame.display.flip()
             
             # Wait for user input
