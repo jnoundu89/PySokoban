@@ -2,12 +2,14 @@
 Auto Solver for Sokoban levels.
 
 This module provides functionality to automatically solve Sokoban levels
-and animate the solution step by step.
+and animate the solution step by step using both basic BFS and advanced A* algorithms.
 """
 
 import time
 import pygame
 from src.generation.level_solver import SokobanSolver
+from src.generation.advanced_solver import AdvancedSokobanSolver
+from src.generation.expert_solver import ExpertSokobanSolver
 
 
 class AutoSolver:
@@ -28,58 +30,84 @@ class AutoSolver:
         self.renderer = renderer
         self.skin_manager = skin_manager
         
-        # Automatically adjust solver parameters based on level complexity
-        max_states, max_time = self._calculate_solver_limits(level)
-        self.solver = SokobanSolver(max_states=max_states, max_time=max_time)
+        # Automatically choose solver based on level complexity
+        self.complexity_score = self._calculate_complexity_score(level)
+        self.solver = self._create_appropriate_solver(level)
         
         self.solution = None
         self.is_solving = False
         self.is_animating = False
     
-    def _calculate_solver_limits(self, level):
+    def _calculate_complexity_score(self, level):
         """
-        Calculate appropriate solver limits based on level complexity.
+        Calculate level complexity score.
         
         Args:
             level (Level): The level to analyze.
             
         Returns:
-            tuple: (max_states, max_time) appropriate for this level.
+            float: Complexity score.
         """
-        # Calculate complexity metrics
         level_size = level.width * level.height
         box_count = len(level.boxes)
         target_count = len(level.targets)
         
-        # Calculate complexity score
-        complexity_score = (level_size * 0.1) + (box_count * 10) + (target_count * 5)
+        # Enhanced complexity calculation
+        complexity_score = (level_size * 0.5) + (box_count * 15) + (target_count * 10)
         
-        # Determine solver limits based on complexity
-        if complexity_score <= 50:
-            # Simple levels (small, few boxes)
+        # Add penalty for large levels with many boxes
+        if box_count > 5 and level_size > 150:
+            complexity_score *= 1.5
+        
+        return complexity_score
+    
+    def _create_appropriate_solver(self, level):
+        """
+        Create the appropriate solver based on level complexity.
+        
+        Args:
+            level (Level): The level to solve.
+            
+        Returns:
+            Solver instance (either SokobanSolver or AdvancedSokobanSolver).
+        """
+        complexity_score = self.complexity_score
+        
+        # Determine complexity category and solver
+        if complexity_score < 50:
+            # Simple level - use basic BFS
+            complexity = "Simple"
             max_states = 25000
             max_time = 5.0
-            complexity_level = "Simple"
-        elif complexity_score <= 100:
-            # Medium levels
+            solver = SokobanSolver(max_states=max_states, max_time=max_time)
+            solver_type = "Basic BFS"
+        elif complexity_score < 80:
+            # Medium level - use basic BFS with higher limits
+            complexity = "Medium"
             max_states = 75000
             max_time = 10.0
-            complexity_level = "Medium"
-        elif complexity_score <= 200:
-            # Complex levels
-            max_states = 150000
-            max_time = 20.0
-            complexity_level = "Complex"
+            solver = SokobanSolver(max_states=max_states, max_time=max_time)
+            solver_type = "Basic BFS"
+        elif complexity_score < 200:
+            # Complex level - use advanced A* solver
+            complexity = "Complex"
+            max_states = 1000000
+            max_time = 120.0
+            solver = AdvancedSokobanSolver(level, max_states=max_states, time_limit=max_time)
+            solver_type = "Advanced A*"
         else:
-            # Very complex levels (like original Sokoban levels)
-            max_states = 300000
-            max_time = 30.0
-            complexity_level = "Very Complex"
+            # Expert level - use IDA* expert solver
+            complexity = "Expert"
+            max_time = 300.0  # 5 minutes for expert levels
+            solver = ExpertSokobanSolver(level, time_limit=max_time)
+            solver_type = "Expert IDA*"
+            max_states = "unlimited"
         
-        print(f"Level complexity: {complexity_level} (score: {complexity_score:.1f})")
+        print(f"Level complexity: {complexity} (score: {complexity_score:.1f})")
+        print(f"Using {solver_type} solver")
         print(f"Solver limits: {max_states} states, {max_time}s timeout")
         
-        return max_states, max_time
+        return solver
         
     def solve_level(self, progress_callback=None):
         """
@@ -98,17 +126,23 @@ class AutoSolver:
         self.solution = None
         
         try:
-            # Create a copy of the level to solve
-            level_copy = self._create_level_copy()
-            
             # Report progress
             if progress_callback:
                 progress_callback("Analyzing level...")
             
-            # Solve the level
-            if self.solver.is_solvable(level_copy):
-                self.solution = self.solver.get_solution()
-                
+            # Use different solving approaches based on solver type
+            if isinstance(self.solver, (AdvancedSokobanSolver, ExpertSokobanSolver)):
+                # Advanced A* or Expert IDA* solver
+                self.solution = self.solver.solve(progress_callback)
+                success = self.solution is not None
+            else:
+                # Basic BFS solver
+                level_copy = self._create_level_copy()
+                success = self.solver.is_solvable(level_copy)
+                if success:
+                    self.solution = self.solver.get_solution()
+            
+            if success and self.solution:
                 if progress_callback:
                     progress_callback(f"Solution found! {len(self.solution)} moves")
                 
@@ -123,307 +157,115 @@ class AutoSolver:
                 
         except Exception as e:
             if progress_callback:
-                progress_callback(f"Error solving level: {e}")
+                progress_callback(f"Error during solving: {e}")
             
             self.is_solving = False
             return False
     
-    def execute_solution_live(self, move_delay=300, show_grid=False, zoom_level=1.0,
-                             scroll_x=0, scroll_y=0, level_manager=None):
+    def _create_level_copy(self):
         """
-        Execute the solution live on the actual level, taking control and solving it automatically.
+        Create a copy of the level for solving.
         
-        Args:
-            move_delay (int): Delay between moves in milliseconds.
-            show_grid (bool): Whether to show grid during execution.
-            zoom_level (float): Zoom level for rendering.
-            scroll_x (int): Horizontal scroll offset.
-            scroll_y (int): Vertical scroll offset.
-            level_manager (LevelManager): Level manager for rendering context.
-            
         Returns:
-            bool: True if solution executed successfully, False if interrupted.
+            Level: A copy of the current level.
         """
-        if not self.solution or self.is_animating:
-            return False
-            
-        self.is_animating = True
+        from src.core.level import Level
         
-        try:
-            # Don't reset the level - work with current state
-            # The solution should work from the current position
-            
-            if self.renderer:
-                try:
-                    # Render initial state with AI control message
-                    self.renderer.render_level(self.level, level_manager, show_grid,
-                                             zoom_level, scroll_x, scroll_y, self.skin_manager)
-                    self._render_solving_overlay("AI taking control... Press ESC to cancel")
-                    pygame.display.flip()
-                    pygame.time.wait(1000)
-                except Exception as e:
-                    print(f"Renderer error (continuing without graphics): {e}")
-                    self.renderer = None  # Disable renderer if it fails
-            
-            print(f"🤖 AI executing solution: {len(self.solution)} moves")
-            
-            # Execute each move in the solution
-            for i, move in enumerate(self.solution):
-                # Check for interruption (ESC key) only if pygame is available
-                if self.renderer:
-                    try:
-                        for event in pygame.event.get():
-                            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                                self.is_animating = False
-                                self._render_solving_overlay("AI control cancelled by user")
-                                pygame.display.flip()
-                                pygame.time.wait(1000)
-                                return False
-                            elif event.type == pygame.QUIT:
-                                self.is_animating = False
-                                return False
-                    except:
-                        pass  # Ignore pygame errors
-                
-                # Convert move to direction
-                dx, dy = self._move_to_direction(move)
-                
-                # Update player state in skin manager if available
-                if self.skin_manager:
-                    try:
-                        player_x, player_y = self.level.player_pos
-                        new_x, new_y = player_x + dx, player_y + dy
-                        is_pushing = (new_x, new_y) in self.level.boxes
-                        self.skin_manager.update_player_state(move, is_pushing, False)
-                    except:
-                        pass  # Ignore skin manager errors
-                
-                # Execute the move on the actual level
-                moved = self.level.move(dx, dy)
-                
-                print(f"🤖 AI Move {i + 1}/{len(self.solution)}: {move.upper()} -> {'✅' if moved else '❌'}")
-                
-                if not moved:
-                    # Move failed - solution might be invalid for current state
-                    self.is_animating = False
-                    print("❌ AI control failed - invalid move")
-                    if self.renderer:
-                        try:
-                            self._render_solving_overlay("AI control failed - invalid move")
-                            pygame.display.flip()
-                            pygame.time.wait(2000)
-                        except:
-                            pass
-                    return False
-                
-                # Render the updated level if renderer available
-                if self.renderer:
-                    try:
-                        self.renderer.render_level(self.level, level_manager, show_grid,
-                                                 zoom_level, scroll_x, scroll_y, self.skin_manager)
-                        
-                        # Add progress overlay
-                        progress_text = f"AI Move {i + 1}/{len(self.solution)}: {move.upper()}"
-                        if self.level.is_completed():
-                            progress_text = "Level completed by AI!"
-                        self._render_solving_overlay(progress_text)
-                        
-                        pygame.display.flip()
-                    except Exception as e:
-                        print(f"Rendering error (continuing): {e}")
-                
-                # Check if level is completed
-                if self.level.is_completed():
-                    self.is_animating = False
-                    print("🎉 Level solved by AI! Well done!")
-                    if self.renderer:
-                        try:
-                            self._render_solving_overlay("🎉 Level solved by AI! Well done!")
-                            pygame.display.flip()
-                            pygame.time.wait(2000)
-                        except:
-                            pass
-                    return True
-                
-                # Wait between moves (only if we have pygame)
-                if self.renderer:
-                    try:
-                        pygame.time.wait(move_delay)
-                    except:
-                        import time
-                        time.sleep(move_delay / 1000.0)  # Fallback to regular sleep
-                else:
-                    import time
-                    time.sleep(move_delay / 1000.0)  # Use regular sleep if no pygame
-            
-            # Solution executed but level not completed (shouldn't happen)
-            self.is_animating = False
-            print("⚠️ AI finished moves but level not completed")
-            if self.renderer:
-                try:
-                    self._render_solving_overlay("AI finished moves but level not completed")
-                    pygame.display.flip()
-                    pygame.time.wait(2000)
-                except:
-                    pass
-            return False
-            
-        except Exception as e:
-            print(f"Error during AI execution: {e}")
-            self.is_animating = False
-            if self.renderer:
-                try:
-                    self._render_solving_overlay(f"AI error: {str(e)}")
-                    pygame.display.flip()
-                    pygame.time.wait(2000)
-                except:
-                    pass
-            return False
-
-    def animate_solution(self, move_delay=500, show_grid=False, zoom_level=1.0,
-                        scroll_x=0, scroll_y=0, level_manager=None):
-        """
-        Animate the solution step by step (legacy method for demonstration purposes).
+        # Create level data string
+        level_data = self.level.get_state_string()
         
-        Args:
-            move_delay (int): Delay between moves in milliseconds.
-            show_grid (bool): Whether to show grid during animation.
-            zoom_level (float): Zoom level for rendering.
-            scroll_x (int): Horizontal scroll offset.
-            scroll_y (int): Vertical scroll offset.
-            level_manager (LevelManager): Level manager for rendering context.
-            
-        Returns:
-            bool: True if animation completed, False if interrupted.
-        """
-        # For backward compatibility, redirect to live execution
-        return self.execute_solution_live(move_delay, show_grid, zoom_level, scroll_x, scroll_y, level_manager)
+        # Create new level from data
+        return Level(level_data=level_data)
     
     def get_solution_info(self):
         """
         Get information about the current solution.
         
         Returns:
-            dict: Dictionary with solution information or None if no solution.
+            dict: Dictionary containing solution information.
         """
         if not self.solution:
             return None
-            
+        
+        solver_type = 'Basic BFS'
+        if isinstance(self.solver, AdvancedSokobanSolver):
+            solver_type = 'Advanced A*'
+        elif isinstance(self.solver, ExpertSokobanSolver):
+            solver_type = 'Expert IDA*'
+        
         return {
             'moves': len(self.solution),
             'solution': self.solution.copy(),
-            'moves_breakdown': self._analyze_solution()
+            'complexity_score': self.complexity_score,
+            'solver_type': solver_type
         }
     
-    def _create_level_copy(self):
+    def execute_solution_live(self, move_delay=500, show_grid=False, zoom_level=1.0, 
+                            scroll_x=0, scroll_y=0, level_manager=None):
         """
-        Create a copy of the current level for solving.
-        
-        Returns:
-            Level: A copy of the current level.
-        """
-        from src.core.level import Level
-        level_string = self.level.get_state_string()
-        return Level(level_data=level_string)
-    
-    def _move_to_direction(self, move):
-        """
-        Convert move string to direction coordinates.
+        Execute the solution by taking control of the level and animating moves.
         
         Args:
-            move (str): Move direction ('up', 'down', 'left', 'right').
-            
-        Returns:
-            tuple: (dx, dy) coordinates.
+            move_delay (int): Delay between moves in milliseconds.
+            show_grid (bool): Whether to show grid.
+            zoom_level (float): Zoom level for rendering.
+            scroll_x (int): Horizontal scroll offset.
+            scroll_y (int): Vertical scroll offset.
+            level_manager: Level manager for rendering context.
         """
-        move_map = {
-            'up': (0, -1),
-            'down': (0, 1),
-            'left': (-1, 0),
-            'right': (1, 0)
-        }
-        return move_map.get(move, (0, 0))
-    
-    def _analyze_solution(self):
-        """
-        Analyze the solution to provide statistics.
-        
-        Returns:
-            dict: Dictionary with solution statistics.
-        """
-        if not self.solution:
-            return {}
-            
-        move_counts = {'up': 0, 'down': 0, 'left': 0, 'right': 0}
-        for move in self.solution:
-            if move in move_counts:
-                move_counts[move] += 1
-                
-        return move_counts
-    
-    def _render_solving_overlay(self, text):
-        """
-        Render an overlay with solving progress text.
-        
-        Args:
-            text (str): Text to display.
-        """
-        if not self.renderer or not hasattr(self.renderer, 'screen'):
+        if not self.solution or not self.renderer:
             return
+        
+        self.is_animating = True
+        
+        try:
+            print(f"🤖 AI executing solution: {len(self.solution)} moves")
             
-        # Create semi-transparent overlay
-        overlay = pygame.Surface(self.renderer.screen.get_size(), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))
-        self.renderer.screen.blit(overlay, (0, 0))
-        
-        # Render text
-        font = pygame.font.Font(None, 36)
-        text_surface = font.render(text, True, (255, 255, 255))
-        text_rect = text_surface.get_rect(center=(self.renderer.screen.get_width() // 2,
-                                                 self.renderer.screen.get_height() // 2))
-        self.renderer.screen.blit(text_surface, text_rect)
-        
-        # Add instruction text
-        instruction_font = pygame.font.Font(None, 24)
-        instruction_text = "Press ESC to cancel"
-        instruction_surface = instruction_font.render(instruction_text, True, (200, 200, 200))
-        instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2,
-                                                              text_rect.bottom + 30))
-        self.renderer.screen.blit(instruction_surface, instruction_rect)
-
-
-def test_auto_solver():
-    """
-    Test the auto solver with a simple level.
-    """
-    from src.core.level import Level
+            for i, move in enumerate(self.solution):
+                # Check for quit events
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.is_animating = False
+                        return
+                
+                # Convert move to direction
+                direction_map = {
+                    'UP': (0, -1),
+                    'DOWN': (0, 1),
+                    'LEFT': (-1, 0),
+                    'RIGHT': (1, 0)
+                }
+                
+                if move in direction_map:
+                    dx, dy = direction_map[move]
+                    
+                    # Execute the move
+                    moved = self.level.move(dx, dy)
+                    
+                    print(f"🤖 AI Move {i+1}/{len(self.solution)}: {move} -> {'✅' if moved else '❌'}")
+                    
+                    # Render the current state
+                    if self.renderer and level_manager:
+                        self.renderer.render_level(
+                            self.level, level_manager, show_grid, 
+                            zoom_level, scroll_x, scroll_y, self.skin_manager
+                        )
+                        pygame.display.flip()
+                    
+                    # Wait before next move
+                    pygame.time.wait(move_delay)
+                    
+                    # Check if level is completed
+                    if self.level.is_completed():
+                        print("🎉 Level solved by AI! Well done!")
+                        break
+            
+        except Exception as e:
+            print(f"Error during solution execution: {e}")
+        finally:
+            self.is_animating = False
     
-    # Create a simple test level
-    level_string = """
-#####
-#   #
-# $ #
-# . #
-# @ #
-#####
-"""
-    level = Level(level_data=level_string)
-    
-    # Create auto solver
-    auto_solver = AutoSolver(level)
-    
-    # Solve the level
-    def progress_callback(message):
-        print(f"Progress: {message}")
-    
-    success = auto_solver.solve_level(progress_callback)
-    
-    if success:
-        solution_info = auto_solver.get_solution_info()
-        print(f"Solution found: {solution_info}")
-    else:
-        print("No solution found")
-
-
-if __name__ == "__main__":
-    test_auto_solver()
+    def stop_solving(self):
+        """Stop the current solving process."""
+        self.is_solving = False
+        self.is_animating = False

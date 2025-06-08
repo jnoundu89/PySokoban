@@ -1,7 +1,7 @@
 {
   "skin": {
-    "current_skin": "demo_programmatic",
-    "tile_size": 32
+    "current_skin": "demo_complete",
+    "tile_size": 128
   },
   "display": {
     "window_width": 900,
