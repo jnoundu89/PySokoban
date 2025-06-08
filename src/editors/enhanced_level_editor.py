@@ -135,10 +135,8 @@ class EnhancedLevelEditor:
             'border': (100, 100, 100)
         }
 
-        # Fonts
-        self.title_font = pygame.font.Font(None, 28)
-        self.text_font = pygame.font.Font(None, 20)
-        self.small_font = pygame.font.Font(None, 16)
+        # Fonts - responsive sizing based on screen dimensions
+        self._update_fonts()
 
         # Create a new empty level by default
         self._create_new_level(self.map_width, self.map_height)
@@ -148,12 +146,33 @@ class EnhancedLevelEditor:
         self.buttons = []
         self.sliders = []
 
+        # Calculate responsive button dimensions based on screen size
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution (e.g., 1920x1080)
+            button_height = 38
+            small_button_height = 30
+            spacing = 45
+            section_spacing = 60
+            bottom_button_width = 100
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution (e.g., 1200x800)
+            button_height = 34
+            small_button_height = 28
+            spacing = 40
+            section_spacing = 50
+            bottom_button_width = 90
+        else:
+            # Smaller resolutions
+            button_height = 30
+            small_button_height = 25
+            spacing = 36
+            section_spacing = 45
+            bottom_button_width = 80
+
         # Left panel buttons with better spacing
         button_width = self.tool_panel_width - 30
-        button_height = 32
-        button_x = 15
+        button_x = self.ui_margin
         start_y = 50
-        spacing = 38  # Reduced spacing to prevent overlap
 
         # File operations section
         file_section_y = start_y
@@ -166,8 +185,8 @@ class EnhancedLevelEditor:
              'text': 'Save Level', 'action': self._show_save_level_dialog, 'section': 'file'},
         ])
 
-        # Tools section - moved higher to prevent overlap
-        tools_section_y = file_section_y + spacing * 3.5
+        # Tools section - with proper spacing between sections
+        tools_section_y = file_section_y + spacing * 2 + section_spacing
         self.buttons.extend([
             {'rect': pygame.Rect(button_x, tools_section_y, button_width, button_height),
              'text': 'Test Level', 'action': self._toggle_test_mode, 'section': 'tools'},
@@ -180,9 +199,9 @@ class EnhancedLevelEditor:
         ])
 
         # View controls section - moved to right panel
-        right_panel_x = self.screen_width - self.right_panel_width + 10
-        view_section_y = start_y + spacing * 0.5  # Adjusted for new button
-        view_button_width = self.right_panel_width - 20
+        right_panel_x = self.screen_width - self.right_panel_width + self.ui_margin
+        view_section_y = start_y
+        view_button_width = self.right_panel_width - self.ui_margin * 2
 
         self.buttons.extend([
             {'rect': pygame.Rect(right_panel_x, view_section_y, view_button_width, button_height),
@@ -195,32 +214,92 @@ class EnhancedLevelEditor:
              'text': 'Reset View', 'action': self._reset_view, 'section': 'right'},
         ])
 
-        # Bottom panel buttons - better distributed
-        bottom_y = self.screen_height - self.bottom_panel_height + 15
-        button_spacing = 120
+        # Bottom panel buttons - evenly distributed
+        bottom_y = self.screen_height - self.bottom_panel_height + (self.bottom_panel_height - small_button_height) // 2
+
+        # Calculate button spacing to distribute evenly
+        available_width = self.screen_width - 2 * self.ui_margin - 3 * bottom_button_width
+        button_spacing = available_width // 4  # Divide remaining space
+
         self.buttons.extend([
-            {'rect': pygame.Rect(self.ui_margin, bottom_y, 80, 25),
+            {'rect': pygame.Rect(self.ui_margin, bottom_y, bottom_button_width, small_button_height),
              'text': 'Help', 'action': self._toggle_help, 'section': 'bottom'},
-            {'rect': pygame.Rect(self.ui_margin + button_spacing, bottom_y, 80, 25),
+            {'rect': pygame.Rect(self.ui_margin + bottom_button_width + button_spacing, bottom_y, bottom_button_width, small_button_height),
              'text': 'Metrics', 'action': self._toggle_metrics, 'section': 'bottom'},
-            {'rect': pygame.Rect(self.screen_width - 100, bottom_y, 80, 25),
+            {'rect': pygame.Rect(self.screen_width - self.ui_margin - bottom_button_width, bottom_y, bottom_button_width, small_button_height),
              'text': 'Exit', 'action': self._exit_editor, 'section': 'bottom'}
         ])
 
-        # Size sliders - moved to right panel
-        slider_y = view_section_y + spacing * 4
+        # Size sliders - moved to right panel with proper spacing
+        slider_y = view_section_y + spacing * 3 + section_spacing
         slider_width = view_button_width
+        slider_height = max(18, button_height // 2)  # Responsive slider height
+
         self.sliders = [
-            {'rect': pygame.Rect(right_panel_x, slider_y, slider_width, 18),
+            {'rect': pygame.Rect(right_panel_x, slider_y, slider_width, slider_height),
              'label': 'Width', 'value': self.map_width, 'min': self.min_map_size, 'max': self.max_map_size,
              'callback': self._on_width_change},
-            {'rect': pygame.Rect(right_panel_x, slider_y + 35, slider_width, 18),
+            {'rect': pygame.Rect(right_panel_x, slider_y + spacing, slider_width, slider_height),
              'label': 'Height', 'value': self.map_height, 'min': self.min_map_size, 'max': self.max_map_size,
              'callback': self._on_height_change}
         ]
 
+    def _update_fonts(self):
+        """Update fonts based on screen size."""
+        # Responsive font sizing based on both width and height
+        # This ensures better scaling for different aspect ratios
+        base_dimension = min(self.screen_width, self.screen_height)
+
+        # Scale font sizes based on screen dimensions
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution (e.g., 1920x1080)
+            title_size = min(max(28, base_dimension // 25), 36)
+            text_size = min(max(20, base_dimension // 40), 24)
+            small_size = min(max(16, base_dimension // 50), 20)
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution (e.g., 1200x800)
+            title_size = min(max(26, base_dimension // 30), 32)
+            text_size = min(max(18, base_dimension // 45), 22)
+            small_size = min(max(14, base_dimension // 55), 18)
+        else:
+            # Smaller resolutions
+            title_size = min(max(24, base_dimension // 35), 28)
+            text_size = min(max(16, base_dimension // 50), 20)
+            small_size = min(max(12, base_dimension // 60), 16)
+
+        # Create fonts with the calculated sizes
+        self.title_font = pygame.font.Font(None, title_size)
+        self.text_font = pygame.font.Font(None, text_size)
+        self.small_font = pygame.font.Font(None, small_size)
+
+        # Print font sizes for debugging
+        print(f"Updated editor fonts - Title: {title_size}, Text: {text_size}, Small: {small_size}")
+
     def _update_ui_layout(self):
         """Update UI layout when screen is resized."""
+        # Update fonts first
+        self._update_fonts()
+
+        # Adjust panel dimensions based on screen size
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution (e.g., 1920x1080)
+            self.tool_panel_width = 320  # Wider panel for high-res
+            self.right_panel_width = 240  # Wider right panel
+            self.bottom_panel_height = 90  # Taller bottom panel
+            self.ui_margin = 20  # Larger margins
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution (e.g., 1200x800)
+            self.tool_panel_width = 280  # Standard panel width
+            self.right_panel_width = 200  # Standard right panel
+            self.bottom_panel_height = 80  # Standard bottom panel
+            self.ui_margin = 15  # Standard margins
+        else:
+            # Smaller resolutions
+            self.tool_panel_width = 250  # Narrower panel for small screens
+            self.right_panel_width = 180  # Narrower right panel
+            self.bottom_panel_height = 70  # Shorter bottom panel
+            self.ui_margin = 10  # Smaller margins
+
         # Recalculate areas with improved spacing
         self.map_area_x = self.tool_panel_width + self.ui_margin
         self.map_area_y = self.ui_margin
@@ -480,39 +559,90 @@ class EnhancedLevelEditor:
         pygame.draw.line(self.screen, self.colors['border'],
                         (right_panel_x, 0), (right_panel_x, self.screen_height), 2)
 
-        # Left panel title
-        title_surface = self.title_font.render("Level Editor", True, self.colors['text'])
-        self.screen.blit(title_surface, (15, 15))
+        # Left panel title with shadow effect for better visibility
+        title_text = "Level Editor"
 
-        # Right panel title
-        view_title_surface = self.text_font.render("View & Size", True, self.colors['text'])
-        self.screen.blit(view_title_surface, (right_panel_x + 10, 15))
+        # Draw shadow
+        shadow_color = (50, 50, 100)
+        shadow_offset = 2
+        title_shadow = self.title_font.render(title_text, True, shadow_color)
+        self.screen.blit(title_shadow, (self.ui_margin + shadow_offset, 15 + shadow_offset))
 
-        # Element palette - better positioned
-        palette_start_y = 320  # Moved down to avoid overlap with buttons
+        # Draw main title
+        title_surface = self.title_font.render(title_text, True, self.colors['text'])
+        self.screen.blit(title_surface, (self.ui_margin, 15))
+
+        # Right panel title with shadow effect
+        view_title_text = "View & Size"
+
+        # Draw shadow
+        view_title_shadow = self.text_font.render(view_title_text, True, shadow_color)
+        self.screen.blit(view_title_shadow, (right_panel_x + self.ui_margin + shadow_offset, 15 + shadow_offset))
+
+        # Draw main title
+        view_title_surface = self.text_font.render(view_title_text, True, self.colors['text'])
+        self.screen.blit(view_title_surface, (right_panel_x + self.ui_margin, 15))
+
+        # Calculate responsive palette dimensions based on screen size
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution
+            palette_start_y = 350
+            palette_item_height = 42
+            icon_size = 30
+            icon_margin = 6
+            text_offset_y = 10
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution
+            palette_start_y = 330
+            palette_item_height = 38
+            icon_size = 28
+            icon_margin = 5
+            text_offset_y = 9
+        else:
+            # Smaller resolutions
+            palette_start_y = 320
+            palette_item_height = 34
+            icon_size = 25
+            icon_margin = 4
+            text_offset_y = 8
+
+        # Element palette - better positioned with section title
         palette_title = self.text_font.render("Elements:", True, self.colors['text'])
-        self.screen.blit(palette_title, (20, palette_start_y - 25))
+        self.screen.blit(palette_title, (self.ui_margin + 5, palette_start_y - 25))
 
+        # Draw palette items with responsive sizing
         for i, element in enumerate(self.palette):
-            y = palette_start_y + i * 38  # Slightly reduced spacing
-            item_rect = pygame.Rect(20, y, self.tool_panel_width - 40, 33)
+            y = palette_start_y + i * palette_item_height
+            item_rect = pygame.Rect(self.ui_margin + 5, y, self.tool_panel_width - self.ui_margin * 2 - 10, palette_item_height - 5)
 
-            # Highlight selected element
+            # Highlight selected element with gradient effect
             if element['char'] == self.current_element:
-                pygame.draw.rect(self.screen, self.colors['selected'], item_rect)
+                # Create gradient effect for selected item
+                for j in range(item_rect.width):
+                    # Calculate gradient color (yellow to white)
+                    gradient_factor = j / item_rect.width
+                    r = int(self.colors['selected'][0] * (1 - gradient_factor) + 255 * gradient_factor)
+                    g = int(self.colors['selected'][1] * (1 - gradient_factor) + 255 * gradient_factor)
+                    b = int(self.colors['selected'][2] * (1 - gradient_factor) + 255 * gradient_factor)
+                    pygame.draw.line(self.screen, (r, g, b), 
+                                    (item_rect.x + j, item_rect.y), 
+                                    (item_rect.x + j, item_rect.y + item_rect.height))
             else:
                 pygame.draw.rect(self.screen, (255, 255, 255), item_rect)
 
-            pygame.draw.rect(self.screen, self.colors['border'], item_rect, 1)
+            # Draw border with rounded corners
+            pygame.draw.rect(self.screen, self.colors['border'], item_rect, 1, 5)
 
             # Draw element icon
-            icon_rect = pygame.Rect(item_rect.x + 5, item_rect.y + 4, 25, 25)
+            icon_rect = pygame.Rect(item_rect.x + icon_margin, item_rect.y + (item_rect.height - icon_size) // 2, 
+                                   icon_size, icon_size)
             pygame.draw.rect(self.screen, element['color'], icon_rect)
             pygame.draw.rect(self.screen, self.colors['border'], icon_rect, 1)
 
             # Draw element name
             name_surface = self.text_font.render(element['name'], True, self.colors['text'])
-            self.screen.blit(name_surface, (item_rect.x + 35, item_rect.y + 8))
+            self.screen.blit(name_surface, (item_rect.x + icon_size + icon_margin * 2, 
+                                          item_rect.y + text_offset_y))
 
         # Draw buttons
         for button in self.buttons:
@@ -631,57 +761,197 @@ class EnhancedLevelEditor:
                 self._draw_button(button)
 
     def _draw_button(self, button):
-        """Draw a button."""
-        # Button background
-        if button['rect'].collidepoint(pygame.mouse.get_pos()):
-            pygame.draw.rect(self.screen, self.colors['button_hover'], button['rect'], 0, 5)
+        """Draw a button with enhanced visual effects."""
+        is_hovered = button['rect'].collidepoint(pygame.mouse.get_pos())
+
+        # Determine button color based on hover state
+        base_color = self.colors['button_hover'] if is_hovered else self.colors['button']
+
+        # Create gradient effect
+        for i in range(button['rect'].height):
+            # Calculate gradient color (darker at bottom)
+            gradient_factor = i / button['rect'].height
+            if is_hovered:
+                # Brighter gradient for hover state
+                r = min(255, int(base_color[0] * (1.1 - gradient_factor * 0.3)))
+                g = min(255, int(base_color[1] * (1.1 - gradient_factor * 0.3)))
+                b = min(255, int(base_color[2] * (1.1 - gradient_factor * 0.3)))
+            else:
+                # Normal gradient
+                r = int(base_color[0] * (1 - gradient_factor * 0.4))
+                g = int(base_color[1] * (1 - gradient_factor * 0.4))
+                b = int(base_color[2] * (1 - gradient_factor * 0.4))
+
+            # Draw horizontal line with gradient color
+            pygame.draw.line(self.screen, (r, g, b),
+                           (button['rect'].x, button['rect'].y + i),
+                           (button['rect'].x + button['rect'].width, button['rect'].y + i))
+
+        # Draw button border with rounded corners
+        border_color = (180, 180, 220) if is_hovered else self.colors['border']
+        pygame.draw.rect(self.screen, border_color, button['rect'], 2, 5)
+
+        # Draw button text with shadow for better visibility
+        shadow_offset = 1
+        shadow_color = (30, 30, 50, 128)
+
+        # Use appropriate font based on button section
+        if button['section'] == 'bottom':
+            font = self.small_font
         else:
-            pygame.draw.rect(self.screen, self.colors['button'], button['rect'], 0, 5)
+            font = self.text_font
 
-        # Button border
-        pygame.draw.rect(self.screen, self.colors['border'], button['rect'], 1, 5)
+        # Draw text shadow
+        text_shadow = font.render(button['text'], True, shadow_color)
+        text_shadow_rect = text_shadow.get_rect(center=(button['rect'].centerx + shadow_offset, 
+                                                      button['rect'].centery + shadow_offset))
+        self.screen.blit(text_shadow, text_shadow_rect)
 
-        # Button text
-        text_surface = self.small_font.render(button['text'], True, self.colors['button_text'])
+        # Draw main text
+        text_surface = font.render(button['text'], True, self.colors['button_text'])
         text_rect = text_surface.get_rect(center=button['rect'].center)
         self.screen.blit(text_surface, text_rect)
 
     def _draw_slider(self, slider):
-        """Draw a slider."""
-        # Label
-        label_surface = self.small_font.render(f"{slider['label']}: {slider['value']}",
-                                             True, self.colors['text'])
-        self.screen.blit(label_surface, (slider['rect'].x, slider['rect'].y - 20))
+        """Draw a slider with enhanced visual effects."""
+        # Label with shadow for better visibility
+        shadow_offset = 1
+        shadow_color = (30, 30, 50, 128)
 
-        # Slider track
-        pygame.draw.rect(self.screen, (200, 200, 200), slider['rect'])
-        pygame.draw.rect(self.screen, self.colors['border'], slider['rect'], 1)
+        # Draw label shadow
+        label_shadow = self.text_font.render(f"{slider['label']}: {slider['value']}",
+                                          True, shadow_color)
+        self.screen.blit(label_shadow, (slider['rect'].x + shadow_offset, slider['rect'].y - 25 + shadow_offset))
 
-        # Slider handle
+        # Draw main label
+        label_surface = self.text_font.render(f"{slider['label']}: {slider['value']}",
+                                           True, self.colors['text'])
+        self.screen.blit(label_surface, (slider['rect'].x, slider['rect'].y - 25))
+
+        # Slider track with gradient and rounded corners
+        track_rect = pygame.Rect(slider['rect'])
+        track_radius = min(5, slider['rect'].height // 2)
+
+        # Draw track background with gradient
+        for i in range(track_rect.height):
+            # Calculate gradient color (lighter at top, darker at bottom)
+            gradient_factor = i / track_rect.height
+            r = int(220 - gradient_factor * 40)
+            g = int(220 - gradient_factor * 40)
+            b = int(220 - gradient_factor * 40)
+
+            # Draw horizontal line with gradient color
+            pygame.draw.line(self.screen, (r, g, b),
+                           (track_rect.x + track_radius, track_rect.y + i),
+                           (track_rect.x + track_rect.width - track_radius, track_rect.y + i))
+
+            # Draw rounded ends
+            if i < track_radius or i >= track_rect.height - track_radius:
+                continue
+
+            # Left rounded end
+            pygame.draw.line(self.screen, (r, g, b),
+                           (track_rect.x, track_rect.y + i),
+                           (track_rect.x + track_radius, track_rect.y + i))
+
+            # Right rounded end
+            pygame.draw.line(self.screen, (r, g, b),
+                           (track_rect.x + track_rect.width - track_radius, track_rect.y + i),
+                           (track_rect.x + track_rect.width, track_rect.y + i))
+
+        # Draw track border with rounded corners
+        pygame.draw.rect(self.screen, self.colors['border'], track_rect, 1, track_radius)
+
+        # Calculate filled portion of track (progress)
         handle_pos = (slider['value'] - slider['min']) / (slider['max'] - slider['min'])
-        handle_x = slider['rect'].x + handle_pos * (slider['rect'].width - 10)
-        handle_rect = pygame.Rect(handle_x, slider['rect'].y - 2, 10, slider['rect'].height + 4)
-        pygame.draw.rect(self.screen, self.colors['button'], handle_rect)
-        pygame.draw.rect(self.screen, self.colors['border'], handle_rect, 1)
+        progress_width = int(handle_pos * track_rect.width)
+
+        # Draw progress indicator (subtle)
+        progress_rect = pygame.Rect(track_rect.x, track_rect.y, progress_width, track_rect.height)
+        progress_color = (180, 180, 220, 128)  # Semi-transparent blue
+        pygame.draw.rect(self.screen, progress_color, progress_rect, 0, track_radius)
+
+        # Slider handle with enhanced styling
+        handle_width = max(14, slider['rect'].height)
+        handle_height = slider['rect'].height + 8
+        handle_x = slider['rect'].x + handle_pos * (slider['rect'].width - handle_width)
+        handle_y = slider['rect'].y - 4
+        handle_rect = pygame.Rect(handle_x, handle_y, handle_width, handle_height)
+
+        # Draw handle with gradient
+        for i in range(handle_rect.height):
+            # Calculate gradient color
+            gradient_factor = i / handle_rect.height
+            r = int(self.colors['button'][0] * (1 - gradient_factor * 0.3))
+            g = int(self.colors['button'][1] * (1 - gradient_factor * 0.3))
+            b = int(self.colors['button'][2] * (1 - gradient_factor * 0.3))
+
+            # Draw horizontal line with gradient color
+            pygame.draw.line(self.screen, (r, g, b),
+                           (handle_rect.x, handle_rect.y + i),
+                           (handle_rect.x + handle_rect.width, handle_rect.y + i))
+
+        # Draw handle border with rounded corners
+        pygame.draw.rect(self.screen, self.colors['border'], handle_rect, 1, 5)
 
     def _draw_help_overlay(self):
-        """Draw the help overlay."""
-        # Semi-transparent overlay
+        """Draw the help overlay with responsive sizing and enhanced visuals."""
+        # Semi-transparent overlay with blur effect simulation
         overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
 
-        # Help content
-        help_width = 600
-        help_height = 500
+        # Calculate responsive help panel dimensions
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution
+            help_width = 700
+            help_height = 600
+            title_padding = 50
+            content_padding = 40
+            line_spacing = 28
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution
+            help_width = 650
+            help_height = 550
+            title_padding = 45
+            content_padding = 35
+            line_spacing = 25
+        else:
+            # Smaller resolutions
+            help_width = 600
+            help_height = 500
+            title_padding = 40
+            content_padding = 30
+            line_spacing = 22
+
+        # Center the help panel
         help_x = (self.screen_width - help_width) // 2
         help_y = (self.screen_height - help_height) // 2
 
-        help_rect = pygame.Rect(help_x, help_y, help_width, help_height)
-        pygame.draw.rect(self.screen, (240, 240, 240), help_rect)
-        pygame.draw.rect(self.screen, self.colors['border'], help_rect, 2)
+        # Draw panel with shadow effect
+        shadow_offset = 8
+        shadow_rect = pygame.Rect(help_x + shadow_offset, help_y + shadow_offset, help_width, help_height)
+        pygame.draw.rect(self.screen, (20, 20, 20, 100), shadow_rect, 0, 10)
 
-        # Help text
+        # Main panel with gradient background
+        help_rect = pygame.Rect(help_x, help_y, help_width, help_height)
+
+        # Draw gradient background
+        for i in range(help_height):
+            # Calculate gradient color (lighter at top, darker at bottom)
+            gradient_factor = i / help_height
+            r = int(240 - gradient_factor * 20)
+            g = int(240 - gradient_factor * 20)
+            b = int(250 - gradient_factor * 10)  # Slightly blue tint
+
+            pygame.draw.line(self.screen, (r, g, b),
+                           (help_x, help_y + i),
+                           (help_x + help_width, help_y + i))
+
+        # Draw border with rounded corners
+        pygame.draw.rect(self.screen, self.colors['border'], help_rect, 2, 10)
+
+        # Help text content
         help_lines = [
             "Enhanced Level Editor Help",
             "",
@@ -695,6 +965,7 @@ class EnhancedLevelEditor:
             "• G: Toggle grid",
             "• T: Toggle test mode",
             "• H: Toggle help",
+            "• M: Toggle metrics",
             "• Arrow Keys: Scroll map (in edit mode)",
             "• WASD: Move player (in test mode)",
             "• Escape: Exit test mode or editor",
@@ -708,60 +979,223 @@ class EnhancedLevelEditor:
             "Press any key to close help"
         ]
 
-        # Draw help text
-        for i, line in enumerate(help_lines):
+        # Draw title with shadow effect
+        title_line = help_lines[0]
+        shadow_color = (50, 50, 100)
+        shadow_offset = 2
+
+        # Draw title shadow
+        title_shadow = self.title_font.render(title_line, True, shadow_color)
+        title_shadow_rect = title_shadow.get_rect(center=(help_x + help_width // 2 + shadow_offset, 
+                                                       help_y + title_padding + shadow_offset))
+        self.screen.blit(title_shadow, title_shadow_rect)
+
+        # Draw main title
+        title_surface = self.title_font.render(title_line, True, (0, 100, 200))
+        title_rect = title_surface.get_rect(center=(help_x + help_width // 2, help_y + title_padding))
+        self.screen.blit(title_surface, title_rect)
+
+        # Draw help content with section highlighting
+        content_y = help_y + title_padding * 2
+        current_section = None
+
+        for i, line in enumerate(help_lines[1:], 1):  # Skip title which we already rendered
             if line == "":
+                content_y += line_spacing // 2  # Less space for empty lines
                 continue
-            color = self.colors['text'] if not line.startswith("Enhanced") else (0, 100, 200)
-            line_surface = self.text_font.render(line, True, color)
-            self.screen.blit(line_surface, (help_x + 30, help_y + 40 + i * 20))
+
+            # Determine if this is a section header
+            is_section = line.endswith(':')
+
+            if is_section:
+                current_section = line
+                # Draw section header with highlight
+                section_surface = self.subtitle_font.render(line, True, (80, 80, 180))
+                self.screen.blit(section_surface, (help_x + content_padding, content_y))
+                content_y += line_spacing + 5  # Extra space after section header
+            else:
+                # Regular content line
+                # Draw with shadow for better readability
+                shadow_offset = 1
+                text_shadow = self.text_font.render(line, True, (50, 50, 50, 128))
+                self.screen.blit(text_shadow, (help_x + content_padding + shadow_offset, 
+                                             content_y + shadow_offset))
+
+                # Main text
+                text_surface = self.text_font.render(line, True, self.colors['text'])
+                self.screen.blit(text_surface, (help_x + content_padding, content_y))
+                content_y += line_spacing
 
     def _draw_metrics_overlay(self):
-        """Draw the metrics overlay with current level information."""
+        """Draw the metrics overlay with current level information and enhanced visuals."""
         if not self.current_level:
             return
 
-        # Metrics panel on the right
-        metrics_width = 300
-        metrics_height = 400
-        metrics_x = self.screen_width - metrics_width - 20
+        # Calculate responsive metrics panel dimensions
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution
+            metrics_width = 350
+            metrics_height = 450
+            title_padding = 40
+            content_padding = 30
+            line_spacing = 28
+            margin = 30
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution
+            metrics_width = 320
+            metrics_height = 420
+            title_padding = 35
+            content_padding = 25
+            line_spacing = 25
+            margin = 25
+        else:
+            # Smaller resolutions
+            metrics_width = 300
+            metrics_height = 400
+            title_padding = 30
+            content_padding = 20
+            line_spacing = 22
+            margin = 20
+
+        # Position panel on the right side
+        metrics_x = self.screen_width - metrics_width - margin
         metrics_y = 100
 
+        # Draw panel with shadow effect
+        shadow_offset = 8
+        shadow_rect = pygame.Rect(metrics_x + shadow_offset, metrics_y + shadow_offset, metrics_width, metrics_height)
+        pygame.draw.rect(self.screen, (20, 20, 20, 100), shadow_rect, 0, 10)
+
+        # Main panel with gradient background
         metrics_rect = pygame.Rect(metrics_x, metrics_y, metrics_width, metrics_height)
 
-        # Semi-transparent background
-        overlay = pygame.Surface((metrics_width, metrics_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
-        self.screen.blit(overlay, (metrics_x, metrics_y))
+        # Draw gradient background
+        for i in range(metrics_height):
+            # Calculate gradient color (darker at top, lighter at bottom)
+            gradient_factor = i / metrics_height
+            r = int(40 + gradient_factor * 40)
+            g = int(40 + gradient_factor * 40)
+            b = int(80 + gradient_factor * 40)  # Blue tint
 
-        # Border
-        pygame.draw.rect(self.screen, self.colors['border'], metrics_rect, 2)
+            pygame.draw.line(self.screen, (r, g, b),
+                           (metrics_x, metrics_y + i),
+                           (metrics_x + metrics_width, metrics_y + i))
 
-        # Title
-        title_surface = self.title_font.render("Level Metrics", True, (255, 255, 255))
-        self.screen.blit(title_surface, (metrics_x + 20, metrics_y + 20))
+        # Draw border with rounded corners
+        pygame.draw.rect(self.screen, self.colors['border'], metrics_rect, 2, 10)
+
+        # Draw title with shadow effect
+        title_text = "Level Metrics"
+        shadow_color = (20, 20, 50)
+        shadow_offset = 2
+
+        # Draw title shadow
+        title_shadow = self.title_font.render(title_text, True, shadow_color)
+        title_shadow_rect = title_shadow.get_rect(center=(metrics_x + metrics_width // 2 + shadow_offset, 
+                                                       metrics_y + title_padding + shadow_offset))
+        self.screen.blit(title_shadow, title_shadow_rect)
+
+        # Draw main title
+        title_surface = self.title_font.render(title_text, True, (180, 180, 255))
+        title_rect = title_surface.get_rect(center=(metrics_x + metrics_width // 2, metrics_y + title_padding))
+        self.screen.blit(title_surface, title_rect)
 
         # Calculate level statistics
         wall_count = sum(row.count(WALL) for row in self.current_level.map_data)
         floor_count = sum(row.count(FLOOR) for row in self.current_level.map_data)
         total_cells = self.current_level.width * self.current_level.height
 
-        # Metrics content
-        metrics_text = [
-            f"Size: {self.current_level.width}x{self.current_level.height}",
-            f"Total cells: {total_cells}",
-            f"Walls: {wall_count}",
-            f"Floors: {floor_count}",
-            f"Boxes: {len(self.current_level.boxes)}",
-            f"Targets: {len(self.current_level.targets)}",
-            f"Player: {'Set' if self.current_level.player_pos != (0, 0) else 'Not set'}",
-            f"Zoom: {self.zoom_level:.2f}x",
-            f"Valid: {'Yes' if len(self.current_level.boxes) == len(self.current_level.targets) and len(self.current_level.boxes) > 0 and self.current_level.player_pos != (0, 0) else 'No'}"
+        # Check if level is valid
+        is_valid = (len(self.current_level.boxes) == len(self.current_level.targets) and 
+                   len(self.current_level.boxes) > 0 and 
+                   self.current_level.player_pos != (0, 0))
+
+        # Metrics content with sections
+        metrics_sections = [
+            {
+                'title': 'Level Size',
+                'items': [
+                    f"Dimensions: {self.current_level.width}x{self.current_level.height}",
+                    f"Total cells: {total_cells}"
+                ]
+            },
+            {
+                'title': 'Elements',
+                'items': [
+                    f"Walls: {wall_count}",
+                    f"Floors: {floor_count}",
+                    f"Boxes: {len(self.current_level.boxes)}",
+                    f"Targets: {len(self.current_level.targets)}",
+                    f"Player: {'Set' if self.current_level.player_pos != (0, 0) else 'Not set'}"
+                ]
+            },
+            {
+                'title': 'View',
+                'items': [
+                    f"Zoom: {self.zoom_level:.2f}x",
+                    f"Grid: {'On' if self.show_grid else 'Off'}"
+                ]
+            },
+            {
+                'title': 'Status',
+                'items': [
+                    f"Valid: {'Yes' if is_valid else 'No'}",
+                    f"Mode: {'Test' if self.test_mode else 'Edit'}"
+                ]
+            }
         ]
 
-        for i, text in enumerate(metrics_text):
-            text_surface = self.text_font.render(text, True, (255, 255, 255))
-            self.screen.blit(text_surface, (metrics_x + 20, metrics_y + 60 + i * 25))
+        # Draw metrics content with section highlighting
+        content_y = metrics_y + title_padding * 2
+
+        for section in metrics_sections:
+            # Draw section title
+            section_title = section['title']
+            section_color = (180, 180, 255)  # Light blue
+
+            # Draw section title with shadow
+            shadow_offset = 1
+            section_shadow = self.subtitle_font.render(section_title, True, shadow_color)
+            self.screen.blit(section_shadow, (metrics_x + content_padding + shadow_offset, 
+                                           content_y + shadow_offset))
+
+            section_surface = self.subtitle_font.render(section_title, True, section_color)
+            self.screen.blit(section_surface, (metrics_x + content_padding, content_y))
+
+            content_y += line_spacing
+
+            # Draw section items
+            for item in section['items']:
+                # Determine if this is a status item that needs highlighting
+                highlight = False
+                if "Valid: No" in item:
+                    text_color = (255, 100, 100)  # Red for invalid
+                    highlight = True
+                elif "Valid: Yes" in item:
+                    text_color = (100, 255, 100)  # Green for valid
+                    highlight = True
+                else:
+                    text_color = (220, 220, 220)  # Default light color
+
+                # Draw item text with shadow for better readability
+                text_shadow = self.text_font.render(item, True, (0, 0, 0, 150))
+                self.screen.blit(text_shadow, (metrics_x + content_padding + 10 + shadow_offset, 
+                                             content_y + shadow_offset))
+
+                # Draw main text
+                text_surface = self.text_font.render(item, True, text_color)
+                self.screen.blit(text_surface, (metrics_x + content_padding + 10, content_y))
+
+                # Draw highlight indicator for important items
+                if highlight:
+                    indicator_rect = pygame.Rect(metrics_x + content_padding, content_y + 2, 
+                                               5, self.text_font.get_height() - 4)
+                    pygame.draw.rect(self.screen, text_color, indicator_rect)
+
+                content_y += line_spacing
+
+            # Add space between sections
+            content_y += line_spacing // 2
 
     # Dialog methods
     def _show_new_level_dialog(self):
@@ -873,46 +1307,46 @@ class EnhancedLevelEditor:
         if not self.current_level:
             print("No level to solve")
             return
-            
+
         if not self._validate_level(show_dialog=False):
             print("Level is not valid - cannot solve")
             return
-            
+
         try:
             # Create a renderer for the editor context
             class EditorRenderer:
                 def __init__(self, editor):
                     self.editor = editor
                     self.screen = editor.screen
-                
+
                 def render_level(self, level, level_manager, show_grid, zoom_level, scroll_x, scroll_y, skin_manager):
                     # Use the editor's drawing method
                     self.editor._draw_editor()
-                
+
                 def get_size(self):
                     return self.screen.get_size()
-            
+
             # Create auto solver with editor renderer
             auto_solver = AutoSolver(self.current_level, EditorRenderer(self), self.skin_manager)
-            
+
             # Show solving message
             print("\n" + "="*60)
             print("AI TAKING CONTROL OF LEVEL")
             print("="*60)
-            
+
             def progress_callback(message):
                 print(f"AI: {message}")
-            
+
             # Solve the level
             success = auto_solver.solve_level(progress_callback)
-            
+
             if success:
                 solution_info = auto_solver.get_solution_info()
                 print(f"SUCCESS: Solution found!")
                 print(f"Solution length: {solution_info['moves']} moves")
                 print(f"AI will now take control and solve the level...")
                 print("="*60)
-                
+
                 # Let AI take control and solve the level
                 ai_success = auto_solver.execute_solution_live(
                     move_delay=600,  # Slightly slower for editor visibility
@@ -922,18 +1356,18 @@ class EnhancedLevelEditor:
                     scroll_y=self.scroll_y,
                     level_manager=None
                 )
-                
+
                 if ai_success:
                     print("AI successfully solved the level!")
                     self.unsaved_changes = True  # Mark as changed since level state changed
                 else:
                     print("AI failed to execute the solution")
-                
+
             else:
                 print("FAILED: No solution found for this level")
                 print("The level might be unsolvable or too complex")
                 print("="*60)
-                
+
         except Exception as e:
             print(f"ERROR: Exception during AI level solving: {e}")
             import traceback
