@@ -260,8 +260,8 @@ class GUIRenderer:
         for y in range(level.height):
             for x in range(level.width):
                 char = level.get_display_char(x, y)
-                pos_x = offset_x + int(x * CELL_SIZE * self.scale_factor)
-                pos_y = offset_y + int(y * CELL_SIZE * self.scale_factor)
+                pos_x = offset_x + x * cell_size_scaled
+                pos_y = offset_y + y * cell_size_scaled
                 pos = (pos_x, pos_y)
 
                 if char == WALL:
@@ -311,17 +311,17 @@ class GUIRenderer:
 
             # Vertical lines
             for x in range(level.width + 1):
-                line_x = offset_x + int(x * CELL_SIZE * self.scale_factor)
+                line_x = offset_x + x * cell_size_scaled
                 start_y = offset_y
-                end_y = offset_y + int(level.height * CELL_SIZE * self.scale_factor)
+                end_y = offset_y + level.height * cell_size_scaled
                 if 0 <= line_x <= current_screen_width:
                     pygame.draw.line(self.screen, grid_color[:3], (line_x, start_y), (line_x, end_y), 1)
 
             # Horizontal lines
             for y in range(level.height + 1):
-                line_y = offset_y + int(y * CELL_SIZE * self.scale_factor)
+                line_y = offset_y + y * cell_size_scaled
                 start_x = offset_x
-                end_x = offset_x + int(level.width * CELL_SIZE * self.scale_factor)
+                end_x = offset_x + level.width * cell_size_scaled
                 if 0 <= line_y <= current_screen_height:
                     pygame.draw.line(self.screen, grid_color[:3], (start_x, line_y), (end_x, line_y), 1)
 
@@ -329,7 +329,7 @@ class GUIRenderer:
         stats_text = f"Moves: {level.moves}  Pushes: {level.pushes}"
         stats_font = pygame.font.Font(None, int(24 * max(1, self.scale_factor)))
         stats_surface = stats_font.render(stats_text, True, self.colors['black'])
-        stats_pos = (offset_x + 10, offset_y + int(level.height * CELL_SIZE * self.scale_factor) + 10)
+        stats_pos = (offset_x + 10, offset_y + level.height * cell_size_scaled + 10)
         self.screen.blit(stats_surface, stats_pos)
 
         # Render level information if level manager is provided
@@ -338,7 +338,7 @@ class GUIRenderer:
             level_surface = stats_font.render(level_info, True, self.colors['black'])
             level_rect = level_surface.get_rect()
             level_rect.right = current_screen_width - 10
-            level_rect.top = offset_y + int(level.height * CELL_SIZE * self.scale_factor) + 10
+            level_rect.top = offset_y + level.height * cell_size_scaled + 10
             self.screen.blit(level_surface, level_rect)
 
             # Render collection information if available
@@ -348,7 +348,7 @@ class GUIRenderer:
                 if collection_info['current_level_title']:
                     collection_text += f" - {collection_info['current_level_title']}"
                 collection_surface = stats_font.render(collection_text, True, self.colors['blue'])
-                collection_pos = (offset_x + 10, offset_y + int(level.height * CELL_SIZE * self.scale_factor) + 35)
+                collection_pos = (offset_x + 10, offset_y + level.height * cell_size_scaled + 35)
                 self.screen.blit(collection_surface, collection_pos)
 
                 # Show collection progress
@@ -356,12 +356,12 @@ class GUIRenderer:
                 progress_surface = stats_font.render(progress_text, True, self.colors['gray'])
                 progress_rect = progress_surface.get_rect()
                 progress_rect.right = current_screen_width - 10
-                progress_rect.top = offset_y + int(level.height * CELL_SIZE * self.scale_factor) + 35
+                progress_rect.top = offset_y + level.height * cell_size_scaled + 35
                 self.screen.blit(progress_surface, progress_rect)
 
         # Render level metadata (title, description, author)
         metadata = level_manager.get_level_metadata() if level_manager else {}
-        y_offset = offset_y + int(level.height * CELL_SIZE * self.scale_factor) + (60 if level_manager and level_manager.get_current_collection_info() else 35)
+        y_offset = offset_y + level.height * cell_size_scaled + (60 if level_manager and level_manager.get_current_collection_info() else 35)
 
         if metadata.get('title') and metadata['title'] != '':
             title_text = f"Title: {metadata['title']}"
