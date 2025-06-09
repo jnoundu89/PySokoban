@@ -170,6 +170,15 @@ class EnhancedSokoban:
                 for button in active_buttons:
                     button.handle_event(event)
 
+                # Handle text input events in settings menu
+                if self.menu_system.current_state == 'settings':
+                    if self.menu_system.movement_cooldown_input:
+                        self.menu_system.movement_cooldown_input.handle_event(event)
+
+                    # Handle keyboard layout toggle button events
+                    if self.menu_system.keyboard_layout_toggle:
+                        self.menu_system.keyboard_layout_toggle.handle_event(event)
+
             # Update current state
             try:
                 self.menu_system.states[self.menu_system.current_state]()

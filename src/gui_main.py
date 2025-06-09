@@ -194,9 +194,18 @@ class GUIGame(Game):
                     action = action_name
                     break
 
-            # If not found in custom keybindings, fall back to default layout
+            # If not found in custom keybindings, check if this key is used for a different action
+            # in the custom keybindings before falling back to default layout
             if action is None:
-                action = KEY_BINDINGS[self.keyboard_layout].get(key_name)
+                # Create a reverse mapping of keys to actions from custom keybindings
+                custom_keys = {v: k for k, v in self.custom_keybindings.items()}
+
+                # Check if this key is bound to an action in the default layout
+                default_action = KEY_BINDINGS[self.keyboard_layout].get(key_name)
+
+                # Only use the default action if it's not rebound to a different key
+                if default_action and default_action not in custom_keys:
+                    action = default_action
 
             if action:
                 if action == 'up':
@@ -226,10 +235,8 @@ class GUIGame(Game):
                     self.show_help = True
                 elif action == 'grid':
                     self.show_grid = not self.show_grid
-
-        # Check for solve key (S key)
-        if key_name == 's':
-            self._solve_current_level()
+                elif action == 'solve':
+                    self._solve_current_level()
 
     def _update_movement_keys(self):
         """

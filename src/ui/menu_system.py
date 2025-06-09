@@ -1116,7 +1116,8 @@ class MenuSystem:
             ('previous', 'Previous Level'),
             ('undo', 'Undo Move'),
             ('help', 'Show Help'),
-            ('grid', 'Toggle Grid')
+            ('grid', 'Toggle Grid'),
+            ('solve', 'Solve Level')
         ]
 
         # First, render the settings menu to a background surface to prevent flickering

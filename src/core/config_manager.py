@@ -56,7 +56,8 @@ class ConfigManager:
                 'undo': 'u',
                 'help': 'h',
                 'grid': 'g',
-                'fullscreen': 'f11'
+                'fullscreen': 'f11',
+                'solve': 's'
             }
         }
 
