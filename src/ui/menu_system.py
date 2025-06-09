@@ -1367,6 +1367,11 @@ class MenuSystem:
                     if event.key == pygame.K_ESCAPE:
                         # Exit dialog on Escape
                         running = False
+                    else:
+                        # Pass keyboard events to text inputs
+                        width_input.handle_event(event)
+                        height_input.handle_event(event)
+                        cooldown_input.handle_event(event)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:  # Left mouse button
                         # Check if a button was clicked

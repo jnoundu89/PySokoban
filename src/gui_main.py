@@ -68,7 +68,7 @@ class GUIGame(Game):
         # Continuous movement support
         self.keys_pressed = set()
         self.last_move_time = 0
-        self.move_delay = 150  # milliseconds between moves when holding key
+        self.move_delay = self.config_manager.get('game', 'movement_cooldown')  # milliseconds between moves when holding key
         self.initial_move_delay = 300  # milliseconds before starting continuous movement
 
         # Auto solver for solving levels
@@ -106,8 +106,9 @@ class GUIGame(Game):
         """
         clock = pygame.time.Clock()
 
-        # Reload keybindings at the start of each game loop
+        # Reload keybindings and movement cooldown at the start of each game loop
         self.custom_keybindings = self.config_manager.get_keybindings()
+        self.move_delay = self.config_manager.get('game', 'movement_cooldown', 200)
         self._update_movement_keys()
 
         while self.running:
@@ -237,13 +238,10 @@ class GUIGame(Game):
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next':
-                    if self.level_manager.current_level_completed():
-                        self._next_level()
-                    else:
-                        # If not completed, try to go to next level in collection
-                        if self.level_manager.has_next_level_in_collection():
-                            self.level_manager.next_level_in_collection()
+                    # Go to next level regardless of completion status
+                    self._next_level()
                 elif action == 'previous':
+                    # Go to previous level
                     self._prev_level()
                 elif action == 'undo':
                     self.level_manager.current_level.undo()
@@ -347,8 +345,8 @@ class GUIGame(Game):
             # Wait for a moment
             pygame.time.wait(1000)
 
-            # Level completed - return to level selector
-            self._return_to_level_selector()
+            # Show level completion screen with option to proceed to next level
+            self._show_level_completion_screen()
 
     def _get_input(self):
         """
@@ -388,6 +386,80 @@ class GUIGame(Game):
         Return to the level selector.
         """
         self.running = False
+
+    def _show_level_completion_screen(self):
+        """
+        Show level completion screen with option to proceed to next level.
+        If there's no next level in the collection, return to level selector.
+        """
+        # Check if there's a next level in the collection
+        has_next_level = self.level_manager.has_next_level_in_collection()
+
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.renderer.screen.get_width(), self.renderer.screen.get_height()))
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        self.renderer.screen.blit(overlay, (0, 0))
+
+        # Set up font
+        font_large = pygame.font.Font(None, 48)
+        font_small = pygame.font.Font(None, 36)
+
+        # Render text
+        text_completed = font_large.render("Level Completed!", True, (255, 255, 255))
+        text_rect_completed = text_completed.get_rect(center=(self.renderer.screen.get_width() // 2, 
+                                                             self.renderer.screen.get_height() // 2 - 50))
+
+        # Get the configured 'next' key from keybindings
+        next_key = self.custom_keybindings.get('next', 'n')
+
+        if has_next_level:
+            text_instruction = font_small.render(f"Press '{next_key}' to continue to the next level", True, (255, 255, 255))
+        else:
+            text_instruction = font_small.render("Press any key to return to level selection", True, (255, 255, 255))
+
+        text_rect_instruction = text_instruction.get_rect(center=(self.renderer.screen.get_width() // 2, 
+                                                                self.renderer.screen.get_height() // 2 + 20))
+
+        # Draw text
+        self.renderer.screen.blit(text_completed, text_rect_completed)
+        self.renderer.screen.blit(text_instruction, text_rect_instruction)
+        pygame.display.flip()
+
+        # Wait for key press
+        waiting_for_key = True
+        while waiting_for_key:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self._quit_game()
+                    return
+                elif event.type == pygame.KEYDOWN:
+                    key_name = pygame.key.name(event.key)
+                    # Get the configured 'next' key from keybindings
+                    next_key = self.custom_keybindings.get('next', 'n')
+
+                    if has_next_level:
+                        # Only proceed to next level if the configured 'next' key is pressed
+                        if key_name == next_key:
+                            waiting_for_key = False
+                            # Clear the keys_pressed set to prevent automatic movement
+                            self.keys_pressed.clear()
+                            self.level_manager.next_level_in_collection()
+                            return
+                        # If any other key is pressed, return to level selection
+                        else:
+                            waiting_for_key = False
+                            # Clear the keys_pressed set to prevent automatic movement
+                            self.keys_pressed.clear()
+                            self._return_to_level_selector()
+                            return
+                    else:
+                        # If there's no next level, any key returns to level selection
+                        waiting_for_key = False
+                        # Clear the keys_pressed set to prevent automatic movement
+                        self.keys_pressed.clear()
+                        self._return_to_level_selector()
+                        return
 
     def _solve_current_level(self):
         """

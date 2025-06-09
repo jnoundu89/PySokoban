@@ -4,15 +4,15 @@
     "tile_size": 32
   },
   "display": {
-    "window_width": 1920,
-    "window_height": 1009,
+    "window_width": 1880,
+    "window_height": 740,
     "fullscreen": false
   },
   "game": {
     "keyboard_layout": "azerty",
     "show_grid": false,
     "zoom_level": 1.0,
-    "movement_cooldown": 350
+    "movement_cooldown": 300
   },
   "keybindings": {
     "up": "up",
