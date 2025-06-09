@@ -6,7 +6,8 @@ This module provides a level selection interface organized by categories/folders
 
 import os
 import pygame
-from src.core.constants import TITLE, CELL_SIZE
+from src.core.constants import TITLE, CELL_SIZE, WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET
+from src.core.level import Level
 from src.level_management.level_collection_parser import LevelCollectionParser
 from src.ui.level_preview import LevelPreview
 
@@ -47,6 +48,35 @@ class LevelInfo:
         self.collection_file = collection_file
         self.level_index = level_index
         self.is_from_collection = is_from_collection
+
+    def __eq__(self, other):
+        """
+        Compare two LevelInfo objects for equality.
+
+        Args:
+            other: Another LevelInfo object to compare with
+
+        Returns:
+            bool: True if the objects represent the same level, False otherwise
+        """
+        if not isinstance(other, LevelInfo):
+            return False
+        return (self.title == other.title and 
+                self.collection_file == other.collection_file and 
+                self.level_index == other.level_index and 
+                self.is_from_collection == other.is_from_collection)
+
+    def __ne__(self, other):
+        """
+        Compare two LevelInfo objects for inequality.
+
+        Args:
+            other: Another LevelInfo object to compare with
+
+        Returns:
+            bool: True if the objects represent different levels, False otherwise
+        """
+        return not self.__eq__(other)
 
 class Button:
     """A clickable button for the level selector."""
@@ -131,7 +161,17 @@ class LevelSelector:
             'category_button': (80, 150, 80),
             'category_button_hover': (100, 180, 100),
             'level_button': (150, 100, 80),
-            'level_button_hover': (180, 130, 100)
+            'level_button_hover': (180, 130, 100),
+            # Colors for hover preview
+            'preview_bg': (255, 255, 255),
+            'preview_border': (100, 100, 100),
+            'wall': (80, 80, 80),
+            'floor': (220, 220, 220),
+            'player': (0, 100, 200),
+            'box': (180, 120, 80),
+            'target': (200, 50, 50),
+            'player_on_target': (0, 150, 200),
+            'box_on_target': (200, 150, 80)
         }
 
         # Load fonts
@@ -155,6 +195,10 @@ class LevelSelector:
         self.popup_open = False  # Flag to track if popup is open
         self.popup_close_time = 0  # Time when popup was closed
         self.click_protection_delay = 200  # ms to ignore clicks after popup closes
+
+        # Hover preview
+        self.hovered_level_info = None
+        self.hover_preview_level = None
 
         # Load level categories
         self.categories = self._load_level_categories()
@@ -456,6 +500,99 @@ class LevelSelector:
             # Exit to main menu
             self.running = False
 
+    def _render_hover_preview(self, level_info):
+        """
+        Render a preview of the level when hovering over its button.
+
+        Args:
+            level_info: LevelInfo object containing level information
+        """
+        # Always load the level when this method is called to ensure fresh data
+        try:
+            if level_info.is_from_collection:
+                collection = LevelCollectionParser.parse_file(level_info.collection_file)
+                _, level = collection.get_level(level_info.level_index)
+            else:
+                level = Level(level_file=level_info.collection_file)
+            self.hover_preview_level = level
+            # Update the hovered_level_info to the current level_info
+            self.hovered_level_info = level_info
+        except Exception as e:
+            print(f"Error loading level for hover preview: {e}")
+            return
+
+        # Get mouse position for positioning the preview
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Define preview dimensions
+        preview_width = 200
+        preview_height = 200
+
+        # Position the preview near the mouse cursor but ensure it stays on screen
+        preview_x = min(mouse_pos[0] + 20, self.screen_width - preview_width - 10)
+        preview_y = min(mouse_pos[1] + 20, self.screen_height - preview_height - 10)
+
+        # Draw preview background
+        pygame.draw.rect(self.screen, self.colors['preview_bg'], 
+                        (preview_x, preview_y, preview_width, preview_height), 0, 10)
+        pygame.draw.rect(self.screen, self.colors['preview_border'], 
+                        (preview_x, preview_y, preview_width, preview_height), 2, 10)
+
+        # Draw level title
+        title_text = f"Niveau: {level_info.title}"
+        title_surface = self.text_font.render(title_text, True, self.colors['text'])
+        title_rect = title_surface.get_rect(center=(preview_x + preview_width // 2, preview_y + 15))
+        self.screen.blit(title_surface, title_rect)
+
+        # Calculate cell size to fit the level in the preview area
+        level = self.hover_preview_level
+        max_cell_width = (preview_width - 20) // max(1, level.width)
+        max_cell_height = (preview_height - 40) // max(1, level.height)
+        cell_size = min(max_cell_width, max_cell_height, 15)  # Max 15px per cell
+
+        # Calculate actual preview dimensions
+        actual_width = level.width * cell_size
+        actual_height = level.height * cell_size
+
+        # Center the preview
+        level_preview_x = preview_x + (preview_width - actual_width) // 2
+        level_preview_y = preview_y + 30 + (preview_height - 40 - actual_height) // 2
+
+        # Draw level cells
+        for y in range(level.height):
+            for x in range(level.width):
+                cell_x = level_preview_x + x * cell_size
+                cell_y = level_preview_y + y * cell_size
+
+                # Get the display character for this position
+                display_char = level.get_display_char(x, y)
+
+                # Choose color based on the character
+                if display_char == WALL:
+                    color = self.colors['wall']
+                elif display_char == FLOOR:
+                    color = self.colors['floor']
+                elif display_char == PLAYER:
+                    color = self.colors['player']
+                elif display_char == BOX:
+                    color = self.colors['box']
+                elif display_char == TARGET:
+                    color = self.colors['target']
+                elif display_char == PLAYER_ON_TARGET:
+                    color = self.colors['player_on_target']
+                elif display_char == BOX_ON_TARGET:
+                    color = self.colors['box_on_target']
+                else:
+                    color = self.colors['floor']  # Default
+
+                # Draw the cell
+                pygame.draw.rect(self.screen, color, (cell_x, cell_y, cell_size, cell_size))
+
+                # Draw grid lines for better visibility (only if cells are large enough)
+                if cell_size > 4:
+                    pygame.draw.rect(self.screen, (180, 180, 180), 
+                                   (cell_x, cell_y, cell_size, cell_size), 1)
+
     def start(self):
         """Start the level selector."""
         self.running = True
@@ -586,10 +723,31 @@ class LevelSelector:
                 self.screen.blit(scroll_surface, scroll_rect)
 
                 # Show navigation help
-                help_text = "↑↓ ou molette pour naviguer, Page↑↓ pour navigation rapide"
+                help_text = "Up/Down keys or mouse wheel to navigate, Page Up/Down for fast navigation"
                 help_surface = pygame.font.Font(None, 20).render(help_text, True, self.colors['text'])
-                help_rect = help_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 100))
+                help_rect = help_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 50))
                 self.screen.blit(help_surface, help_rect)
+
+                # Draw scrollbar
+                button_width = 300
+                button_x = (self.screen_width - button_width) // 2
+                scrollbar_x = button_x + button_width + 20  # Position to the right of buttons with some spacing
+                scrollbar_y = 220  # Same starting y as buttons
+                scrollbar_height = available_height
+                scrollbar_width = 10
+
+                # Calculate thumb size and position
+                thumb_height = max(30, scrollbar_height * max_visible_categories / total_categories)
+                max_scroll = total_categories - max_visible_categories
+                thumb_pos = scrollbar_y + (scrollbar_height - thumb_height) * (self.category_scroll_offset / max_scroll) if max_scroll > 0 else scrollbar_y
+
+                # Draw scrollbar track
+                pygame.draw.rect(self.screen, (200, 200, 200), 
+                                (scrollbar_x, scrollbar_y, scrollbar_width, scrollbar_height), 0, 5)
+
+                # Draw scrollbar thumb
+                pygame.draw.rect(self.screen, (150, 150, 150), 
+                                (scrollbar_x, thumb_pos, scrollbar_width, thumb_height), 0, 5)
 
         # Update and draw category buttons
         mouse_pos = pygame.mouse.get_pos()
@@ -642,19 +800,57 @@ class LevelSelector:
                 self.screen.blit(scroll_surface, scroll_rect)
 
                 # Show navigation help
-                help_text = "↑↓ ou molette pour naviguer, Page↑↓ pour navigation rapide"
+                help_text = "Up/Down keys or mouse wheel to navigate, Page Up/Down for fast navigation"
                 help_surface = pygame.font.Font(None, 20).render(help_text, True, self.colors['text'])
-                help_rect = help_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 100))
+                help_rect = help_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 50))
                 self.screen.blit(help_surface, help_rect)
+
+                # Draw scrollbar
+                # Calculate the rightmost edge of the buttons
+                start_x = (self.screen_width - (buttons_per_row * button_width + (buttons_per_row - 1) * 20)) // 2
+                rightmost_button_edge = start_x + (buttons_per_row * button_width) + ((buttons_per_row - 1) * 20)
+
+                scrollbar_x = rightmost_button_edge + 20  # Position to the right of buttons with some spacing
+                scrollbar_y = 220  # Same starting y as buttons
+                scrollbar_height = available_height
+                scrollbar_width = 10
+
+                # Calculate thumb size and position
+                thumb_height = max(30, scrollbar_height * max_visible_rows / total_rows)
+                max_scroll = total_rows - max_visible_rows
+                thumb_pos = scrollbar_y + (scrollbar_height - thumb_height) * (self.scroll_offset / max_scroll) if max_scroll > 0 else scrollbar_y
+
+                # Draw scrollbar track
+                pygame.draw.rect(self.screen, (200, 200, 200), 
+                                (scrollbar_x, scrollbar_y, scrollbar_width, scrollbar_height), 0, 5)
+
+                # Draw scrollbar thumb
+                pygame.draw.rect(self.screen, (150, 150, 150), 
+                                (scrollbar_x, thumb_pos, scrollbar_width, thumb_height), 0, 5)
+
+        # Reset hover state
+        self.hovered_level_info = None
 
         # Update and draw level buttons
         mouse_pos = pygame.mouse.get_pos()
-        for button in self.level_buttons:
+        for i, button in enumerate(self.level_buttons):
             button.update(mouse_pos)
             button.draw(self.screen)
+
+            # Check if this button is being hovered
+            if button.is_hovered(mouse_pos):
+                # Get the level info for this button
+                start_level = self.scroll_offset * max(1, (self.screen_width - 100) // (button_width + 20))
+                level_index = start_level + i
+                if level_index < len(self.selected_category.levels):
+                    self.hovered_level_info = self.selected_category.levels[level_index]
 
         # Draw back button
         self.back_button.update(mouse_pos)
         self.back_button.draw(self.screen)
+
+        # If a level is being hovered, show its preview
+        if self.hovered_level_info:
+            self._render_hover_preview(self.hovered_level_info)
 
         pygame.display.flip()
