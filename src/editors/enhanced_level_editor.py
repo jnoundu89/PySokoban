@@ -73,6 +73,7 @@ class EnhancedLevelEditor:
         self.player_pos_in_test = None
         self.initial_level_state = None  # Store initial state for test mode reset
         self.running = False
+        self.exit_requested = False  # Flag to indicate if exit was requested
 
         # Mouse drag for panning
         self.mouse_dragging = False
@@ -1240,6 +1241,11 @@ class EnhancedLevelEditor:
         # Create cancel button
         cancel_rect = pygame.Rect(dialog_x + dialog_width // 2 - 50, dialog_y + dialog_height - 50, 100, 30)
 
+        # Draw the editor once to create a background
+        self._draw_editor()
+        # Create a copy of the screen to use as background
+        background = self.screen.copy()
+
         # Dialog loop
         dialog_running = True
         while dialog_running and not self.exit_requested:
@@ -1270,8 +1276,8 @@ class EnhancedLevelEditor:
                     if cancel_rect.collidepoint(mouse_pos):
                         dialog_running = False
 
-            # Draw dialog
-            self._draw_editor()  # Draw editor in background
+            # Restore the background instead of redrawing everything
+            self.screen.blit(background, (0, 0))
 
             # Draw dialog box
             pygame.draw.rect(self.screen, (240, 240, 240), dialog_rect)
@@ -1323,6 +1329,11 @@ class EnhancedLevelEditor:
         save_rect = pygame.Rect(dialog_x + dialog_width // 2 - 110, dialog_y + dialog_height - 50, 100, 30)
         cancel_rect = pygame.Rect(dialog_x + dialog_width // 2 + 10, dialog_y + dialog_height - 50, 100, 30)
 
+        # Draw the editor once to create a background
+        self._draw_editor()
+        # Create a copy of the screen to use as background
+        background = self.screen.copy()
+
         # Dialog loop
         dialog_running = True
         while dialog_running and not self.exit_requested:
@@ -1359,8 +1370,8 @@ class EnhancedLevelEditor:
                     elif cancel_rect.collidepoint(mouse_pos):
                         dialog_running = False
 
-            # Draw dialog
-            self._draw_editor()  # Draw editor in background
+            # Restore the background instead of redrawing everything
+            self.screen.blit(background, (0, 0))
 
             # Draw dialog box
             pygame.draw.rect(self.screen, (240, 240, 240), dialog_rect)
@@ -1662,6 +1673,7 @@ class EnhancedLevelEditor:
             # In a full implementation, this would show a confirmation dialog
             print("Warning: Unsaved changes will be lost!")
         self.running = False
+        self.exit_requested = True
 
     def _handle_slider_click(self, mouse_pos, slider):
         """Handle slider interaction."""
