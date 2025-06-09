@@ -493,8 +493,11 @@ class MenuSystem:
         from src.core.config_manager import get_config_manager
         self.config_manager = get_config_manager()
 
-        # Keyboard layout toggle button
+        # UI elements for settings
         self.keyboard_layout_toggle = None
+        self.fullscreen_toggle = None
+        self.window_width_input = None
+        self.window_height_input = None
 
         if screen is None:
             # Standalone mode - create our own screen
@@ -710,7 +713,10 @@ class MenuSystem:
             input_y = self.screen_height // 2
             keybind_button_width = min(max(250, self.screen_width // 6), 350)
             save_button_width = min(max(150, self.screen_width // 8), 200)
+            section1_y = 180
             section2_y = 350
+            section3_y = 500
+            section4_y = 650
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             button_width = min(max(100, self.screen_width // 11), 150)
             button_height = min(max(40, self.screen_height // 22), 60)
@@ -720,7 +726,10 @@ class MenuSystem:
             input_y = self.screen_height // 2
             keybind_button_width = min(max(200, self.screen_width // 7), 300)
             save_button_width = min(max(120, self.screen_width // 9), 180)
+            section1_y = 160
             section2_y = 320
+            section3_y = 450
+            section4_y = 580
         else:
             button_width = min(max(80, self.screen_width // 12), 120)
             button_height = min(max(30, self.screen_height // 25), 50)
@@ -730,36 +739,84 @@ class MenuSystem:
             input_y = 300
             keybind_button_width = min(max(150, self.screen_width // 8), 250)
             save_button_width = min(max(100, self.screen_width // 10), 150)
+            section1_y = 140
             section2_y = 300
+            section3_y = 400
+            section4_y = 500
 
         # Calculate font size based on button dimensions
         button_font_size = min(max(18, button_height // 2), 36)
 
         # Create main settings buttons
         self.settings_menu_buttons = [
-            Button("Back", margin, self.screen_height - button_height - margin, 
+            Button("Back", margin, self.screen_height - button_height * 2 - margin * 2, 
                    button_width, button_height, 
                    action=lambda: self._change_state('main'),
                    font_size=button_font_size),
             Button("Keyboard Settings", (self.screen_width - keybind_button_width) // 2, 
-                   self.screen_height - button_height * 2 - margin * 2,
+                   self.screen_height // 2 - button_height,
                    keybind_button_width, button_height,
                    action=self._show_keybinding_dialog,
                    font_size=button_font_size),
+            Button("General Settings", (self.screen_width - keybind_button_width) // 2, 
+                   self.screen_height // 2 + button_height,
+                   keybind_button_width, button_height,
+                   action=self._show_general_settings_dialog,
+                   font_size=button_font_size),
             Button("Save", (self.screen_width - save_button_width) // 2, 
-                   self.screen_height - button_height * 3 - margin * 3,
+                   self.screen_height - button_height * 2 - margin * 2,
                    save_button_width, button_height,
                    action=self._save_settings,
                    color=(100, 180, 100), hover_color=(120, 220, 120),
                    font_size=button_font_size)
         ]
 
+        # Create fullscreen toggle button
+        current_fullscreen = self.config_manager.get('display', 'fullscreen', False)
+        toggle_width = min(max(200, self.screen_width // 7), 300)
+        toggle_height = button_height
+        toggle_x = (self.screen_width - toggle_width) // 2
+        toggle_y = section1_y + 50  # Position below fullscreen title
+
+        self.fullscreen_toggle = ToggleButton(
+            "ON", "OFF", toggle_x, toggle_y, toggle_width, toggle_height,
+            is_on=current_fullscreen, action=self._toggle_fullscreen,
+            color_on=(100, 180, 100), color_off=(180, 100, 100),
+            hover_color_on=(120, 220, 120), hover_color_off=(220, 120, 120),
+            font_size=button_font_size
+        )
+
+        # Create window size text inputs
+        window_width = self.config_manager.get('display', 'window_width', 900)
+        window_height = self.config_manager.get('display', 'window_height', 700)
+
+        # Width input
+        width_input_x = (self.screen_width - input_width) // 2 - input_width // 2 - 10
+        width_input_y = section2_y + 50
+        self.window_width_input = TextInput(
+            width_input_x, width_input_y, input_width, input_height,
+            min_value=800, max_value=3840, current_value=window_width,
+            label="Window Width",
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
+        # Height input
+        height_input_x = (self.screen_width - input_width) // 2 + input_width // 2 + 10
+        height_input_y = section2_y + 50
+        self.window_height_input = TextInput(
+            height_input_x, height_input_y, input_width, input_height,
+            min_value=600, max_value=2160, current_value=window_height,
+            label="Window Height",
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
         # Create movement cooldown text input
         input_x = (self.screen_width - input_width) // 2
+        cooldown_input_y = section3_y + 50
 
         current_cooldown = self.config_manager.get('game', 'movement_cooldown', 200)
         self.movement_cooldown_input = TextInput(
-            input_x, input_y, input_width, input_height,
+            input_x, cooldown_input_y, input_width, input_height,
             min_value=50, max_value=500, current_value=current_cooldown,
             label="Movement Cooldown (ms)",
             color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
@@ -769,10 +826,8 @@ class MenuSystem:
         current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
         is_azerty = current_layout.lower() == 'azerty'
 
-        toggle_width = min(max(200, self.screen_width // 7), 300)
-        toggle_height = button_height
         toggle_x = (self.screen_width - toggle_width) // 2
-        toggle_y = section2_y + 150  # Position below movement cooldown
+        toggle_y = section4_y + 50  # Position below keyboard layout title
 
         self.keyboard_layout_toggle = ToggleButton(
             "AZERTY", "QWERTY", toggle_x, toggle_y, toggle_width, toggle_height,
@@ -897,9 +952,32 @@ class MenuSystem:
                         new_value = int(self.movement_cooldown_input.current_value)
                         self.config_manager.set('game', 'movement_cooldown', new_value, save=False)
 
+                    # Handle window width input events
+                    if self.window_width_input and self.window_width_input.handle_event(event):
+                        # Input value changed, update config but don't save immediately
+                        new_width = int(self.window_width_input.current_value)
+                        self.config_manager.set('display', 'window_width', new_width, save=False)
+
+                    # Handle window height input events
+                    if self.window_height_input and self.window_height_input.handle_event(event):
+                        # Input value changed, update config but don't save immediately
+                        new_height = int(self.window_height_input.current_value)
+                        self.config_manager.set('display', 'window_height', new_height, save=False)
+
+                    # Handle fullscreen toggle button events
+                    if self.fullscreen_toggle:
+                        if self.fullscreen_toggle.handle_event(event):
+                            # Ensure the config manager is updated with the new state
+                            self.config_manager.set('display', 'fullscreen', self.fullscreen_toggle.is_on, save=False)
+                            print(f"Fullscreen toggled to {self.fullscreen_toggle.is_on}")
+
                     # Handle keyboard layout toggle button events
                     if self.keyboard_layout_toggle:
-                        self.keyboard_layout_toggle.handle_event(event)
+                        if self.keyboard_layout_toggle.handle_event(event):
+                            # Ensure the config manager is updated with the new state
+                            layout = 'azerty' if self.keyboard_layout_toggle.is_on else 'qwerty'
+                            self.config_manager.set('game', 'keyboard_layout', layout, save=False)
+                            print(f"Keyboard layout changed to {layout}")
 
             # Update current state
             self.states[self.current_state]()
@@ -1005,6 +1083,24 @@ class MenuSystem:
 
         pygame.display.flip()
 
+    def _toggle_fullscreen(self, is_fullscreen):
+        """
+        Toggle fullscreen mode.
+
+        Args:
+            is_fullscreen (bool): True if fullscreen mode is enabled, False otherwise.
+        """
+        # Update the config manager with the new fullscreen state
+        self.config_manager.set('display', 'fullscreen', is_fullscreen, save=False)
+
+        # Actually toggle fullscreen mode
+        if is_fullscreen:
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.FULLSCREEN)
+        else:
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+
+        print(f"Fullscreen mode {'enabled' if is_fullscreen else 'disabled'}")
+
     def _toggle_keyboard_layout(self, is_azerty):
         """
         Toggle between QWERTY and AZERTY keyboard layouts.
@@ -1050,6 +1146,29 @@ class MenuSystem:
 
     def _save_settings(self):
         """Save all settings to the config file."""
+        # Ensure the current value of the movement cooldown input field is saved to the config manager
+        if self.movement_cooldown_input:
+            # Get the current value from the input field
+            current_value = int(self.movement_cooldown_input.current_value)
+            # Update the config manager with the current value
+            self.config_manager.set('game', 'movement_cooldown', current_value, save=False)
+
+        # Ensure the current fullscreen toggle state is saved to the config manager
+        if self.fullscreen_toggle:
+            # Get the current state from the toggle button
+            is_fullscreen = self.fullscreen_toggle.is_on
+            # Update the config manager with the current state
+            self.config_manager.set('display', 'fullscreen', is_fullscreen, save=False)
+
+        # Ensure the current window size values are saved to the config manager
+        if self.window_width_input and self.window_height_input:
+            # Get the current values from the input fields
+            window_width = int(self.window_width_input.current_value)
+            window_height = int(self.window_height_input.current_value)
+            # Update the config manager with the current values
+            self.config_manager.set('display', 'window_width', window_width, save=False)
+            self.config_manager.set('display', 'window_height', window_height, save=False)
+
         # Save all changes to the config file
         success = self.config_manager.save()
 
@@ -1068,22 +1187,10 @@ class MenuSystem:
         # Calculate responsive positions based on screen resolution
         if self.screen_width >= 1920 or self.screen_height >= 1080:
             title_y = 120
-            section1_y = 220
-            instruction_y = 270
-            section2_y = 350
-            section3_y = 500
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             title_y = 110
-            section1_y = 200
-            instruction_y = 240
-            section2_y = 320
-            section3_y = 450
         else:
             title_y = 100
-            section1_y = 180
-            instruction_y = 220
-            section2_y = 300
-            section3_y = 400
 
         # Draw title with shadow effect
         title_text = "Settings"
@@ -1100,59 +1207,12 @@ class MenuSystem:
         title_rect = title_surface.get_rect(center=(self.screen_width // 2, title_y))
         self.screen.blit(title_surface, title_rect)
 
-        # Add fullscreen toggle option
-        fullscreen_text = "Fullscreen Mode"
-        fullscreen_surface = self.subtitle_font.render(fullscreen_text, True, self.colors['text'])
-        fullscreen_rect = fullscreen_surface.get_rect(center=(self.screen_width // 2, section1_y))
-        self.screen.blit(fullscreen_surface, fullscreen_rect)
-
-        # Add instruction for fullscreen toggle
-        instruction_text = "Press F11 to toggle fullscreen mode"
-        instruction_surface = self.text_font.render(instruction_text, True, self.colors['text'])
-        instruction_rect = instruction_surface.get_rect(center=(self.screen_width // 2, instruction_y))
-        self.screen.blit(instruction_surface, instruction_rect)
-
-        # Add movement cooldown section title
-        cooldown_title = "Movement Speed"
-        cooldown_surface = self.subtitle_font.render(cooldown_title, True, self.colors['text'])
-        cooldown_rect = cooldown_surface.get_rect(center=(self.screen_width // 2, section2_y))
-        self.screen.blit(cooldown_surface, cooldown_rect)
-
-        # Draw movement cooldown text input
-        if self.movement_cooldown_input:
-            # Update text input position based on current screen size
-            self.movement_cooldown_input.y = section2_y + 50
-            self.movement_cooldown_input.x = (self.screen_width - self.movement_cooldown_input.width) // 2
-            self.movement_cooldown_input.draw(self.screen)
-
-        # Add keyboard layout section title
-        layout_title = "Keyboard Layout"
-        layout_surface = self.subtitle_font.render(layout_title, True, self.colors['text'])
-        layout_rect = layout_surface.get_rect(center=(self.screen_width // 2, section3_y))
-        self.screen.blit(layout_surface, layout_rect)
-
-        # Draw keyboard layout toggle button
-        if self.keyboard_layout_toggle:
-            # Update toggle button position based on current screen size
-            self.keyboard_layout_toggle.y = section3_y + 50
-            self.keyboard_layout_toggle.x = (self.screen_width - self.keyboard_layout_toggle.width) // 2
-
-            # Update and draw the toggle button
-            mouse_pos = pygame.mouse.get_pos()
-            self.keyboard_layout_toggle.update(mouse_pos)
-            self.keyboard_layout_toggle.draw(self.screen)
-
         # Update and draw buttons for this state
         mouse_pos = pygame.mouse.get_pos()
         for button in self.settings_menu_buttons:
             button.update(mouse_pos)
             button.draw(self.screen)
 
-        # Draw help text at the bottom
-        help_text = "Lower values = faster movement"
-        help_surface = self.text_font.render(help_text, True, self.colors['text'])
-        help_rect = help_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 80))
-        self.screen.blit(help_surface, help_rect)
 
         # Show save success message if needed
         if hasattr(self, 'show_save_success_message') and self.show_save_success_message:
@@ -1181,6 +1241,239 @@ class MenuSystem:
 
         # Update the display (only once)
         pygame.display.flip()
+
+    def _show_general_settings_dialog(self):
+        """Show the general settings dialog."""
+        # First, render the settings menu to a background surface to prevent flickering
+        self._settings_menu()
+        self.background_surface = pygame.Surface((self.screen_width, self.screen_height))
+        self.background_surface.blit(self.screen, (0, 0))
+
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))  # Dark semi-transparent background
+
+        # Create a dialog box
+        dialog_width = min(700, self.screen_width - 40)
+        dialog_height = min(600, self.screen_height - 40)
+        dialog_x = (self.screen_width - dialog_width) // 2
+        dialog_y = (self.screen_height - dialog_height) // 2
+
+        # Font for the dialog
+        title_font = pygame.font.Font(None, 36)
+        text_font = pygame.font.Font(None, 24)
+
+        # Create buttons for the dialog
+        button_width = 100
+        button_height = 40
+        save_button = Button(
+            "Save", dialog_x + dialog_width - button_width - 20, 
+            dialog_y + dialog_height - button_height - 20,
+            button_width, button_height, color=(100, 180, 100), hover_color=(120, 220, 120)
+        )
+        cancel_button = Button(
+            "Cancel", dialog_x + dialog_width - button_width * 2 - 30, 
+            dialog_y + dialog_height - button_height - 20,
+            button_width, button_height, color=(180, 100, 100), hover_color=(220, 120, 120)
+        )
+
+        # Calculate section positions with more spacing to prevent overlaps
+        section_padding = 40  # Increased padding
+        section1_y = dialog_y + 80  # Fullscreen toggle
+        section2_y = section1_y + 120  # Window size (increased spacing)
+        section3_y = section2_y + 120  # Movement speed (increased spacing)
+        section4_y = section3_y + 140  # Keyboard layout (increased spacing for help text)
+
+        # Define two-column layout
+        left_column_x = dialog_x + 40  # Left column for labels
+        right_column_x = dialog_x + dialog_width // 2  # Right column for interactive elements
+
+        # Create temporary copies of UI elements for the dialog
+        # Fullscreen toggle
+        current_fullscreen = self.config_manager.get('display', 'fullscreen', False)
+        toggle_width = min(200, dialog_width // 2 - 60)  # Adjusted width for right column
+        toggle_height = button_height
+        toggle_x = right_column_x  # Use right column position
+        fullscreen_toggle = ToggleButton(
+            "ON", "OFF", toggle_x, section1_y,  # Align vertically with the label
+            toggle_width, toggle_height,
+            is_on=current_fullscreen, action=None,
+            color_on=(100, 180, 100), color_off=(180, 100, 100),
+            hover_color_on=(120, 220, 120), hover_color_off=(220, 120, 120)
+        )
+
+        # Window size inputs
+        window_width = self.config_manager.get('display', 'window_width', 900)
+        window_height = self.config_manager.get('display', 'window_height', 700)
+        input_width = min(80, dialog_width // 6)  # Smaller width for each input
+        input_height = 40
+
+        # Position inputs in the right column with space for the "x" between them
+        width_input_x = right_column_x
+        height_input_x = right_column_x + input_width + 30  # Space for "x" between inputs
+
+        width_input = TextInput(
+            width_input_x, section2_y,  # Align vertically with the label
+            input_width, input_height,
+            min_value=800, max_value=3840, current_value=window_width,
+            label="",  # Remove label as it's now in the left column
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
+        height_input = TextInput(
+            height_input_x, section2_y,  # Align vertically with the label
+            input_width, input_height,
+            min_value=600, max_value=2160, current_value=window_height,
+            label="",  # Remove label as it's now in the left column
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
+        # Movement cooldown input
+        current_cooldown = self.config_manager.get('game', 'movement_cooldown', 200)
+        cooldown_input = TextInput(
+            right_column_x, section3_y,  # Align vertically with the label
+            input_width * 2, input_height,  # Wider input for movement cooldown
+            min_value=50, max_value=500, current_value=current_cooldown,
+            label="",  # Remove label as it's now in the left column
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
+        # Keyboard layout toggle
+        current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
+        is_azerty = current_layout.lower() == 'azerty'
+        keyboard_toggle = ToggleButton(
+            "AZERTY", "QWERTY", right_column_x, section4_y,  # Align vertically with the label
+            toggle_width, toggle_height,
+            is_on=is_azerty, action=None,
+            color_on=(100, 180, 100), color_off=(100, 100, 180),
+            hover_color_on=(120, 220, 120), hover_color_off=(120, 120, 220)
+        )
+
+        # Dialog loop
+        running = True
+        while running:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    self.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        # Exit dialog on Escape
+                        running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Left mouse button
+                        # Check if a button was clicked
+                        mouse_pos = pygame.mouse.get_pos()
+                        if save_button.is_hovered(mouse_pos):
+                            # Save settings and exit
+                            self.config_manager.set('display', 'fullscreen', fullscreen_toggle.is_on, save=False)
+                            self.config_manager.set('display', 'window_width', width_input.current_value, save=False)
+                            self.config_manager.set('display', 'window_height', height_input.current_value, save=False)
+                            self.config_manager.set('game', 'movement_cooldown', cooldown_input.current_value, save=False)
+                            layout = 'azerty' if keyboard_toggle.is_on else 'qwerty'
+                            self.config_manager.set('game', 'keyboard_layout', layout, save=False)
+
+                            # Update the actual UI elements
+                            self.fullscreen_toggle.is_on = fullscreen_toggle.is_on
+                            self.window_width_input.current_value = width_input.current_value
+                            self.window_width_input.text = str(width_input.current_value)
+                            self.window_height_input.current_value = height_input.current_value
+                            self.window_height_input.text = str(height_input.current_value)
+                            self.movement_cooldown_input.current_value = cooldown_input.current_value
+                            self.movement_cooldown_input.text = str(cooldown_input.current_value)
+                            self.keyboard_layout_toggle.is_on = keyboard_toggle.is_on
+
+                            # Apply fullscreen change immediately
+                            self._toggle_fullscreen(fullscreen_toggle.is_on)
+
+                            running = False
+                        elif cancel_button.is_hovered(mouse_pos):
+                            # Exit without saving
+                            running = False
+                        else:
+                            # Check if any of the UI elements were clicked
+                            fullscreen_toggle.handle_event(event)
+                            width_input.handle_event(event)
+                            height_input.handle_event(event)
+                            cooldown_input.handle_event(event)
+                            keyboard_toggle.handle_event(event)
+
+            # Draw the static background (settings menu)
+            self.screen.blit(self.background_surface, (0, 0))
+
+            # Draw the overlay
+            self.screen.blit(overlay, (0, 0))
+
+            # Draw the dialog box
+            pygame.draw.rect(self.screen, (240, 240, 240), 
+                            (dialog_x, dialog_y, dialog_width, dialog_height), 0, 10)
+            pygame.draw.rect(self.screen, (100, 100, 100), 
+                            (dialog_x, dialog_y, dialog_width, dialog_height), 2, 10)
+
+            # Draw the title
+            title_text = "General Settings"
+            title_surface = title_font.render(title_text, True, (50, 50, 50))
+            title_rect = title_surface.get_rect(center=(dialog_x + dialog_width // 2, dialog_y + 30))
+            self.screen.blit(title_surface, title_rect)
+
+            # Draw section titles in the left column
+            fullscreen_title = text_font.render("Fullscreen Mode:", True, (50, 50, 50))
+            # Right-align the text in the left column
+            fullscreen_rect = fullscreen_title.get_rect(right=right_column_x - 20, centery=section1_y + toggle_height // 2)
+            self.screen.blit(fullscreen_title, fullscreen_rect)
+
+            window_size_title = text_font.render("Window Size:", True, (50, 50, 50))
+            window_size_rect = window_size_title.get_rect(right=right_column_x - 20, centery=section2_y + input_height // 2)
+            self.screen.blit(window_size_title, window_size_rect)
+
+            movement_title = text_font.render("Movement Speed:", True, (50, 50, 50))
+            movement_rect = movement_title.get_rect(right=right_column_x - 20, centery=section3_y + input_height // 2)
+            self.screen.blit(movement_title, movement_rect)
+
+            # Draw help text below movement speed section with better visibility
+            help_text = "Lower values = faster movement"
+            help_surface = text_font.render(help_text, True, (50, 50, 50))
+            # Position it below the input field in the right column
+            help_rect = help_surface.get_rect(left=right_column_x, top=section3_y + input_height + 30)
+            # Draw a light background behind the text for better readability
+            bg_rect = pygame.Rect(help_rect.x - 5, help_rect.y - 5, help_rect.width + 10, help_rect.height + 10)
+            pygame.draw.rect(self.screen, (230, 230, 250), bg_rect, 0, 5)
+            pygame.draw.rect(self.screen, (200, 200, 220), bg_rect, 1, 5)
+            self.screen.blit(help_surface, help_rect)
+
+            keyboard_title = text_font.render("Keyboard Layout:", True, (50, 50, 50))
+            keyboard_rect = keyboard_title.get_rect(right=right_column_x - 20, centery=section4_y + toggle_height // 2)
+            self.screen.blit(keyboard_title, keyboard_rect)
+
+            # Draw UI elements
+            fullscreen_toggle.draw(self.screen)
+            width_input.draw(self.screen)
+            height_input.draw(self.screen)
+
+            # Draw "x" between width and height inputs
+            x_text = "x"
+            x_surface = text_font.render(x_text, True, (50, 50, 50))
+            # Position "x" between the two inputs
+            x_rect = x_surface.get_rect(center=(width_input_x + input_width + 15, section2_y + input_height // 2))
+            self.screen.blit(x_surface, x_rect)
+
+            cooldown_input.draw(self.screen)
+            keyboard_toggle.draw(self.screen)
+
+            # Draw buttons
+            mouse_pos = pygame.mouse.get_pos()
+            save_button.update(mouse_pos)
+            cancel_button.update(mouse_pos)
+
+            save_button.draw(self.screen)
+            cancel_button.draw(self.screen)
+
+            # Update the display
+            pygame.display.flip()
+
+        # Clean up
+        self.background_surface = None
 
     def _show_keybinding_dialog(self):
         """Show the key rebinding dialog."""
@@ -1221,7 +1514,8 @@ class MenuSystem:
 
         # Variables for scrolling
         scroll_offset = 0
-        max_scroll = max(0, len(actions) * 40 - (dialog_height - 120))
+        # Increase max_scroll to ensure the last element is fully visible
+        max_scroll = max(0, len(actions) * 40 - (dialog_height - 160))
 
         # Font for the dialog
         title_font = pygame.font.Font(None, 36)
