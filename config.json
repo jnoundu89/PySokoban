@@ -4,8 +4,8 @@
     "tile_size": 128
   },
   "display": {
-    "window_width": 900,
-    "window_height": 700,
+    "window_width": 890,
+    "window_height": 620,
     "fullscreen": false
   },
   "game": {

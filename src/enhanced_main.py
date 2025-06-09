@@ -20,6 +20,7 @@ from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
 from src.ui.menu_system import MenuSystem
 from src.editors.enhanced_level_editor import EnhancedLevelEditor
 from src.gui_main import GUIGame
+from src.core.config_manager import get_config_manager
 
 # Import for window maximization on Windows
 if sys.platform == "win32":
@@ -49,18 +50,31 @@ class EnhancedSokoban:
         """
         pygame.init()
 
-        # Initialize window - start maximized
-        self.fullscreen = False
+        # Initialize config manager
+        self.config_manager = get_config_manager()
+        display_config = self.config_manager.get_display_config()
+
+        # Initialize window with settings from config
+        self.fullscreen = display_config['fullscreen']
         # Create initial window
-        self.screen_width = 1024
-        self.screen_height = 768
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+        self.screen_width = display_config['window_width']
+        self.screen_height = display_config['window_height']
+
+        # Set display mode based on fullscreen setting
+        if self.fullscreen:
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            # Store window size for when exiting fullscreen
+            self.windowed_size = (self.screen_width, self.screen_height)
+        else:
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+
         pygame.display.set_caption(TITLE)
 
-        # Maximize the window using OS-specific method
-        self._maximize_window()
+        # If not fullscreen, maximize the window using OS-specific method
+        if not self.fullscreen:
+            self._maximize_window()
 
-        # Get actual screen size after maximizing
+        # Get actual screen size after maximizing or setting fullscreen
         self.screen_width, self.screen_height = self.screen.get_size()
 
         # Initialize managers
@@ -143,6 +157,8 @@ class EnhancedSokoban:
                 elif event.type == pygame.VIDEORESIZE:
                     self.screen_width, self.screen_height = event.size
                     self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+                    # Save new dimensions to config
+                    self.config_manager.set_display_config(width=self.screen_width, height=self.screen_height)
                     self._update_components_screen_size()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_F11:
@@ -366,6 +382,10 @@ class EnhancedSokoban:
     def toggle_fullscreen(self):
         """Toggle between fullscreen and windowed mode."""
         self.fullscreen = not self.fullscreen
+
+        # Save fullscreen setting to config
+        self.config_manager.set_display_config(fullscreen=self.fullscreen)
+
         if self.fullscreen:
             # Store current window size before going fullscreen
             self.windowed_size = (self.screen_width, self.screen_height)
@@ -445,6 +465,9 @@ class EnhancedSokoban:
             # Create the maximized window
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
 
+            # Save window dimensions to config
+            self.config_manager.set_display_config(width=self.screen_width, height=self.screen_height)
+
             # Try to position window at top-left if on Windows
             if sys.platform == "win32":
                 try:
@@ -455,9 +478,10 @@ class EnhancedSokoban:
 
         except Exception as e:
             print(f"Could not maximize window: {e}")
-            # Fallback to default large window size
-            self.screen_width = 1200
-            self.screen_height = 800
+            # Get dimensions from config as fallback
+            display_config = self.config_manager.get_display_config()
+            self.screen_width = display_config['window_width']
+            self.screen_height = display_config['window_height']
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
 
     def _exit_game(self):

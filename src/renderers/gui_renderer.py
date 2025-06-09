@@ -8,6 +8,7 @@ using Pygame.
 import os
 import pygame
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET, CELL_SIZE
+from src.core.config_manager import get_config_manager
 
 
 class GUIRenderer:
@@ -47,8 +48,12 @@ class GUIRenderer:
         # Load assets (images)
         self.assets = self._load_assets()
 
-        # Set default window size (will be adjusted based on level size)
-        self.window_size = (800, 600)
+        # Get window size from config
+        self.config_manager = get_config_manager()
+        display_config = self.config_manager.get_display_config()
+
+        # Set window size from config (will be adjusted based on level size)
+        self.window_size = (display_config['window_width'], display_config['window_height'])
         self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
         self.scale_factor = 1.0  # For scaling elements in fullscreen mode
 
@@ -439,15 +444,19 @@ class GUIRenderer:
         # Get current screen size
         current_screen_width, current_screen_height = self.screen.get_size()
 
+        # Get config dimensions
+        display_config = self.config_manager.get_display_config()
+        config_width = display_config['window_width']
+        config_height = display_config['window_height']
+
         # Check if we need to adjust for fullscreen
-        if current_screen_width > 800 or current_screen_height > 600:
+        if current_screen_width > config_width or current_screen_height > config_height:
             # We're in a larger window, calculate scaling
-            self.scale_factor = min(current_screen_width / 800, current_screen_height / 600)
+            self.scale_factor = min(current_screen_width / config_width, current_screen_height / config_height)
         else:
-            # Set up a standard window size for the welcome screen
-            window_width, window_height = 800, 600
-            if (window_width, window_height) != self.window_size:
-                self.window_size = (window_width, window_height)
+            # Set up window size from config for the welcome screen
+            if (config_width, config_height) != self.window_size:
+                self.window_size = (config_width, config_height)
                 self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
             self.scale_factor = 1.0
 
@@ -531,15 +540,19 @@ class GUIRenderer:
         # Get current screen size
         current_screen_width, current_screen_height = self.screen.get_size()
 
+        # Get config dimensions
+        display_config = self.config_manager.get_display_config()
+        config_width = display_config['window_width']
+        config_height = display_config['window_height']
+
         # Check if we need to adjust for fullscreen
-        if current_screen_width > 800 or current_screen_height > 600:
+        if current_screen_width > config_width or current_screen_height > config_height:
             # We're in a larger window, calculate scaling
-            self.scale_factor = min(current_screen_width / 800, current_screen_height / 600)
+            self.scale_factor = min(current_screen_width / config_width, current_screen_height / config_height)
         else:
-            # Set up a standard window size for the game over screen
-            window_width, window_height = 800, 600
-            if (window_width, window_height) != self.window_size:
-                self.window_size = (window_width, window_height)
+            # Set up window size from config for the game over screen
+            if (config_width, config_height) != self.window_size:
+                self.window_size = (config_width, config_height)
                 self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
             self.scale_factor = 1.0
 
