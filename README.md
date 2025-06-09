@@ -58,11 +58,17 @@ Le système de skins permet de personnaliser l'apparence du jeu:
 
 ## Comment jouer
 
-Le jeu dispose désormais d'un point d'entrée unique via le module `src.main`. Vous pouvez lancer différentes versions du jeu en utilisant l'option `--mode`.
+Le jeu dispose désormais d'un point d'entrée unique via le module `src.main` ou le script `launch_game.py`. Vous pouvez lancer différentes versions du jeu en utilisant l'option `--mode`.
 
 ### Mode Amélioré (Recommandé)
 
 Pour lancer le jeu avec toutes les fonctionnalités améliorées (mode par défaut):
+
+```bash
+python launch_game.py
+```
+
+ou
 
 ```bash
 python -m src.main
@@ -136,6 +142,9 @@ python -m src.main --help
 - P: Niveau précédent
 - H: Afficher l'aide
 - Q: Quitter le jeu
+- J: Résoudre automatiquement le niveau (utilise le solveur Sokolution)
+- F11: Basculer en mode plein écran
+- G: Afficher/masquer la grille
 
 #### Disposition AZERTY:
 - Flèches directionnelles ou ZQSD: Déplacer le joueur
@@ -145,6 +154,9 @@ python -m src.main --help
 - P: Niveau précédent
 - H: Afficher l'aide
 - A: Quitter le jeu
+- J: Résoudre automatiquement le niveau (utilise le solveur Sokolution)
+- F11: Basculer en mode plein écran
+- G: Afficher/masquer la grille
 
 ### Dans l'éditeur de niveaux graphique
 
@@ -203,3 +215,43 @@ pip install -r requirements.txt
 - Statistiques de jeu (mouvements, poussées)
 - Détection automatique de la complétion des niveaux
 - Navigation entre les niveaux
+- Solveur automatique de niveaux (Sokolution)
+- Mode plein écran (F11)
+- Affichage de grille optionnel
+- Configuration personnalisable via fichier JSON
+
+## Solveur Sokolution
+
+Le jeu intègre un solveur avancé basé sur les techniques de Sokolution:
+
+- Plusieurs algorithmes de recherche (BFS, DFS, A*, IDA*, Greedy)
+- Modes de recherche avant, arrière et bidirectionnel
+- Heuristique avancée utilisant l'algorithme hongrois (couplage biparti)
+- Table de transposition avec fonction de hachage
+- Élagage PI-Corral
+- Macro-mouvements
+- Détection dynamique des impasses
+
+Pour utiliser le solveur pendant le jeu, appuyez sur la touche `J`. Le solveur tentera de trouver une solution au niveau actuel et, s'il réussit, exécutera automatiquement les mouvements pour résoudre le niveau.
+
+## Configuration
+
+Le jeu utilise un fichier de configuration `config.json` qui permet de personnaliser divers aspects:
+
+### Skin
+- `current_skin`: Le thème visuel actuel
+- `tile_size`: Taille des tuiles en pixels
+
+### Affichage
+- `window_width`: Largeur de la fenêtre
+- `window_height`: Hauteur de la fenêtre
+- `fullscreen`: Mode plein écran (true/false)
+
+### Jeu
+- `keyboard_layout`: Disposition du clavier (azerty/qwerty)
+- `show_grid`: Affichage de la grille (true/false)
+- `zoom_level`: Niveau de zoom
+- `movement_cooldown`: Délai entre les mouvements (en millisecondes)
+
+### Touches
+Les touches peuvent être personnalisées dans la section `keybindings` du fichier de configuration.
