@@ -553,6 +553,10 @@ class MenuSystem:
         # Background surface for dialogs
         self.background_surface = None
 
+        # Variables for save success message
+        self.show_save_success_message = False
+        self.save_message_time = 0
+
         self._recreate_all_buttons()
 
     def _update_fonts(self):
@@ -705,6 +709,7 @@ class MenuSystem:
             input_height = 40
             input_y = self.screen_height // 2
             keybind_button_width = min(max(250, self.screen_width // 6), 350)
+            save_button_width = min(max(150, self.screen_width // 8), 200)
             section2_y = 350
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             button_width = min(max(100, self.screen_width // 11), 150)
@@ -714,6 +719,7 @@ class MenuSystem:
             input_height = 35
             input_y = self.screen_height // 2
             keybind_button_width = min(max(200, self.screen_width // 7), 300)
+            save_button_width = min(max(120, self.screen_width // 9), 180)
             section2_y = 320
         else:
             button_width = min(max(80, self.screen_width // 12), 120)
@@ -723,6 +729,7 @@ class MenuSystem:
             input_height = 30
             input_y = 300
             keybind_button_width = min(max(150, self.screen_width // 8), 250)
+            save_button_width = min(max(100, self.screen_width // 10), 150)
             section2_y = 300
 
         # Calculate font size based on button dimensions
@@ -738,6 +745,12 @@ class MenuSystem:
                    self.screen_height - button_height * 2 - margin * 2,
                    keybind_button_width, button_height,
                    action=self._show_keybinding_dialog,
+                   font_size=button_font_size),
+            Button("Save", (self.screen_width - save_button_width) // 2, 
+                   self.screen_height - button_height * 3 - margin * 3,
+                   save_button_width, button_height,
+                   action=self._save_settings,
+                   color=(100, 180, 100), hover_color=(120, 220, 120),
                    font_size=button_font_size)
         ]
 
@@ -880,9 +893,9 @@ class MenuSystem:
                 # Handle text input events in settings menu
                 if self.current_state == 'settings':
                     if self.movement_cooldown_input and self.movement_cooldown_input.handle_event(event):
-                        # Input value changed, update config
+                        # Input value changed, update config but don't save immediately
                         new_value = int(self.movement_cooldown_input.current_value)
-                        self.config_manager.set('game', 'movement_cooldown', new_value, save=True)
+                        self.config_manager.set('game', 'movement_cooldown', new_value, save=False)
 
                     # Handle keyboard layout toggle button events
                     if self.keyboard_layout_toggle:
@@ -1033,9 +1046,20 @@ class MenuSystem:
             if keybindings.get(direction) == old_default_key and new_default_key:
                 self.config_manager.set_keybinding(direction, new_default_key, save=False)
 
-        # Save all changes
-        self.config_manager.save()
         print(f"Keyboard layout changed to {layout}")
+
+    def _save_settings(self):
+        """Save all settings to the config file."""
+        # Save all changes to the config file
+        success = self.config_manager.save()
+
+        if success:
+            # Show a temporary success message
+            self.show_save_success_message = True
+            self.save_message_time = pygame.time.get_ticks()
+            print("Settings saved successfully")
+        else:
+            print("Failed to save settings")
 
     def _settings_menu(self):
         """Display the settings menu."""
@@ -1129,6 +1153,31 @@ class MenuSystem:
         help_surface = self.text_font.render(help_text, True, self.colors['text'])
         help_rect = help_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 80))
         self.screen.blit(help_surface, help_rect)
+
+        # Show save success message if needed
+        if hasattr(self, 'show_save_success_message') and self.show_save_success_message:
+            current_time = pygame.time.get_ticks()
+            # Show message for 2 seconds
+            if current_time - self.save_message_time < 2000:
+                # Draw a semi-transparent background for the message
+                message_width = 300
+                message_height = 50
+                message_x = (self.screen_width - message_width) // 2
+                message_y = 20
+
+                # Create a semi-transparent surface
+                message_bg = pygame.Surface((message_width, message_height), pygame.SRCALPHA)
+                message_bg.fill((0, 150, 0, 180))  # Green with alpha
+                self.screen.blit(message_bg, (message_x, message_y))
+
+                # Draw the message text
+                message_text = "Settings saved successfully!"
+                message_surface = self.text_font.render(message_text, True, (255, 255, 255))
+                message_rect = message_surface.get_rect(center=(self.screen_width // 2, message_y + message_height // 2))
+                self.screen.blit(message_surface, message_rect)
+            else:
+                # Time's up, hide the message
+                self.show_save_success_message = False
 
         # Update the display (only once)
         pygame.display.flip()
