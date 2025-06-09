@@ -542,6 +542,8 @@ class MenuSystem:
         self.selected_level_path = None
         self.selected_level_info = None
 
+        # No UI layout containers needed in the original implementation
+
         # Create buttons for all menu states
         self.main_menu_buttons = []
         self.play_menu_buttons = []
@@ -583,7 +585,10 @@ class MenuSystem:
 
     def _recreate_all_buttons(self):
         """Recreate all buttons, typically after a resize."""
+        # Update fonts
         self._update_fonts()
+
+        # Recreate all buttons
         self._create_main_menu_buttons()
         self._create_play_menu_buttons()
         self._create_editor_menu_buttons()
@@ -1044,6 +1049,7 @@ class MenuSystem:
 
     def _play_menu(self):
         """Display the play menu (level selection)."""
+
         # Create level selector if it doesn't exist
         if self.level_selector is None:
             self.level_selector = LevelSelector(
@@ -1672,6 +1678,7 @@ class MenuSystem:
 
     def _skins_menu(self):
         """Display the skins menu."""
+
         # Import here to avoid circular imports
         from src.ui.skins_menu import SkinsMenu
 

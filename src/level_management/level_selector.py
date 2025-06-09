@@ -203,6 +203,8 @@ class LevelSelector:
         # Load level categories
         self.categories = self._load_level_categories()
 
+        # No UI layout containers needed in the original implementation
+
         # Create buttons
         self.category_buttons = []
         self.level_buttons = []
@@ -443,6 +445,7 @@ class LevelSelector:
         """Select a category and show its levels."""
         self.selected_category = category
         self.current_view = 'levels'
+        self.scroll_offset = 0  # Reset scroll position
         self._create_level_buttons()
 
     def _select_level_info(self, level_info):
@@ -524,15 +527,15 @@ class LevelSelector:
         # Get mouse position for positioning the preview
         mouse_pos = pygame.mouse.get_pos()
 
-        # Define preview dimensions
-        preview_width = 200
-        preview_height = 200
+        # Define preview dimensions - responsive to screen size
+        preview_width = min(250, max(150, int(self.screen_width * 0.15)))
+        preview_height = min(250, max(150, int(self.screen_height * 0.25)))
 
         # Position the preview near the mouse cursor but ensure it stays on screen
         preview_x = min(mouse_pos[0] + 20, self.screen_width - preview_width - 10)
         preview_y = min(mouse_pos[1] + 20, self.screen_height - preview_height - 10)
 
-        # Draw preview background
+        # Draw preview background with rounded corners
         pygame.draw.rect(self.screen, self.colors['preview_bg'], 
                         (preview_x, preview_y, preview_width, preview_height), 0, 10)
         pygame.draw.rect(self.screen, self.colors['preview_border'], 
@@ -548,7 +551,7 @@ class LevelSelector:
         level = self.hover_preview_level
         max_cell_width = (preview_width - 20) // max(1, level.width)
         max_cell_height = (preview_height - 40) // max(1, level.height)
-        cell_size = min(max_cell_width, max_cell_height, 15)  # Max 15px per cell
+        cell_size = min(max_cell_width, max_cell_height, 20)  # Max 20px per cell
 
         # Calculate actual preview dimensions
         actual_width = level.width * cell_size
