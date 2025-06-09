@@ -1209,24 +1209,199 @@ class EnhancedLevelEditor:
         if not level_files:
             return
 
-        # Simple implementation - just load the first level for now
-        # In a full implementation, this would show a proper dialog
-        try:
-            self.current_level = Level(level_file=level_files[0])
-            self.unsaved_changes = False
-            self._reset_view()
-        except Exception as e:
-            print(f"Error opening level: {e}")
+        # Create a dialog
+        dialog_width = 600
+        dialog_height = 500
+        dialog_x = (self.screen_width - dialog_width) // 2
+        dialog_y = (self.screen_height - dialog_height) // 2
+
+        dialog_rect = pygame.Rect(dialog_x, dialog_y, dialog_width, dialog_height)
+
+        # Create level buttons
+        level_buttons = []
+        button_height = 30
+        button_spacing = 10
+
+        for i, level_file in enumerate(level_files):
+            level_name = os.path.basename(level_file)
+            level_rect = pygame.Rect(
+                dialog_x + 50,
+                dialog_y + 80 + i * (button_height + button_spacing),
+                dialog_width - 100,
+                button_height
+            )
+
+            level_buttons.append({
+                'text': level_name,
+                'rect': level_rect,
+                'file': level_file
+            })
+
+        # Create cancel button
+        cancel_rect = pygame.Rect(dialog_x + dialog_width // 2 - 50, dialog_y + dialog_height - 50, 100, 30)
+
+        # Dialog loop
+        dialog_running = True
+        while dialog_running and not self.exit_requested:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.exit_requested = True
+                    dialog_running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        dialog_running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = pygame.mouse.get_pos()
+
+                    # Check if a level button was clicked
+                    for button in level_buttons:
+                        if button['rect'].collidepoint(mouse_pos):
+                            try:
+                                self.current_level = Level(level_file=button['file'])
+                                self.unsaved_changes = False
+                                self._reset_view()
+                                dialog_running = False
+                                break
+                            except Exception as e:
+                                print(f"Error opening level: {e}")
+
+                    # Check if cancel button was clicked
+                    if cancel_rect.collidepoint(mouse_pos):
+                        dialog_running = False
+
+            # Draw dialog
+            self._draw_editor()  # Draw editor in background
+
+            # Draw dialog box
+            pygame.draw.rect(self.screen, (240, 240, 240), dialog_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0), dialog_rect, 2)
+
+            # Draw title
+            title_surface = self.title_font.render("Open Level", True, (0, 0, 0))
+            title_rect = title_surface.get_rect(center=(dialog_x + dialog_width // 2, dialog_y + 30))
+            self.screen.blit(title_surface, title_rect)
+
+            # Draw level buttons
+            for button in level_buttons:
+                pygame.draw.rect(self.screen, (200, 200, 200), button['rect'])
+                pygame.draw.rect(self.screen, (0, 0, 0), button['rect'], 1)
+
+                text_surface = self.text_font.render(button['text'], True, (0, 0, 0))
+                text_rect = text_surface.get_rect(midleft=(button['rect'].left + 10, button['rect'].centery))
+                self.screen.blit(text_surface, text_rect)
+
+            # Draw cancel button
+            pygame.draw.rect(self.screen, (200, 100, 100), cancel_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0), cancel_rect, 1)
+
+            cancel_text = self.text_font.render("Cancel", True, (255, 255, 255))
+            cancel_text_rect = cancel_text.get_rect(center=cancel_rect.center)
+            self.screen.blit(cancel_text, cancel_text_rect)
+
+            pygame.display.flip()
 
     def _show_save_level_dialog(self):
         """Show dialog to save the current level."""
         if not self.current_level:
             return
 
-        # Simple implementation - save with timestamp
-        import time
-        filename = f"level_{int(time.time())}.txt"
-        self._save_level(filename)
+        # Create a dialog
+        dialog_width = 500
+        dialog_height = 200
+        dialog_x = (self.screen_width - dialog_width) // 2
+        dialog_y = (self.screen_height - dialog_height) // 2
+
+        dialog_rect = pygame.Rect(dialog_x, dialog_y, dialog_width, dialog_height)
+
+        # Create input field
+        input_rect = pygame.Rect(dialog_x + 50, dialog_y + 100, dialog_width - 100, 30)
+        input_text = ""
+        input_active = True
+
+        # Create buttons
+        save_rect = pygame.Rect(dialog_x + dialog_width // 2 - 110, dialog_y + dialog_height - 50, 100, 30)
+        cancel_rect = pygame.Rect(dialog_x + dialog_width // 2 + 10, dialog_y + dialog_height - 50, 100, 30)
+
+        # Dialog loop
+        dialog_running = True
+        while dialog_running and not self.exit_requested:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.exit_requested = True
+                    dialog_running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        dialog_running = False
+                    elif event.key == pygame.K_RETURN:
+                        if input_text:
+                            self._save_level(input_text)
+                            dialog_running = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        input_text = input_text[:-1]
+                    else:
+                        # Add character to input text if it's valid for a filename
+                        if event.unicode.isalnum() or event.unicode in "-_. ":
+                            input_text += event.unicode
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = pygame.mouse.get_pos()
+
+                    # Check if input field was clicked
+                    input_active = input_rect.collidepoint(mouse_pos)
+
+                    # Check if save button was clicked
+                    if save_rect.collidepoint(mouse_pos) and input_text:
+                        self._save_level(input_text)
+                        dialog_running = False
+
+                    # Check if cancel button was clicked
+                    elif cancel_rect.collidepoint(mouse_pos):
+                        dialog_running = False
+
+            # Draw dialog
+            self._draw_editor()  # Draw editor in background
+
+            # Draw dialog box
+            pygame.draw.rect(self.screen, (240, 240, 240), dialog_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0), dialog_rect, 2)
+
+            # Draw title
+            title_surface = self.title_font.render("Save Level", True, (0, 0, 0))
+            title_rect = title_surface.get_rect(center=(dialog_x + dialog_width // 2, dialog_y + 30))
+            self.screen.blit(title_surface, title_rect)
+
+            # Draw input label
+            label_surface = self.text_font.render("Filename:", True, (0, 0, 0))
+            label_rect = label_surface.get_rect(midright=(input_rect.left - 10, input_rect.centery))
+            self.screen.blit(label_surface, label_rect)
+
+            # Draw input field
+            pygame.draw.rect(self.screen, (255, 255, 255), input_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0) if input_active else (100, 100, 100), input_rect, 2)
+
+            # Draw input text
+            input_surface = self.text_font.render(input_text, True, (0, 0, 0))
+            input_text_rect = input_surface.get_rect(midleft=(input_rect.left + 5, input_rect.centery))
+            self.screen.blit(input_surface, input_text_rect)
+
+            # Draw save button
+            pygame.draw.rect(self.screen, (100, 200, 100), save_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0), save_rect, 1)
+
+            save_text = self.text_font.render("Save", True, (255, 255, 255))
+            save_text_rect = save_text.get_rect(center=save_rect.center)
+            self.screen.blit(save_text, save_text_rect)
+
+            # Draw cancel button
+            pygame.draw.rect(self.screen, (200, 100, 100), cancel_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0), cancel_rect, 1)
+
+            cancel_text = self.text_font.render("Cancel", True, (255, 255, 255))
+            cancel_text_rect = cancel_text.get_rect(center=cancel_rect.center)
+            self.screen.blit(cancel_text, cancel_text_rect)
+
+            pygame.display.flip()
 
     def _save_level(self, filename):
         """Save the current level to a file."""
