@@ -116,6 +116,78 @@ class Button:
                 return True
         return False
 
+class ToggleButton(Button):
+    """
+    A toggle button that can be switched between two states.
+    """
+
+    def __init__(self, text_on, text_off, x, y, width, height, is_on=False, action=None, 
+                 color_on=(100, 180, 100), color_off=(180, 100, 100), 
+                 hover_color_on=(120, 220, 120), hover_color_off=(220, 120, 120),
+                 text_color=(255, 255, 255), font_size=None):
+        """
+        Initialize a toggle button.
+
+        Args:
+            text_on (str): The text to display when the button is in the 'on' state.
+            text_off (str): The text to display when the button is in the 'off' state.
+            x (int): X position of the button.
+            y (int): Y position of the button.
+            width (int): Width of the button.
+            height (int): Height of the button.
+            is_on (bool): Whether the button starts in the 'on' state.
+            action: Function to call when the button is toggled.
+            color_on: RGB color tuple for the button when 'on'.
+            color_off: RGB color tuple for the button when 'off'.
+            hover_color_on: RGB color tuple for the button when 'on' and hovered.
+            hover_color_off: RGB color tuple for the button when 'off' and hovered.
+            text_color: RGB color tuple for the button text.
+            font_size: Optional specific font size. If None, calculated based on button height.
+        """
+        self.text_on = text_on
+        self.text_off = text_off
+        self.is_on = is_on
+        self.color_on = color_on
+        self.color_off = color_off
+        self.hover_color_on = hover_color_on
+        self.hover_color_off = hover_color_off
+
+        # Initialize with the current state
+        current_text = text_on if is_on else text_off
+        current_color = color_on if is_on else color_off
+        current_hover_color = hover_color_on if is_on else hover_color_off
+
+        super().__init__(current_text, x, y, width, height, action, 
+                         current_color, current_hover_color, text_color, font_size)
+
+    def toggle(self):
+        """Toggle the button state."""
+        self.is_on = not self.is_on
+        self.text = self.text_on if self.is_on else self.text_off
+        self.color = self.color_on if self.is_on else self.color_off
+        self.hover_color = self.hover_color_on if self.is_on else self.hover_color_off
+        self.current_color = self.color
+
+        # Call the action with the new state
+        if self.action:
+            self.action(self.is_on)
+
+    def handle_event(self, event):
+        """
+        Handle mouse events for the toggle button.
+
+        Args:
+            event: Pygame event to handle.
+
+        Returns:
+            bool: True if the button was clicked, False otherwise.
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.is_hovered(pygame.mouse.get_pos()):
+                self.toggle()
+                return True
+        return False
+
 class Slider:
     """
     A slider component for adjusting numerical values.
@@ -238,6 +310,161 @@ class Slider:
 
         return False
 
+class TextInput:
+    """
+    A text input component for entering numerical values.
+    """
+
+    def __init__(self, x, y, width, height, min_value, max_value, current_value, label="",
+                 color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)):
+        """
+        Initialize a text input field.
+
+        Args:
+            x (int): X position of the text input.
+            y (int): Y position of the text input.
+            width (int): Width of the text input.
+            height (int): Height of the text input.
+            min_value (int): Minimum allowed value.
+            max_value (int): Maximum allowed value.
+            current_value (int): Current value.
+            label (str): Label text for the text input.
+            color: RGB color tuple for the border.
+            text_color: RGB color tuple for the text.
+            bg_color: RGB color tuple for the background.
+        """
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.min_value = min_value
+        self.max_value = max_value
+        self.current_value = current_value
+        self.label = label
+        self.color = color
+        self.text_color = text_color
+        self.bg_color = bg_color
+        self.active = False
+        self.text = str(current_value)
+
+        # Font for text
+        font_size = min(max(14, height - 4), 24)
+        self.font = pygame.font.Font(None, font_size)
+
+        # Cursor properties
+        self.cursor_visible = True
+        self.cursor_blink_time = 500  # milliseconds
+        self.last_blink_time = pygame.time.get_ticks()
+
+    def draw(self, screen):
+        """
+        Draw the text input on the screen.
+
+        Args:
+            screen: Pygame surface to draw on.
+        """
+        # Draw label
+        if self.label:
+            label_surface = self.font.render(self.label, True, self.text_color)
+            screen.blit(label_surface, (self.x, self.y - 25))
+
+        # Draw text input box
+        border_color = (150, 150, 255) if self.active else self.color
+        pygame.draw.rect(screen, self.bg_color, (self.x, self.y, self.width, self.height), 0, 5)
+        pygame.draw.rect(screen, border_color, (self.x, self.y, self.width, self.height), 2, 5)
+
+        # Draw text
+        text_surface = self.font.render(self.text, True, self.text_color)
+        text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
+        screen.blit(text_surface, text_rect)
+
+        # Draw cursor if active
+        if self.active:
+            # Blink cursor
+            current_time = pygame.time.get_ticks()
+            if current_time - self.last_blink_time > self.cursor_blink_time:
+                self.cursor_visible = not self.cursor_visible
+                self.last_blink_time = current_time
+
+            if self.cursor_visible:
+                text_width = text_surface.get_width()
+                cursor_x = text_rect.right + 2
+                if cursor_x > self.x + self.width - 5:
+                    cursor_x = self.x + self.width - 5
+                pygame.draw.line(screen, self.text_color, 
+                                (cursor_x, self.y + 5), 
+                                (cursor_x, self.y + self.height - 5), 2)
+
+        # Draw min/max values below
+        range_text = f"Range: {self.min_value}-{self.max_value}"
+        range_surface = pygame.font.Font(None, 18).render(range_text, True, (100, 100, 100))
+        range_rect = range_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height + 15))
+        screen.blit(range_surface, range_rect)
+
+    def handle_event(self, event):
+        """
+        Handle events for the text input.
+
+        Args:
+            event: Pygame event to handle.
+
+        Returns:
+            bool: True if the value changed and is valid, False otherwise.
+        """
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # Check if clicking on the text input
+            if (self.x <= event.pos[0] <= self.x + self.width and
+                self.y <= event.pos[1] <= self.y + self.height):
+                self.active = True
+                return False
+            else:
+                # If clicking outside and active, validate and update value
+                if self.active:
+                    self.active = False
+                    return self._validate_and_update()
+
+        elif event.type == pygame.KEYDOWN and self.active:
+            if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                self.active = False
+                return self._validate_and_update()
+            elif event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_ESCAPE:
+                self.active = False
+                self.text = str(self.current_value)  # Reset to original value
+            else:
+                # Only allow digits
+                if event.unicode.isdigit():
+                    self.text += event.unicode
+
+        return False
+
+    def _validate_and_update(self):
+        """
+        Validate the entered text and update the current value if valid.
+
+        Returns:
+            bool: True if the value changed and is valid, False otherwise.
+        """
+        if not self.text:
+            self.text = str(self.current_value)
+            return False
+
+        try:
+            new_value = int(self.text)
+            if self.min_value <= new_value <= self.max_value:
+                old_value = self.current_value
+                self.current_value = new_value
+                return old_value != new_value
+            else:
+                # Value out of range, reset to current value
+                self.text = str(self.current_value)
+        except ValueError:
+            # Not a valid number, reset to current value
+            self.text = str(self.current_value)
+
+        return False
+
 class MenuSystem:
     """
     Main menu system for the Sokoban game.
@@ -265,6 +492,9 @@ class MenuSystem:
         # Initialize config manager
         from src.core.config_manager import get_config_manager
         self.config_manager = get_config_manager()
+
+        # Keyboard layout toggle button
+        self.keyboard_layout_toggle = None
 
         if screen is None:
             # Standalone mode - create our own screen
@@ -317,8 +547,11 @@ class MenuSystem:
         self.skins_menu_buttons = []
         self.credits_menu_buttons = []
 
-        # Create slider for movement cooldown
-        self.movement_cooldown_slider = None
+        # Create input field for movement cooldown
+        self.movement_cooldown_input = None
+
+        # Background surface for dialogs
+        self.background_surface = None
 
         self._recreate_all_buttons()
 
@@ -468,44 +701,72 @@ class MenuSystem:
             button_width = min(max(120, self.screen_width // 10), 180)
             button_height = min(max(50, self.screen_height // 20), 70)
             margin = max(25, self.screen_width // 50)
-            slider_width = min(max(300, self.screen_width // 3), 600)
-            slider_height = 40
-            slider_y = self.screen_height // 2
+            input_width = min(max(200, self.screen_width // 5), 300)
+            input_height = 40
+            input_y = self.screen_height // 2
+            keybind_button_width = min(max(250, self.screen_width // 6), 350)
+            section2_y = 350
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             button_width = min(max(100, self.screen_width // 11), 150)
             button_height = min(max(40, self.screen_height // 22), 60)
             margin = max(20, self.screen_width // 55)
-            slider_width = min(max(250, self.screen_width // 3.5), 500)
-            slider_height = 35
-            slider_y = self.screen_height // 2
+            input_width = min(max(180, self.screen_width // 6), 250)
+            input_height = 35
+            input_y = self.screen_height // 2
+            keybind_button_width = min(max(200, self.screen_width // 7), 300)
+            section2_y = 320
         else:
             button_width = min(max(80, self.screen_width // 12), 120)
             button_height = min(max(30, self.screen_height // 25), 50)
             margin = max(15, self.screen_width // 60)
-            slider_width = min(max(200, self.screen_width // 4), 400)
-            slider_height = 30
-            slider_y = 300
+            input_width = min(max(150, self.screen_width // 7), 200)
+            input_height = 30
+            input_y = 300
+            keybind_button_width = min(max(150, self.screen_width // 8), 250)
+            section2_y = 300
 
         # Calculate font size based on button dimensions
         button_font_size = min(max(18, button_height // 2), 36)
 
+        # Create main settings buttons
         self.settings_menu_buttons = [
             Button("Back", margin, self.screen_height - button_height - margin, 
                    button_width, button_height, 
                    action=lambda: self._change_state('main'),
+                   font_size=button_font_size),
+            Button("Keyboard Settings", (self.screen_width - keybind_button_width) // 2, 
+                   self.screen_height - button_height * 2 - margin * 2,
+                   keybind_button_width, button_height,
+                   action=self._show_keybinding_dialog,
                    font_size=button_font_size)
-            # Add other settings buttons here if needed
         ]
 
-        # Create movement cooldown slider
-        slider_x = (self.screen_width - slider_width) // 2
+        # Create movement cooldown text input
+        input_x = (self.screen_width - input_width) // 2
 
         current_cooldown = self.config_manager.get('game', 'movement_cooldown', 200)
-        self.movement_cooldown_slider = Slider(
-            slider_x, slider_y, slider_width, slider_height,
+        self.movement_cooldown_input = TextInput(
+            input_x, input_y, input_width, input_height,
             min_value=50, max_value=500, current_value=current_cooldown,
             label="Movement Cooldown (ms)",
-            color=(100, 100, 200), handle_color=(255, 255, 255), text_color=(50, 50, 50)
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
+        # Create keyboard layout toggle button
+        current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
+        is_azerty = current_layout.lower() == 'azerty'
+
+        toggle_width = min(max(200, self.screen_width // 7), 300)
+        toggle_height = button_height
+        toggle_x = (self.screen_width - toggle_width) // 2
+        toggle_y = section2_y + 150  # Position below movement cooldown
+
+        self.keyboard_layout_toggle = ToggleButton(
+            "AZERTY", "QWERTY", toggle_x, toggle_y, toggle_width, toggle_height,
+            is_on=is_azerty, action=self._toggle_keyboard_layout,
+            color_on=(100, 180, 100), color_off=(100, 100, 180),
+            hover_color_on=(120, 220, 120), hover_color_off=(120, 120, 220),
+            font_size=button_font_size
         )
 
     def _create_skins_menu_buttons(self):
@@ -616,12 +877,16 @@ class MenuSystem:
                 for button in active_buttons:
                     button.handle_event(event)
 
-                # Handle slider events in settings menu
-                if self.current_state == 'settings' and self.movement_cooldown_slider:
-                    if self.movement_cooldown_slider.handle_event(event):
-                        # Slider value changed, update config
-                        new_value = int(self.movement_cooldown_slider.current_value)
+                # Handle text input events in settings menu
+                if self.current_state == 'settings':
+                    if self.movement_cooldown_input and self.movement_cooldown_input.handle_event(event):
+                        # Input value changed, update config
+                        new_value = int(self.movement_cooldown_input.current_value)
                         self.config_manager.set('game', 'movement_cooldown', new_value, save=True)
+
+                    # Handle keyboard layout toggle button events
+                    if self.keyboard_layout_toggle:
+                        self.keyboard_layout_toggle.handle_event(event)
 
             # Update current state
             self.states[self.current_state]()
@@ -727,6 +992,17 @@ class MenuSystem:
 
         pygame.display.flip()
 
+    def _toggle_keyboard_layout(self, is_azerty):
+        """
+        Toggle between QWERTY and AZERTY keyboard layouts.
+
+        Args:
+            is_azerty (bool): True if AZERTY layout is selected, False for QWERTY.
+        """
+        layout = 'azerty' if is_azerty else 'qwerty'
+        self.config_manager.set('game', 'keyboard_layout', layout, save=True)
+        print(f"Keyboard layout changed to {layout}")
+
     def _settings_menu(self):
         """Display the settings menu."""
         self.screen.fill(self.colors['background'])
@@ -737,16 +1013,19 @@ class MenuSystem:
             section1_y = 220
             instruction_y = 270
             section2_y = 350
+            section3_y = 500
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             title_y = 110
             section1_y = 200
             instruction_y = 240
             section2_y = 320
+            section3_y = 450
         else:
             title_y = 100
             section1_y = 180
             instruction_y = 220
             section2_y = 300
+            section3_y = 400
 
         # Draw title with shadow effect
         title_text = "Settings"
@@ -781,12 +1060,29 @@ class MenuSystem:
         cooldown_rect = cooldown_surface.get_rect(center=(self.screen_width // 2, section2_y))
         self.screen.blit(cooldown_surface, cooldown_rect)
 
-        # Draw movement cooldown slider
-        if self.movement_cooldown_slider:
-            # Update slider position based on current screen size
-            self.movement_cooldown_slider.y = section2_y + 50
-            self.movement_cooldown_slider.x = (self.screen_width - self.movement_cooldown_slider.width) // 2
-            self.movement_cooldown_slider.draw(self.screen)
+        # Draw movement cooldown text input
+        if self.movement_cooldown_input:
+            # Update text input position based on current screen size
+            self.movement_cooldown_input.y = section2_y + 50
+            self.movement_cooldown_input.x = (self.screen_width - self.movement_cooldown_input.width) // 2
+            self.movement_cooldown_input.draw(self.screen)
+
+        # Add keyboard layout section title
+        layout_title = "Keyboard Layout"
+        layout_surface = self.subtitle_font.render(layout_title, True, self.colors['text'])
+        layout_rect = layout_surface.get_rect(center=(self.screen_width // 2, section3_y))
+        self.screen.blit(layout_surface, layout_rect)
+
+        # Draw keyboard layout toggle button
+        if self.keyboard_layout_toggle:
+            # Update toggle button position based on current screen size
+            self.keyboard_layout_toggle.y = section3_y + 50
+            self.keyboard_layout_toggle.x = (self.screen_width - self.keyboard_layout_toggle.width) // 2
+
+            # Update and draw the toggle button
+            mouse_pos = pygame.mouse.get_pos()
+            self.keyboard_layout_toggle.update(mouse_pos)
+            self.keyboard_layout_toggle.draw(self.screen)
 
         # Update and draw buttons for this state
         mouse_pos = pygame.mouse.get_pos()
@@ -802,6 +1098,199 @@ class MenuSystem:
 
         # Update the display (only once)
         pygame.display.flip()
+
+    def _show_keybinding_dialog(self):
+        """Show the key rebinding dialog."""
+        # Get current keybindings
+        keybindings = self.config_manager.get_keybindings()
+
+        # Define the actions that can be rebound
+        actions = [
+            ('up', 'Move Up'),
+            ('down', 'Move Down'),
+            ('left', 'Move Left'),
+            ('right', 'Move Right'),
+            ('reset', 'Reset Level'),
+            ('quit', 'Quit Game'),
+            ('next', 'Next Level'),
+            ('previous', 'Previous Level'),
+            ('undo', 'Undo Move'),
+            ('help', 'Show Help'),
+            ('grid', 'Toggle Grid')
+        ]
+
+        # First, render the settings menu to a background surface to prevent flickering
+        # This is done only once before entering the dialog loop
+        self._settings_menu()
+        self.background_surface = pygame.Surface((self.screen_width, self.screen_height))
+        self.background_surface.blit(self.screen, (0, 0))
+
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))  # Dark semi-transparent background
+
+        # Create a dialog box
+        dialog_width = min(600, self.screen_width - 40)
+        dialog_height = min(500, self.screen_height - 40)
+        dialog_x = (self.screen_width - dialog_width) // 2
+        dialog_y = (self.screen_height - dialog_height) // 2
+
+        # Variables for scrolling
+        scroll_offset = 0
+        max_scroll = max(0, len(actions) * 40 - (dialog_height - 120))
+
+        # Font for the dialog
+        title_font = pygame.font.Font(None, 36)
+        text_font = pygame.font.Font(None, 24)
+
+        # Create buttons for the dialog
+        button_width = 100
+        button_height = 40
+        save_button = Button(
+            "Save", dialog_x + dialog_width - button_width - 20, 
+            dialog_y + dialog_height - button_height - 20,
+            button_width, button_height, color=(100, 180, 100), hover_color=(120, 220, 120)
+        )
+        cancel_button = Button(
+            "Cancel", dialog_x + dialog_width - button_width * 2 - 30, 
+            dialog_y + dialog_height - button_height - 20,
+            button_width, button_height, color=(180, 100, 100), hover_color=(220, 120, 120)
+        )
+        reset_button = Button(
+            "Reset", dialog_x + 20, 
+            dialog_y + dialog_height - button_height - 20,
+            button_width, button_height, color=(100, 100, 180), hover_color=(120, 120, 220)
+        )
+
+        # Variables for key rebinding
+        waiting_for_key = False
+        current_action = None
+        temp_keybindings = keybindings.copy()
+
+        # Dialog loop
+        running = True
+        while running:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    self.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if waiting_for_key:
+                        # Capture the key and assign it to the current action
+                        key_name = pygame.key.name(event.key)
+                        if key_name != 'escape':  # Escape cancels the rebinding
+                            temp_keybindings[current_action] = key_name
+                        waiting_for_key = False
+                        current_action = None
+                    elif event.key == pygame.K_ESCAPE:
+                        # Exit dialog on Escape
+                        running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Left mouse button
+                        # Check if a button was clicked
+                        mouse_pos = pygame.mouse.get_pos()
+                        if save_button.is_hovered(mouse_pos):
+                            # Save keybindings and exit
+                            for action, key in temp_keybindings.items():
+                                self.config_manager.set_keybinding(action, key, save=False)
+                            self.config_manager.save()
+                            running = False
+                        elif cancel_button.is_hovered(mouse_pos):
+                            # Exit without saving
+                            running = False
+                        elif reset_button.is_hovered(mouse_pos):
+                            # Reset to defaults
+                            temp_keybindings = self.config_manager.default_config['keybindings'].copy()
+                        else:
+                            # Check if an action row was clicked
+                            for i, (action, _) in enumerate(actions):
+                                row_y = dialog_y + 80 + i * 40 - scroll_offset
+                                if row_y >= dialog_y + 80 and row_y <= dialog_y + dialog_height - 80:
+                                    key_rect = pygame.Rect(
+                                        dialog_x + dialog_width - 150, row_y, 
+                                        120, 30
+                                    )
+                                    if key_rect.collidepoint(mouse_pos):
+                                        waiting_for_key = True
+                                        current_action = action
+                    elif event.button == 4:  # Mouse wheel up
+                        scroll_offset = max(0, scroll_offset - 20)
+                    elif event.button == 5:  # Mouse wheel down
+                        scroll_offset = min(max_scroll, scroll_offset + 20)
+
+            # Draw the static background (settings menu)
+            self.screen.blit(self.background_surface, (0, 0))
+
+            # Draw the overlay
+            self.screen.blit(overlay, (0, 0))
+
+            # Draw the dialog box
+            pygame.draw.rect(self.screen, (240, 240, 240), 
+                            (dialog_x, dialog_y, dialog_width, dialog_height), 0, 10)
+            pygame.draw.rect(self.screen, (100, 100, 100), 
+                            (dialog_x, dialog_y, dialog_width, dialog_height), 2, 10)
+
+            # Draw the title
+            title_text = "Keyboard Settings"
+            title_surface = title_font.render(title_text, True, (50, 50, 50))
+            title_rect = title_surface.get_rect(center=(dialog_x + dialog_width // 2, dialog_y + 30))
+            self.screen.blit(title_surface, title_rect)
+
+            # Draw the action rows
+            for i, (action, label) in enumerate(actions):
+                row_y = dialog_y + 80 + i * 40 - scroll_offset
+
+                # Only draw rows that are visible in the dialog
+                if row_y >= dialog_y + 80 and row_y <= dialog_y + dialog_height - 80:
+                    # Draw action label
+                    label_surface = text_font.render(label, True, (50, 50, 50))
+                    self.screen.blit(label_surface, (dialog_x + 20, row_y + 5))
+
+                    # Draw key binding
+                    key_text = temp_keybindings.get(action, "")
+                    if waiting_for_key and action == current_action:
+                        key_text = "Press a key..."
+
+                    key_rect = pygame.Rect(dialog_x + dialog_width - 150, row_y, 120, 30)
+                    pygame.draw.rect(self.screen, (230, 230, 230), key_rect, 0, 5)
+                    pygame.draw.rect(self.screen, (100, 100, 100), key_rect, 1, 5)
+
+                    key_surface = text_font.render(key_text, True, (50, 50, 50))
+                    key_text_rect = key_surface.get_rect(center=key_rect.center)
+                    self.screen.blit(key_surface, key_text_rect)
+
+            # Draw scrollbar if needed
+            if max_scroll > 0:
+                scrollbar_height = dialog_height - 160
+                thumb_height = scrollbar_height * (dialog_height - 160) / (len(actions) * 40)
+                thumb_pos = dialog_y + 80 + (scrollbar_height - thumb_height) * (scroll_offset / max_scroll)
+
+                # Draw scrollbar track
+                pygame.draw.rect(self.screen, (200, 200, 200), 
+                                (dialog_x + dialog_width - 20, dialog_y + 80, 
+                                 10, scrollbar_height), 0, 5)
+
+                # Draw scrollbar thumb
+                pygame.draw.rect(self.screen, (150, 150, 150), 
+                                (dialog_x + dialog_width - 20, thumb_pos, 
+                                 10, thumb_height), 0, 5)
+
+            # Draw buttons
+            mouse_pos = pygame.mouse.get_pos()
+            save_button.update(mouse_pos)
+            cancel_button.update(mouse_pos)
+            reset_button.update(mouse_pos)
+
+            save_button.draw(self.screen)
+            cancel_button.draw(self.screen)
+            reset_button.draw(self.screen)
+
+            # Update the display
+            pygame.display.flip()
+
+        # Clean up
+        self.background_surface = None
 
     def _skins_menu(self):
         """Display the skins menu."""

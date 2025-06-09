@@ -13,5 +13,19 @@
     "show_grid": false,
     "zoom_level": 1.0,
     "movement_cooldown": 300
+  },
+  "keybindings": {
+    "up": "up",
+    "down": "down",
+    "left": "left",
+    "right": "right",
+    "reset": "r",
+    "quit": "m",
+    "next": "n",
+    "previous": "p",
+    "undo": "u",
+    "help": "h",
+    "grid": "g",
+    "fullscreen": "f11"
   }
 }
