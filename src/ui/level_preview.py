@@ -127,6 +127,15 @@ class LevelPreview:
         self.running = True
         self.selected_action = None
 
+        # Check if this is a completed level (for replay button)
+        is_completed_level = "(Completed)" in level_info.title if level_info.title else False
+
+        # Update play button text if this is a completed level
+        if is_completed_level:
+            self.play_button.text = "Replay"
+        else:
+            self.play_button.text = "Play"
+
         # Load the level
         try:
             if level_info.is_from_collection:
@@ -221,7 +230,7 @@ class LevelPreview:
         self.back_button.draw(self.screen)
 
         # Draw instructions
-        instruction_text = "Cliquez Play pour jouer ou Retour pour revenir à la sélection"
+        instruction_text = f"Cliquez {self.play_button.text} pour jouer ou Retour pour revenir à la sélection"
         instruction_surface = self.text_font.render(instruction_text, True, self.colors['text'])
         instruction_rect = instruction_surface.get_rect(center=(self.popup_x + self.popup_width // 2, 
                                                               self.popup_y + self.popup_height - 30))

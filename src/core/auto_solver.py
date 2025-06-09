@@ -263,7 +263,8 @@ class AutoSolver:
                     if self.renderer and level_manager:
                         self.renderer.render_level(
                             self.level, level_manager, show_grid, 
-                            zoom_level, scroll_x, scroll_y, self.skin_manager
+                            zoom_level, scroll_x, scroll_y, self.skin_manager,
+                            show_completion_message=False
                         )
                         pygame.display.flip()
 
@@ -273,6 +274,11 @@ class AutoSolver:
                     # Check if level is completed
                     if self.level.is_completed():
                         print("🎉 Level solved by AI! Well done!")
+                        # Wait for a moment
+                        pygame.time.wait(1000)
+                        # Show level completion screen
+                        if hasattr(level_manager, '_show_level_completion_screen'):
+                            level_manager._show_level_completion_screen()
                         break
 
         except Exception as e:

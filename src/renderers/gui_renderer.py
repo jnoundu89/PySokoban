@@ -175,7 +175,7 @@ class GUIRenderer:
                                      CELL_SIZE*2//3, CELL_SIZE*2//3))
         return surface
 
-    def render_level(self, level, level_manager=None, show_grid=False, zoom_level=1.0, scroll_x=0, scroll_y=0, skin_manager=None):
+    def render_level(self, level, level_manager=None, show_grid=False, zoom_level=1.0, scroll_x=0, scroll_y=0, skin_manager=None, show_completion_message=True):
         """
         Render the current level state in the GUI.
 
@@ -187,6 +187,7 @@ class GUIRenderer:
             scroll_x: Horizontal scroll offset.
             scroll_y: Vertical scroll offset.
             skin_manager: Optional enhanced skin manager for directional sprites.
+            show_completion_message: Whether to show the level completion message.
 
         Returns:
             pygame.Surface: The updated screen surface.
@@ -407,8 +408,8 @@ class GUIRenderer:
                 desc_pos = (offset_x + 10, y_offset)
                 self.screen.blit(desc_surface, desc_pos)
 
-        # Render completion message if level is completed
-        if level.is_completed():
+        # Render completion message if level is completed and show_completion_message is True
+        if level.is_completed() and show_completion_message:
             completion_text = "Level completed!"
             if level_manager and level_manager.has_next_level():
                 completion_text += " Press 'n' for next level."

@@ -158,7 +158,8 @@ class GUIGame(Game):
                 self.renderer.render_help(self.custom_keybindings)
             else:
                 self.renderer.render_level(self.level_manager.current_level, self.level_manager,
-                                         self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager)
+                                         self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager, 
+                                         show_completion_message=True)
 
             # Cap the frame rate
             clock.tick(60)
@@ -337,9 +338,10 @@ class GUIGame(Game):
 
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():
-            # Render the completed level
+            # Render the completed level without showing completion message
             self.renderer.render_level(self.level_manager.current_level, self.level_manager,
-                                     self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager)
+                                     self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
+                                     show_completion_message=False)
             pygame.display.flip()
 
             # Wait for a moment
@@ -390,76 +392,77 @@ class GUIGame(Game):
     def _show_level_completion_screen(self):
         """
         Show level completion screen with option to proceed to next level.
-        If there's no next level in the collection, return to level selector.
+        If there's no next level in the collection, show options to replay current level or return to level selector.
+        Shows a preview of the next level in the collection if available.
         """
         # Check if there's a next level in the collection
         has_next_level = self.level_manager.has_next_level_in_collection()
 
-        # Create a semi-transparent overlay
-        overlay = pygame.Surface((self.renderer.screen.get_width(), self.renderer.screen.get_height()))
-        overlay.set_alpha(180)
-        overlay.fill((0, 0, 0))
-        self.renderer.screen.blit(overlay, (0, 0))
+        # Clear the keys_pressed set to prevent automatic movement
+        self.keys_pressed.clear()
 
-        # Set up font
-        font_large = pygame.font.Font(None, 48)
-        font_small = pygame.font.Font(None, 36)
+        # Get the collection file
+        collection_file = self.level_manager.level_files[self.level_manager.current_level_index]
 
-        # Render text
-        text_completed = font_large.render("Level Completed!", True, (255, 255, 255))
-        text_rect_completed = text_completed.get_rect(center=(self.renderer.screen.get_width() // 2, 
-                                                             self.renderer.screen.get_height() // 2 - 50))
-
-        # Get the configured 'next' key from keybindings
-        next_key = self.custom_keybindings.get('next', 'n')
+        # Create a LevelInfo object
+        from src.level_management.level_selector import LevelInfo
 
         if has_next_level:
-            text_instruction = font_small.render(f"Press '{next_key}' to continue to the next level", True, (255, 255, 255))
+            # Get information about the next level
+            next_level_index = self.level_manager.current_collection_index + 1
+
+            # Get the next level's title
+            try:
+                next_level_title, _ = self.level_manager.current_collection.get_level(next_level_index)
+            except:
+                next_level_title = "Next Level"
+
+            # Create a LevelInfo object for the next level
+            level_info = LevelInfo(
+                title=next_level_title,
+                collection_file=collection_file,
+                level_index=next_level_index,
+                is_from_collection=True
+            )
         else:
-            text_instruction = font_small.render("Press any key to return to level selection", True, (255, 255, 255))
+            # If there's no next level, create a LevelInfo object for the current level
+            # This will allow the player to replay the current level or return to level selection
+            current_level_index = self.level_manager.current_collection_index
 
-        text_rect_instruction = text_instruction.get_rect(center=(self.renderer.screen.get_width() // 2, 
-                                                                self.renderer.screen.get_height() // 2 + 20))
+            try:
+                current_level_title, _ = self.level_manager.current_collection.get_level(current_level_index)
+            except:
+                current_level_title = "Current Level"
 
-        # Draw text
-        self.renderer.screen.blit(text_completed, text_rect_completed)
-        self.renderer.screen.blit(text_instruction, text_rect_instruction)
-        pygame.display.flip()
+            level_info = LevelInfo(
+                title=current_level_title + " (Completed)",
+                collection_file=collection_file,
+                level_index=current_level_index,
+                is_from_collection=True
+            )
 
-        # Wait for key press
-        waiting_for_key = True
-        while waiting_for_key:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self._quit_game()
-                    return
-                elif event.type == pygame.KEYDOWN:
-                    key_name = pygame.key.name(event.key)
-                    # Get the configured 'next' key from keybindings
-                    next_key = self.custom_keybindings.get('next', 'n')
+        # Create a level preview
+        from src.ui.level_preview import LevelPreview
+        level_preview = LevelPreview(
+            self.renderer.screen,
+            self.renderer.screen.get_width(),
+            self.renderer.screen.get_height()
+        )
 
-                    if has_next_level:
-                        # Only proceed to next level if the configured 'next' key is pressed
-                        if key_name == next_key:
-                            waiting_for_key = False
-                            # Clear the keys_pressed set to prevent automatic movement
-                            self.keys_pressed.clear()
-                            self.level_manager.next_level_in_collection()
-                            return
-                        # If any other key is pressed, return to level selection
-                        else:
-                            waiting_for_key = False
-                            # Clear the keys_pressed set to prevent automatic movement
-                            self.keys_pressed.clear()
-                            self._return_to_level_selector()
-                            return
-                    else:
-                        # If there's no next level, any key returns to level selection
-                        waiting_for_key = False
-                        # Clear the keys_pressed set to prevent automatic movement
-                        self.keys_pressed.clear()
-                        self._return_to_level_selector()
-                        return
+        # Show the level preview and get the user's choice
+        action = level_preview.show_level_preview(level_info)
+
+        # Handle the user's choice
+        if action == 'play':
+            if has_next_level:
+                # Proceed to the next level
+                self.level_manager.next_level_in_collection()
+            else:
+                # Replay the current level
+                self.level_manager.reset_current_level()
+        else:
+            # Return to level selection
+            self._return_to_level_selector()
 
     def _solve_current_level(self):
         """
@@ -481,7 +484,7 @@ class GUIGame(Game):
 
         # Show solving message
         def progress_callback(message):
-            # Render current level with overlay
+            # Render current level with overlay (without completion message)
             self.renderer.render_level(
                 self.level_manager.current_level,
                 self.level_manager,
@@ -489,7 +492,8 @@ class GUIGame(Game):
                 self.zoom_level,
                 self.scroll_x,
                 self.scroll_y,
-                self.skin_manager
+                self.skin_manager,
+                show_completion_message=False
             )
 
             # Add solving overlay
@@ -510,7 +514,7 @@ class GUIGame(Game):
                 level_manager=self.level_manager
             )
         else:
-            # Show "no solution" message with more details
+            # Show "no solution" message with more details (without completion message)
             self.renderer.render_level(
                 self.level_manager.current_level,
                 self.level_manager,
@@ -518,7 +522,8 @@ class GUIGame(Game):
                 self.zoom_level,
                 self.scroll_x,
                 self.scroll_y,
-                self.skin_manager
+                self.skin_manager,
+                show_completion_message=False
             )
 
             # Create detailed message
