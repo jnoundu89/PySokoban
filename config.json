@@ -26,6 +26,7 @@
     "undo": "u",
     "help": "h",
     "grid": "g",
-    "fullscreen": "f11"
+    "fullscreen": "f11",
+    "solve": "j"
   }
 }

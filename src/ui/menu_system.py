@@ -1000,7 +1000,41 @@ class MenuSystem:
             is_azerty (bool): True if AZERTY layout is selected, False for QWERTY.
         """
         layout = 'azerty' if is_azerty else 'qwerty'
-        self.config_manager.set('game', 'keyboard_layout', layout, save=True)
+        self.config_manager.set('game', 'keyboard_layout', layout, save=False)
+
+        # Get current keybindings
+        keybindings = self.config_manager.get_keybindings()
+
+        # Check if movement keys are set to default values for the previous layout
+        # If they are, update them to the default values for the new layout
+        from src.core.constants import KEY_BINDINGS, QWERTY, AZERTY
+
+        old_layout = AZERTY if layout == QWERTY else QWERTY
+
+        # For each movement direction, check if it's using a default key from the old layout
+        # If so, update it to the default key for the new layout
+        movement_keys = ['up', 'down', 'left', 'right']
+        for direction in movement_keys:
+            # Get the default key for this direction in the old layout
+            old_default_key = None
+            for key, action in KEY_BINDINGS[old_layout].items():
+                if action == direction and key not in ['up', 'down', 'left', 'right']:
+                    old_default_key = key
+                    break
+
+            # Get the default key for this direction in the new layout
+            new_default_key = None
+            for key, action in KEY_BINDINGS[layout].items():
+                if action == direction and key not in ['up', 'down', 'left', 'right']:
+                    new_default_key = key
+                    break
+
+            # If the current keybinding matches the old default, update it to the new default
+            if keybindings.get(direction) == old_default_key and new_default_key:
+                self.config_manager.set_keybinding(direction, new_default_key, save=False)
+
+        # Save all changes
+        self.config_manager.save()
         print(f"Keyboard layout changed to {layout}")
 
     def _settings_menu(self):

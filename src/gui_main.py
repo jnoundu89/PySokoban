@@ -25,7 +25,7 @@ class GUIGame(Game):
     This class extends the base Game class with GUI-specific functionality.
     """
 
-    def __init__(self, levels_dir='levels', keyboard_layout=DEFAULT_KEYBOARD, skin_manager=None):
+    def __init__(self, levels_dir='levels', keyboard_layout=None, skin_manager=None):
         """
         Initialize the GUI version of the Sokoban game.
 
@@ -33,10 +33,18 @@ class GUIGame(Game):
             levels_dir (str, optional): Directory containing level files.
                                        Defaults to 'levels'.
             keyboard_layout (str, optional): Keyboard layout to use ('qwerty' or 'azerty').
-                                           Defaults to DEFAULT_KEYBOARD.
+                                           If None, loads from config file.
             skin_manager (EnhancedSkinManager, optional): Existing skin manager to use.
                                                          If None, creates a new one.
         """
+        # Load config manager first to get keyboard layout
+        from src.core.config_manager import get_config_manager
+        self.config_manager = get_config_manager()
+
+        # If keyboard_layout is not provided, load it from config
+        if keyboard_layout is None:
+            keyboard_layout = self.config_manager.get('game', 'keyboard_layout', DEFAULT_KEYBOARD)
+
         level_manager = LevelManager(levels_dir)
         renderer = GUIRenderer(window_title=TITLE)
         super().__init__(level_manager, renderer, keyboard_layout)
@@ -67,7 +75,6 @@ class GUIGame(Game):
         self.auto_solver = None
 
         # Load custom keybindings from config
-        self.config_manager = get_config_manager()
         self.custom_keybindings = self.config_manager.get_keybindings()
 
         # Create a reverse mapping for continuous movement
@@ -79,7 +86,7 @@ class GUIGame(Game):
         Start the game.
         """
         self.running = True
-        self.renderer.render_welcome_screen()
+        self.renderer.render_welcome_screen(self.custom_keybindings)
 
         # Wait for a key press to start
         waiting_for_start = True
@@ -147,7 +154,7 @@ class GUIGame(Game):
 
             # Render the current state
             if self.show_help:
-                self.renderer.render_help()
+                self.renderer.render_help(self.custom_keybindings)
             else:
                 self.renderer.render_level(self.level_manager.current_level, self.level_manager,
                                          self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager)
@@ -183,6 +190,15 @@ class GUIGame(Game):
         elif key_name == 'left':
             self._handle_movement('left')
         elif key_name == 'right':
+            self._handle_movement('right')
+        # Check for WASD/ZQSD keys directly
+        elif (self.keyboard_layout == QWERTY and key_name == 'w') or (self.keyboard_layout == AZERTY and key_name == 'z'):
+            self._handle_movement('up')
+        elif (self.keyboard_layout == QWERTY and key_name == 'a') or (self.keyboard_layout == AZERTY and key_name == 'q'):
+            self._handle_movement('left')
+        elif key_name == 's':  # Same in both layouts
+            self._handle_movement('down')
+        elif key_name == 'd':  # Same in both layouts
             self._handle_movement('right')
         else:
             # Check if this key matches any custom keybinding
@@ -250,7 +266,19 @@ class GUIGame(Game):
             pygame.K_RIGHT: 'right'
         }
 
-        # Add custom keybindings for movement
+        # Add layout-specific keys (WASD for QWERTY, ZQSD for AZERTY)
+        if self.keyboard_layout == QWERTY:
+            self.custom_movement_keys[pygame.K_w] = 'up'
+            self.custom_movement_keys[pygame.K_a] = 'left'
+            self.custom_movement_keys[pygame.K_s] = 'down'
+            self.custom_movement_keys[pygame.K_d] = 'right'
+        elif self.keyboard_layout == AZERTY:
+            self.custom_movement_keys[pygame.K_z] = 'up'
+            self.custom_movement_keys[pygame.K_q] = 'left'
+            self.custom_movement_keys[pygame.K_s] = 'down'
+            self.custom_movement_keys[pygame.K_d] = 'right'
+
+        # Add custom keybindings for movement (these override the defaults)
         for action, key_name in self.custom_keybindings.items():
             if action in ['up', 'down', 'left', 'right']:
                 # Convert key name to pygame key constant
