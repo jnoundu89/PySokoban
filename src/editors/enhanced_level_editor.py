@@ -255,26 +255,30 @@ class EnhancedLevelEditor:
         if self.screen_width >= 1920 or self.screen_height >= 1080:
             # High resolution (e.g., 1920x1080)
             title_size = min(max(28, base_dimension // 25), 36)
+            subtitle_size = min(max(24, base_dimension // 35), 30)
             text_size = min(max(20, base_dimension // 40), 24)
             small_size = min(max(16, base_dimension // 50), 20)
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             # Medium resolution (e.g., 1200x800)
             title_size = min(max(26, base_dimension // 30), 32)
+            subtitle_size = min(max(22, base_dimension // 40), 28)
             text_size = min(max(18, base_dimension // 45), 22)
             small_size = min(max(14, base_dimension // 55), 18)
         else:
             # Smaller resolutions
             title_size = min(max(24, base_dimension // 35), 28)
+            subtitle_size = min(max(20, base_dimension // 45), 24)
             text_size = min(max(16, base_dimension // 50), 20)
             small_size = min(max(12, base_dimension // 60), 16)
 
         # Create fonts with the calculated sizes
         self.title_font = pygame.font.Font(None, title_size)
+        self.subtitle_font = pygame.font.Font(None, subtitle_size)
         self.text_font = pygame.font.Font(None, text_size)
         self.small_font = pygame.font.Font(None, small_size)
 
         # Print font sizes for debugging
-        print(f"Updated editor fonts - Title: {title_size}, Text: {text_size}, Small: {small_size}")
+        print(f"Updated editor fonts - Title: {title_size}, Subtitle: {subtitle_size}, Text: {text_size}, Small: {small_size}")
 
     def _update_ui_layout(self):
         """Update UI layout when screen is resized."""
