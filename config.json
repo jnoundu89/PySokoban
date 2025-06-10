@@ -1,18 +1,18 @@
 {
   "skin": {
-    "current_skin": "demo_complete",
-    "tile_size": 32
+    "current_skin": "Thinking Rabbit 16",
+    "tile_size": 64
   },
   "display": {
-    "window_width": 1910,
-    "window_height": 929,
+    "window_width": 1920,
+    "window_height": 1009,
     "fullscreen": false
   },
   "game": {
     "keyboard_layout": "azerty",
     "show_grid": false,
     "zoom_level": 1.0,
-    "movement_cooldown": 300
+    "movement_cooldown": 350
   },
   "keybindings": {
     "up": "up",

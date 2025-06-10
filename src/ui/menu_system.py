@@ -979,9 +979,9 @@ class MenuSystem:
                     # Handle keyboard layout toggle button events
                     if self.keyboard_layout_toggle:
                         if self.keyboard_layout_toggle.handle_event(event):
-                            # Ensure the config manager is updated with the new state
+                            # Ensure the config manager is updated with the new state and saved immediately
                             layout = 'azerty' if self.keyboard_layout_toggle.is_on else 'qwerty'
-                            self.config_manager.set('game', 'keyboard_layout', layout, save=False)
+                            self.config_manager.set('game', 'keyboard_layout', layout, save=True)
                             print(f"Keyboard layout changed to {layout}")
 
             # Update current state
@@ -1115,7 +1115,7 @@ class MenuSystem:
             is_azerty (bool): True if AZERTY layout is selected, False for QWERTY.
         """
         layout = 'azerty' if is_azerty else 'qwerty'
-        self.config_manager.set('game', 'keyboard_layout', layout, save=False)
+        self.config_manager.set('game', 'keyboard_layout', layout, save=True)
 
         # Get current keybindings
         keybindings = self.config_manager.get_keybindings()
