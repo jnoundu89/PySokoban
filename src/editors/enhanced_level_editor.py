@@ -1862,6 +1862,12 @@ class EnhancedLevelEditor:
         self.screen_width, self.screen_height = event.size
         if not self.using_shared_screen:
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
+
+            # Save new dimensions to config
+            from ..core.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            config_manager.set_display_config(width=self.screen_width, height=self.screen_height)
+
         self._update_ui_layout()
 
 

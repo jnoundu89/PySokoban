@@ -60,6 +60,14 @@ class EnhancedSokoban:
         self.screen_width = display_config['window_width']
         self.screen_height = display_config['window_height']
 
+        # Center the window on the screen
+        os.environ['SDL_VIDEO_CENTERED'] = '1'
+
+        # Get screen information
+        info = pygame.display.Info()
+        self.system_screen_width = info.current_w
+        self.system_screen_height = info.current_h
+
         # Set display mode based on fullscreen setting
         if self.fullscreen:
             self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
@@ -454,13 +462,12 @@ class EnhancedSokoban:
     def _maximize_window(self):
         """Maximize the pygame window by setting it to screen size."""
         try:
-            # Get screen dimensions
-            info = pygame.display.Info()
-            screen_w, screen_h = info.current_w, info.current_h
+            # Use the system screen dimensions we got in __init__
+            screen_w, screen_h = self.system_screen_width, self.system_screen_height
 
             # Set window to nearly full screen size (leave space for taskbar)
             self.screen_width = screen_w - 10
-            self.screen_height = screen_h - 80  # Leave space for taskbar
+            self.screen_height = screen_h - 50  # Leave space for taskbar
 
             # Create the maximized window
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
@@ -468,13 +475,8 @@ class EnhancedSokoban:
             # Save window dimensions to config
             self.config_manager.set_display_config(width=self.screen_width, height=self.screen_height)
 
-            # Try to position window at top-left if on Windows
-            if sys.platform == "win32":
-                try:
-                    import os
-                    os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'
-                except:
-                    pass
+            # Center the window on the screen (already set in __init__)
+            # This is more user-friendly than positioning at top-left
 
         except Exception as e:
             print(f"Could not maximize window: {e}")
