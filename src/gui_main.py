@@ -148,6 +148,10 @@ class GUIGame(Game):
                     self.renderer.window_size = (event.w, event.h)
                     self.renderer.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
 
+                    # Save new dimensions to config
+                    config_manager = get_config_manager()
+                    config_manager.set_display_config(width=event.w, height=event.h)
+
             # Handle continuous movement
             if self.keys_pressed and current_time - self.last_move_time > self.move_delay:
                 self._handle_continuous_movement()
