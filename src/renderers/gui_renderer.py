@@ -256,8 +256,48 @@ class GUIRenderer:
             else:
                 scaled_assets = self.assets
 
-        # Render the level
+        # Render the level using layers
         cell_size_scaled = int(CELL_SIZE * self.scale_factor)
+
+        # Get layer assets if skin manager is available
+        background_layer = {}
+        foreground_layer = {}
+
+        if skin_manager:
+            # Get layers from skin manager
+            background_layer = skin_manager.get_layer('background')
+            foreground_layer = skin_manager.get_layer('foreground')
+
+            # Scale assets if needed
+            if self.scale_factor != 1.0:
+                scaled_size = int(CELL_SIZE * self.scale_factor)
+
+                # Scale background layer
+                scaled_background = {}
+                for key, asset in background_layer.items():
+                    scaled_background[key] = pygame.transform.scale(asset, (scaled_size, scaled_size))
+                background_layer = scaled_background
+
+                # Scale foreground layer
+                scaled_foreground = {}
+                for key, asset in foreground_layer.items():
+                    scaled_foreground[key] = pygame.transform.scale(asset, (scaled_size, scaled_size))
+                foreground_layer = scaled_foreground
+
+        # First pass: Render background layer (floor)
+        for y in range(level.height):
+            for x in range(level.width):
+                pos_x = offset_x + x * cell_size_scaled
+                pos_y = offset_y + y * cell_size_scaled
+                pos = (pos_x, pos_y)
+
+                # Always render floor in background
+                if FLOOR in background_layer:
+                    self.screen.blit(background_layer[FLOOR], pos)
+                elif FLOOR in scaled_assets:
+                    self.screen.blit(scaled_assets[FLOOR], pos)
+
+        # Second pass: Render foreground layer (walls, targets, player, boxes)
         for y in range(level.height):
             for x in range(level.width):
                 char = level.get_display_char(x, y)
@@ -266,12 +306,21 @@ class GUIRenderer:
                 pos = (pos_x, pos_y)
 
                 if char == WALL:
-                    if WALL in scaled_assets:
+                    # Render wall
+                    if WALL in foreground_layer:
+                        self.screen.blit(foreground_layer[WALL], pos)
+                    elif WALL in scaled_assets:
                         self.screen.blit(scaled_assets[WALL], pos)
+
+                elif char == TARGET:
+                    # Render target
+                    if TARGET in foreground_layer:
+                        self.screen.blit(foreground_layer[TARGET], pos)
+                    elif TARGET in scaled_assets:
+                        self.screen.blit(scaled_assets[TARGET], pos)
+
                 elif char == PLAYER:
-                    if FLOOR in scaled_assets:
-                        self.screen.blit(scaled_assets[FLOOR], pos)
-                    # Use directional player sprite if available
+                    # Render player
                     if skin_manager:
                         player_sprite = skin_manager.get_player_sprite()
                         if player_sprite:
@@ -280,31 +329,45 @@ class GUIRenderer:
                                 target_size = int(CELL_SIZE * self.scale_factor)
                                 player_sprite = pygame.transform.scale(player_sprite, (target_size, target_size))
                             self.screen.blit(player_sprite, pos)
+                    elif PLAYER in foreground_layer:
+                        self.screen.blit(foreground_layer[PLAYER], pos)
                     elif PLAYER in scaled_assets:
                         self.screen.blit(scaled_assets[PLAYER], pos)
+
                 elif char == BOX:
-                    if FLOOR in scaled_assets:
-                        self.screen.blit(scaled_assets[FLOOR], pos)
-                    if BOX in scaled_assets:
+                    # Render box
+                    if BOX in foreground_layer:
+                        self.screen.blit(foreground_layer[BOX], pos)
+                    elif BOX in scaled_assets:
                         self.screen.blit(scaled_assets[BOX], pos)
-                elif char == TARGET:
-                    if FLOOR in scaled_assets:
-                        self.screen.blit(scaled_assets[FLOOR], pos)
-                    if TARGET in scaled_assets:
-                        self.screen.blit(scaled_assets[TARGET], pos)
+
                 elif char == PLAYER_ON_TARGET:
-                    if FLOOR in scaled_assets:
-                        self.screen.blit(scaled_assets[FLOOR], pos)
-                    if PLAYER_ON_TARGET in scaled_assets:
+                    # Render target first
+                    if TARGET in foreground_layer:
+                        self.screen.blit(foreground_layer[TARGET], pos)
+                    elif TARGET in scaled_assets:
+                        self.screen.blit(scaled_assets[TARGET], pos)
+
+                    # Then render player on top
+                    if skin_manager:
+                        player_sprite = skin_manager.get_player_sprite()
+                        if player_sprite:
+                            # Scale the sprite if needed
+                            if self.scale_factor != 1.0:
+                                target_size = int(CELL_SIZE * self.scale_factor)
+                                player_sprite = pygame.transform.scale(player_sprite, (target_size, target_size))
+                            self.screen.blit(player_sprite, pos)
+                    elif PLAYER in foreground_layer:
+                        self.screen.blit(foreground_layer[PLAYER], pos)
+                    elif PLAYER_ON_TARGET in scaled_assets:  # Fallback to combined sprite
                         self.screen.blit(scaled_assets[PLAYER_ON_TARGET], pos)
+
                 elif char == BOX_ON_TARGET:
-                    if FLOOR in scaled_assets:
-                        self.screen.blit(scaled_assets[FLOOR], pos)
-                    if BOX_ON_TARGET in scaled_assets:
+                    # Use the specific box_on_target sprite as requested
+                    if BOX_ON_TARGET in foreground_layer:
+                        self.screen.blit(foreground_layer[BOX_ON_TARGET], pos)
+                    elif BOX_ON_TARGET in scaled_assets:
                         self.screen.blit(scaled_assets[BOX_ON_TARGET], pos)
-                else:  # FLOOR
-                    if FLOOR in scaled_assets:
-                        self.screen.blit(scaled_assets[FLOOR], pos)
 
         # Draw grid if enabled
         if show_grid and self.scale_factor >= 0.5:  # Only show grid when zoomed in enough
