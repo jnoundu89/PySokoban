@@ -48,6 +48,10 @@ class GraphicalLevelEditor:
         # Set up skin manager
         self.skin_manager = EnhancedSkinManager()
 
+        # Load configuration
+        from src.core.config_manager import get_config_manager
+        self.config_manager = get_config_manager()
+
         # Set up current level
         self.current_level = None
 
@@ -1046,14 +1050,17 @@ class GraphicalLevelEditor:
                     self.screen.blit(skin[TARGET], (cell_x, cell_y))
                     self.screen.blit(skin[BOX], (cell_x, cell_y))
 
-        # Draw grid lines
+        # Draw grid lines using color from config
+        grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
+        grid_color = tuple(grid_color_list)
+
         for x in range(self.current_level.width + 1):
-            pygame.draw.line(self.screen, (100, 100, 100),
+            pygame.draw.line(self.screen, grid_color,
                             (self.grid_offset_x + x * self.cell_size, self.grid_offset_y),
                             (self.grid_offset_x + x * self.cell_size, self.grid_offset_y + grid_height))
 
         for y in range(self.current_level.height + 1):
-            pygame.draw.line(self.screen, (100, 100, 100),
+            pygame.draw.line(self.screen, grid_color,
                             (self.grid_offset_x, self.grid_offset_y + y * self.cell_size),
                             (self.grid_offset_x + grid_width, self.grid_offset_y + y * self.cell_size))
 

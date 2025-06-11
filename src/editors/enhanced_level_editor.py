@@ -58,6 +58,10 @@ class EnhancedLevelEditor:
         self.level_manager = LevelManager(levels_dir)
         self.skin_manager = EnhancedSkinManager()
 
+        # Load configuration
+        from src.core.config_manager import get_config_manager
+        self.config_manager = get_config_manager()
+
         # Check if levels directory exists, create it if not
         if not os.path.exists(levels_dir):
             os.makedirs(levels_dir)
@@ -127,7 +131,6 @@ class EnhancedLevelEditor:
         self.colors = {
             'background': (240, 240, 240),
             'panel': (220, 220, 220),
-            'grid': (180, 180, 180),
             'text': (50, 50, 50),
             'button': (100, 100, 200),
             'button_hover': (130, 130, 255),
@@ -691,10 +694,6 @@ class EnhancedLevelEditor:
         map_start_x = self.map_area_x + self.scroll_x
         map_start_y = self.map_area_y + self.scroll_y
 
-        # Draw grid if enabled
-        if self.show_grid and self.zoom_level >= 0.3:  # Show grid at lower zoom levels
-            self._draw_grid(map_start_x, map_start_y, cell_size)
-
         # Draw level elements
         skin = self.skin_manager.get_skin()
         for y in range(self.current_level.height):
@@ -717,13 +716,18 @@ class EnhancedLevelEditor:
                     scaled_sprite = pygame.transform.scale(skin[char], (cell_size, cell_size))
                     self.screen.blit(scaled_sprite, (cell_x, cell_y))
 
+        # Draw grid if enabled (moved after drawing level elements to be in foreground)
+        if self.show_grid and self.zoom_level >= 0.3:  # Show grid at lower zoom levels
+            self._draw_grid(map_start_x, map_start_y, cell_size)
+
         # Remove clipping
         self.screen.set_clip(None)
 
     def _draw_grid(self, start_x, start_y, cell_size):
-        """Draw white grid lines between tiles."""
-        # Use white grid color for better visibility
-        grid_color = (255, 255, 255)
+        """Draw grid lines between tiles using color from config."""
+        # Get grid color from config
+        grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
+        grid_color = tuple(grid_color_list)
 
         # Vertical lines - draw between tiles
         for x in range(self.current_level.width + 1):

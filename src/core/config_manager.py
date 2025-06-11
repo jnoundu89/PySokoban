@@ -42,7 +42,8 @@ class ConfigManager:
                 'keyboard_layout': 'qwerty',
                 'show_grid': False,
                 'zoom_level': 1.0,
-                'movement_cooldown': 200
+                'movement_cooldown': 200,
+                'grid_color': [255, 255, 255]
             },
             'keybindings': {
                 'up': 'up',
@@ -221,7 +222,8 @@ class ConfigManager:
         return self.config.get('game', self.default_config['game'].copy())
 
     def set_game_config(self, keyboard_layout: str = None, show_grid: bool = None,
-                       zoom_level: float = None, movement_cooldown: int = None, save: bool = True) -> bool:
+                       zoom_level: float = None, movement_cooldown: int = None, 
+                       grid_color: list = None, save: bool = True) -> bool:
         """
         Set game configuration.
 
@@ -230,6 +232,7 @@ class ConfigManager:
             show_grid (bool, optional): Whether to show grid.
             zoom_level (float, optional): Zoom level.
             movement_cooldown (int, optional): Movement cooldown in milliseconds.
+            grid_color (list, optional): Grid color as [r, g, b] list.
             save (bool): Whether to save immediately.
 
         Returns:
@@ -243,6 +246,8 @@ class ConfigManager:
             self.set('game', 'zoom_level', zoom_level, save=False)
         if movement_cooldown is not None:
             self.set('game', 'movement_cooldown', movement_cooldown, save=False)
+        if grid_color is not None:
+            self.set('game', 'grid_color', grid_color, save=False)
 
         if save:
             return self._save_config()

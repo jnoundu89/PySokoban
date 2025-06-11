@@ -371,7 +371,9 @@ class GUIRenderer:
 
         # Draw grid if enabled
         if show_grid and self.scale_factor >= 0.5:  # Only show grid when zoomed in enough
-            grid_color = (100, 100, 100, 128)  # Semi-transparent gray
+            # Get grid color from config
+            grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
+            grid_color = tuple(grid_color_list)
 
             # Vertical lines
             for x in range(level.width + 1):
@@ -379,7 +381,7 @@ class GUIRenderer:
                 start_y = offset_y
                 end_y = offset_y + level.height * cell_size_scaled
                 if 0 <= line_x <= current_screen_width:
-                    pygame.draw.line(self.screen, grid_color[:3], (line_x, start_y), (line_x, end_y), 1)
+                    pygame.draw.line(self.screen, grid_color, (line_x, start_y), (line_x, end_y), 1)
 
             # Horizontal lines
             for y in range(level.height + 1):
@@ -387,7 +389,7 @@ class GUIRenderer:
                 start_x = offset_x
                 end_x = offset_x + level.width * cell_size_scaled
                 if 0 <= line_y <= current_screen_height:
-                    pygame.draw.line(self.screen, grid_color[:3], (start_x, line_y), (end_x, line_y), 1)
+                    pygame.draw.line(self.screen, grid_color, (start_x, line_y), (end_x, line_y), 1)
 
         # Render game statistics
         stats_text = f"Moves: {level.moves}  Pushes: {level.pushes}"
