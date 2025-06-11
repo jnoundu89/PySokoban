@@ -8,6 +8,7 @@ import pygame
 from src.core.level import Level
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET
 from src.level_management.level_collection_parser import LevelCollectionParser
+from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
 
 class LevelPreview:
     """
@@ -27,6 +28,9 @@ class LevelPreview:
         self.screen_width = screen_width
         self.screen_height = screen_height
 
+        # Initialize skin manager to use the configured skin
+        self.skin_manager = EnhancedSkinManager()
+
         # Define colors
         self.colors = {
             'background': (240, 240, 240),
@@ -38,15 +42,8 @@ class LevelPreview:
             'play_button_hover': (100, 180, 100),
             'back_button': (200, 100, 100),
             'back_button_hover': (255, 130, 130),
-            'button_text': (255, 255, 255),
-            # Level preview colors
-            'wall': (100, 50, 50),
-            'floor': (220, 220, 220),
-            'player': (100, 100, 255),
-            'box': (139, 69, 19),
-            'target': (255, 255, 0),
-            'player_on_target': (150, 150, 255),
-            'box_on_target': (255, 165, 0)
+            'button_text': (255, 255, 255)
+            # Level preview colors are now provided by the skin manager
         }
 
         # State
@@ -262,6 +259,9 @@ class LevelPreview:
                         (preview_start_x - border_margin, preview_start_y - border_margin, 
                          actual_width + 2 * border_margin, actual_height + 2 * border_margin), 2)
 
+        # Get the skin from the skin manager
+        skin = self.skin_manager.get_skin()
+
         # Draw level cells
         for y in range(self.level.height):
             for x in range(self.level.width):
@@ -271,11 +271,14 @@ class LevelPreview:
                 # Get the display character for this position
                 display_char = self.level.get_display_char(x, y)
 
-                # Choose color based on the character
-                color = self._get_cell_color(display_char)
-
-                # Draw the cell
-                pygame.draw.rect(self.screen, color, (cell_x, cell_y, cell_size, cell_size))
+                # Draw the cell using the skin
+                if display_char in skin:
+                    # Scale the sprite to the cell size
+                    scaled_sprite = pygame.transform.scale(skin[display_char], (cell_size, cell_size))
+                    self.screen.blit(scaled_sprite, (cell_x, cell_y))
+                else:
+                    # Fallback to a colored rectangle if sprite not found
+                    pygame.draw.rect(self.screen, (220, 220, 220), (cell_x, cell_y, cell_size, cell_size))
 
                 # Draw grid lines for better visibility (only if cells are large enough)
                 if cell_size > 8:
@@ -291,7 +294,8 @@ class LevelPreview:
 
     def _get_cell_color(self, display_char):
         """
-        Get the color for a display character.
+        Get the color for a display character using the skin manager.
+        This is a fallback method for when we need colors instead of sprites.
 
         Args:
             display_char (str): The display character
@@ -299,22 +303,30 @@ class LevelPreview:
         Returns:
             tuple: RGB color tuple
         """
-        if display_char == WALL:
-            return self.colors['wall']
-        elif display_char == FLOOR:
-            return self.colors['floor']
-        elif display_char == PLAYER:
-            return self.colors['player']
-        elif display_char == BOX:
-            return self.colors['box']
-        elif display_char == TARGET:
-            return self.colors['target']
-        elif display_char == PLAYER_ON_TARGET:
-            return self.colors['player_on_target']
-        elif display_char == BOX_ON_TARGET:
-            return self.colors['box_on_target']
-        else:
-            return self.colors['floor']  # Default
+        # Default colors if we can't extract from skin
+        default_colors = {
+            WALL: (100, 100, 100),
+            FLOOR: (220, 220, 220),
+            PLAYER: (0, 100, 255),
+            BOX: (139, 69, 19),
+            TARGET: (255, 0, 0),
+            PLAYER_ON_TARGET: (0, 150, 255),
+            BOX_ON_TARGET: (200, 100, 0)
+        }
+
+        # Try to get the average color from the skin sprite
+        try:
+            skin = self.skin_manager.get_skin()
+            if display_char in skin:
+                sprite = skin[display_char]
+                # Get the average color of the sprite
+                avg_color = pygame.transform.average_color(sprite)
+                return avg_color
+        except:
+            pass
+
+        # Fallback to default colors
+        return default_colors.get(display_char, default_colors[FLOOR])
 
 
 class Button:

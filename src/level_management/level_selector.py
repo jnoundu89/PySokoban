@@ -10,6 +10,7 @@ from src.core.constants import TITLE, CELL_SIZE, WALL, FLOOR, PLAYER, BOX, TARGE
 from src.core.level import Level
 from src.level_management.level_collection_parser import LevelCollectionParser
 from src.ui.level_preview import LevelPreview
+from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
 
 class LevelCategory:
     """Represents a category of levels."""
@@ -195,6 +196,9 @@ class LevelSelector:
         self.popup_open = False  # Flag to track if popup is open
         self.popup_close_time = 0  # Time when popup was closed
         self.click_protection_delay = 200  # ms to ignore clicks after popup closes
+
+        # Initialize skin manager to use the configured skin
+        self.skin_manager = EnhancedSkinManager()
 
         # Hover preview
         self.hovered_level_info = None
@@ -570,26 +574,17 @@ class LevelSelector:
                 # Get the display character for this position
                 display_char = level.get_display_char(x, y)
 
-                # Choose color based on the character
-                if display_char == WALL:
-                    color = self.colors['wall']
-                elif display_char == FLOOR:
-                    color = self.colors['floor']
-                elif display_char == PLAYER:
-                    color = self.colors['player']
-                elif display_char == BOX:
-                    color = self.colors['box']
-                elif display_char == TARGET:
-                    color = self.colors['target']
-                elif display_char == PLAYER_ON_TARGET:
-                    color = self.colors['player_on_target']
-                elif display_char == BOX_ON_TARGET:
-                    color = self.colors['box_on_target']
-                else:
-                    color = self.colors['floor']  # Default
+                # Get the skin from the skin manager
+                skin = self.skin_manager.get_skin()
 
-                # Draw the cell
-                pygame.draw.rect(self.screen, color, (cell_x, cell_y, cell_size, cell_size))
+                # Draw the cell using the skin
+                if display_char in skin:
+                    # Scale the sprite to the cell size
+                    scaled_sprite = pygame.transform.scale(skin[display_char], (cell_size, cell_size))
+                    self.screen.blit(scaled_sprite, (cell_x, cell_y))
+                else:
+                    # Fallback to a colored rectangle if sprite not found
+                    pygame.draw.rect(self.screen, (220, 220, 220), (cell_x, cell_y, cell_size, cell_size))
 
                 # Draw grid lines for better visibility (only if cells are large enough)
                 if cell_size > 4:

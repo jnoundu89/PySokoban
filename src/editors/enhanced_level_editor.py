@@ -638,10 +638,22 @@ class EnhancedLevelEditor:
             # Draw border with rounded corners
             pygame.draw.rect(self.screen, self.colors['border'], item_rect, 1, 5)
 
-            # Draw element icon
+            # Draw element icon using skin manager
             icon_rect = pygame.Rect(item_rect.x + icon_margin, item_rect.y + (item_rect.height - icon_size) // 2, 
                                    icon_size, icon_size)
-            pygame.draw.rect(self.screen, element['color'], icon_rect)
+
+            # Get the skin from the skin manager
+            skin = self.skin_manager.get_skin()
+
+            # Draw the element using the skin
+            if element['char'] in skin:
+                # Scale the sprite to the icon size
+                scaled_sprite = pygame.transform.scale(skin[element['char']], (icon_size, icon_size))
+                self.screen.blit(scaled_sprite, icon_rect)
+            else:
+                # Fallback to the hardcoded color if sprite not found
+                pygame.draw.rect(self.screen, element['color'], icon_rect)
+
             pygame.draw.rect(self.screen, self.colors['border'], icon_rect, 1)
 
             # Draw element name
