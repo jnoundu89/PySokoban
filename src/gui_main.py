@@ -348,6 +348,11 @@ class GUIGame(Game):
         # Try to move the player
         moved = self.level_manager.current_level.move(dx, dy)
 
+        # If the player moved, advance the animation
+        if moved:
+            # Get the player sprite with advance_animation=True to move to the next frame
+            self.skin_manager.get_player_sprite(advance_animation=True)
+
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():
             # Render the completed level without showing completion message

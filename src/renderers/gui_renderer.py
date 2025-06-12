@@ -322,7 +322,7 @@ class GUIRenderer:
                 elif char == PLAYER:
                     # Render player
                     if skin_manager:
-                        player_sprite = skin_manager.get_player_sprite()
+                        player_sprite = skin_manager.get_player_sprite(advance_animation=False)
                         if player_sprite:
                             # Scale the sprite if needed
                             if self.scale_factor != 1.0:
@@ -350,7 +350,7 @@ class GUIRenderer:
 
                     # Then render player on top
                     if skin_manager:
-                        player_sprite = skin_manager.get_player_sprite()
+                        player_sprite = skin_manager.get_player_sprite(advance_animation=False)
                         if player_sprite:
                             # Scale the sprite if needed
                             if self.scale_factor != 1.0:
