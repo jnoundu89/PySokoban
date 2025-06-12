@@ -35,8 +35,9 @@ class EnhancedSkinManager:
 
     Animation Support:
     - Detects numbered sprites (e.g., player_down_1.png, player_down_2.png)
-    - Plays animations during player movement
+    - Plays one sprite per tile movement in sequence
     - Falls back to single sprite when animations aren't available
+    - Tracks sprite history for undo functionality
     """
 
     def __init__(self, skins_dir='skins'):
@@ -77,12 +78,21 @@ class EnhancedSkinManager:
         self.current_player_state = 'idle'
         self.last_move_direction = None
         self.is_pushing = False
+        self.first_movement = True  # Track if this is the first movement
 
         # Animation support
         self.animation_frames = {}
-        self.current_animation_frame = 0
-        self.animation_speed = 3  # Frames to show each animation image
-        self.animation_counter = 0
+        self.current_frame_indices = {  # Track current frame index for each direction
+            'walking_up': 0,
+            'walking_down': 0,
+            'walking_left': 0,
+            'walking_right': 0,
+            'pushing_up': 0,
+            'pushing_down': 0,
+            'pushing_left': 0,
+            'pushing_right': 0
+        }
+        self.sprite_history = []  # Track sprites used for undo functionality
 
         # Layer system
         self.layers = {
@@ -497,17 +507,58 @@ class EnhancedSkinManager:
             self.config_manager.set_skin_config(self.current_skin, self.tile_size)
             self._load_current_skin()
 
+    def get_previous_sprite(self):
+        """
+        Get the previous sprite from the history for undo functionality.
+
+        Returns:
+            pygame.Surface: The previous sprite, or None if history is empty.
+        """
+        if len(self.sprite_history) > 1:
+            # Remove the current sprite
+            self.sprite_history.pop()
+            # Return the previous sprite (now the last one in history)
+            return self.sprite_history[-1]
+        elif len(self.sprite_history) == 1:
+            # If only one sprite in history, return it but don't remove
+            return self.sprite_history[0]
+        else:
+            # If history is empty, return None
+            return None
+
+    def reset_sprite_history(self):
+        """Reset the sprite history when starting a new level."""
+        self.sprite_history = []
+        self.first_movement = True
+        # Reset all frame indices
+        for state in self.current_frame_indices:
+            self.current_frame_indices[state] = 0
+
     def update_player_state(self, direction=None, is_pushing=False, is_blocked=False):
         """Update the player state for directional sprites."""
+        # If this is the first movement, set first_movement to False
+        if direction and self.first_movement:
+            self.first_movement = False
+
+        # Check if direction changed
+        direction_changed = direction != self.last_move_direction
         self.last_move_direction = direction
         self.is_pushing = is_pushing
 
         if is_blocked:
             self.current_player_state = 'against_wall'
         elif is_pushing and direction:
-            self.current_player_state = f'pushing_{direction}'
+            state = f'pushing_{direction}'
+            self.current_player_state = state
+            # Reset frame index if direction changed
+            if direction_changed and state in self.current_frame_indices:
+                self.current_frame_indices[state] = 0
         elif direction:
-            self.current_player_state = f'walking_{direction}'
+            state = f'walking_{direction}'
+            self.current_player_state = state
+            # Reset frame index if direction changed
+            if direction_changed and state in self.current_frame_indices:
+                self.current_frame_indices[state] = 0
         else:
             self.current_player_state = 'idle'
 
@@ -515,33 +566,61 @@ class EnhancedSkinManager:
         """
         Get the current player sprite based on state, with animation support.
 
+        For movement animations, shows one sprite per tile movement in sequence.
+        Tracks sprite history for undo functionality.
+
         Returns:
             pygame.Surface: The player sprite to display.
         """
         skin_data = self._load_current_skin()
 
+        # If this is the first movement (game just started), use the default player sprite
+        if self.first_movement:
+            default_sprite = skin_data.get(PLAYER, skin_data.get('player'))
+            self.sprite_history.append(default_sprite)
+            return default_sprite
+
         # Try to get directional sprite
         sprite_key = self.player_states.get(self.current_player_state, 'player')
 
-        # Check if we have an animation for this sprite
-        if sprite_key in self.animation_frames and self.animation_frames[sprite_key]:
-            # Get the current frame from the animation sequence
-            frames = self.animation_frames[sprite_key]
-            if frames:
-                # Advance animation counter
-                self.animation_counter += 1
-                if self.animation_counter >= self.animation_speed:
-                    self.animation_counter = 0
-                    self.current_animation_frame = (self.current_animation_frame + 1) % len(frames)
+        # Get the sprite based on the current state
+        if self.current_player_state in ['walking_up', 'walking_down', 'walking_left', 'walking_right',
+                                        'pushing_up', 'pushing_down', 'pushing_left', 'pushing_right']:
+            # Check if we have numbered frames for this direction
+            base_sprite_key = sprite_key
+            if base_sprite_key in self.animation_frames and self.animation_frames[base_sprite_key]:
+                frames = self.animation_frames[base_sprite_key]
+                if frames:
+                    # Get the current frame index for this direction
+                    frame_index = self.current_frame_indices[self.current_player_state]
 
-                return frames[self.current_animation_frame]
+                    # Get the sprite for this frame
+                    sprite = frames[frame_index]
 
-        # If no animation or animation failed, use static sprite
+                    # Increment the frame index for next movement in this direction
+                    self.current_frame_indices[self.current_player_state] = (frame_index + 1) % len(frames)
+
+                    # Add to sprite history
+                    self.sprite_history.append(sprite)
+
+                    return sprite
+
+            # If no animation frames, use the basic directional sprite
+            if sprite_key in skin_data:
+                sprite = skin_data[sprite_key]
+                self.sprite_history.append(sprite)
+                return sprite
+
+        # For other states (idle, blocked, etc.)
         if sprite_key in skin_data:
-            return skin_data[sprite_key]
+            sprite = skin_data[sprite_key]
+            self.sprite_history.append(sprite)
+            return sprite
 
         # Fallback to basic player sprite
-        return skin_data.get(PLAYER, skin_data.get('player'))
+        default_sprite = skin_data.get(PLAYER, skin_data.get('player'))
+        self.sprite_history.append(default_sprite)
+        return default_sprite
 
     def get_skin(self):
         """

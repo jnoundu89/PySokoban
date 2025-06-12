@@ -88,6 +88,9 @@ class GUIGame(Game):
         self.running = True
         self.renderer.render_welcome_screen(self.custom_keybindings)
 
+        # Reset sprite history at the start of the game
+        self.skin_manager.reset_sprite_history()
+
         # Wait for a key press to start
         waiting_for_start = True
         while waiting_for_start:
@@ -240,6 +243,8 @@ class GUIGame(Game):
                     self._handle_movement('right')
                 elif action == 'reset':
                     self.level_manager.reset_current_level()
+                    # Reset sprite history for the reset level
+                    self.skin_manager.reset_sprite_history()
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next':
@@ -249,7 +254,10 @@ class GUIGame(Game):
                     # Go to previous level
                     self._prev_level()
                 elif action == 'undo':
-                    self.level_manager.current_level.undo()
+                    # Get the previous sprite before undoing the move
+                    if self.level_manager.current_level.undo():
+                        # Get previous sprite from history
+                        self.skin_manager.get_previous_sprite()
                 elif action == 'help':
                     self.show_help = True
                 elif action == 'grid':
@@ -369,9 +377,13 @@ class GUIGame(Game):
         # First try to go to next level in current collection
         if self.level_manager.has_next_level_in_collection():
             self.level_manager.next_level_in_collection()
+            # Reset sprite history for the new level
+            self.skin_manager.reset_sprite_history()
         # If no more levels in collection, try next level file
         elif self.level_manager.has_next_level():
             self.level_manager.next_level()
+            # Reset sprite history for the new level
+            self.skin_manager.reset_sprite_history()
         else:
             # No more levels, return to selector
             self._return_to_level_selector()
@@ -383,9 +395,13 @@ class GUIGame(Game):
         # First try to go to previous level in current collection
         if self.level_manager.has_prev_level_in_collection():
             self.level_manager.prev_level_in_collection()
+            # Reset sprite history for the new level
+            self.skin_manager.reset_sprite_history()
         # If no more levels in collection, try previous level file
         elif self.level_manager.has_prev_level():
             self.level_manager.prev_level()
+            # Reset sprite history for the new level
+            self.skin_manager.reset_sprite_history()
 
     def _return_to_level_selector(self):
         """
@@ -464,6 +480,8 @@ class GUIGame(Game):
             else:
                 # Replay the current level
                 self.level_manager.reset_current_level()
+                # Reset sprite history for the reset level
+                self.skin_manager.reset_sprite_history()
         else:
             # Return to level selection
             self._return_to_level_selector()
