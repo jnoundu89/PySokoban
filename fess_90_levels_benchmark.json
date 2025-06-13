@@ -1,0 +1,907 @@
+{
+  "timestamp": "2025-06-13 18:18:14",
+  "algorithm": "FESS_AUTHENTIC",
+  "total_levels": 90,
+  "results": [
+    {
+      "level_number": 1,
+      "title": "Original & Extra",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 1,
+      "title": "Level 1",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 2,
+      "title": "Level 2",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 3,
+      "title": "Level 3",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 4,
+      "title": "Level 4",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 5,
+      "title": "Level 5",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 6,
+      "title": "Level 6",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 7,
+      "title": "Level 7",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 8,
+      "title": "Level 8",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 9,
+      "title": "Level 9",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 10,
+      "title": "Level 10",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 11,
+      "title": "Level 11",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 12,
+      "title": "Level 12",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 13,
+      "title": "Level 13",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 14,
+      "title": "Level 14",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 15,
+      "title": "Level 15",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 16,
+      "title": "Level 16",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 17,
+      "title": "Level 17",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 18,
+      "title": "Level 18",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 19,
+      "title": "Level 19",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 20,
+      "title": "Level 20",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 21,
+      "title": "Level 21",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 22,
+      "title": "Level 22",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 23,
+      "title": "Level 23",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 24,
+      "title": "Level 24",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 25,
+      "title": "Level 25",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 26,
+      "title": "Level 26",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 27,
+      "title": "Level 27",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 28,
+      "title": "Level 28",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 29,
+      "title": "Level 29",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 30,
+      "title": "Level 30",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 31,
+      "title": "Level 31",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 32,
+      "title": "Level 32",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 33,
+      "title": "Level 33",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 34,
+      "title": "Level 34",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 35,
+      "title": "Level 35",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 36,
+      "title": "Level 36",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 37,
+      "title": "Level 37",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 38,
+      "title": "Level 38",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 39,
+      "title": "Level 39",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 40,
+      "title": "Level 40",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 41,
+      "title": "Level 41",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 42,
+      "title": "Level 42",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 43,
+      "title": "Level 43",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 44,
+      "title": "Level 44",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 45,
+      "title": "Level 45",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 46,
+      "title": "Level 46",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 47,
+      "title": "Level 47",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 48,
+      "title": "Level 48",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 49,
+      "title": "Level 49",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 50,
+      "title": "Level 50",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 51,
+      "title": "Level 51",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 52,
+      "title": "Level 52",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 53,
+      "title": "Level 53",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 54,
+      "title": "Level 54",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 55,
+      "title": "Level 55",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 56,
+      "title": "Level 56",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 57,
+      "title": "Level 57",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 58,
+      "title": "Level 58",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 59,
+      "title": "Level 59",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 60,
+      "title": "Level 60",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 61,
+      "title": "Level 61",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 62,
+      "title": "Level 62",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 63,
+      "title": "Level 63",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 64,
+      "title": "Level 64",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 65,
+      "title": "Level 65",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 66,
+      "title": "Level 66",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 67,
+      "title": "Level 67",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 68,
+      "title": "Level 68",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 69,
+      "title": "Level 69",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 70,
+      "title": "Level 70",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 71,
+      "title": "Level 71",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 72,
+      "title": "Level 72",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 73,
+      "title": "Level 73",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 74,
+      "title": "Level 74",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 75,
+      "title": "Level 75",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 76,
+      "title": "Level 76",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 77,
+      "title": "Level 77",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 78,
+      "title": "Level 78",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 79,
+      "title": "Level 79",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 80,
+      "title": "Level 80",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 81,
+      "title": "Level 81",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 82,
+      "title": "Level 82",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 83,
+      "title": "Level 83",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 84,
+      "title": "Level 84",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 85,
+      "title": "Level 85",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 86,
+      "title": "Level 86",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 87,
+      "title": "Level 87",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 88,
+      "title": "Level 88",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    },
+    {
+      "level_number": 89,
+      "title": "Level 89",
+      "solved": false,
+      "solve_time": 0,
+      "moves_count": 0,
+      "states_explored": 0,
+      "states_generated": 0,
+      "error_message": "Impossible de créer le niveau"
+    }
+  ]
+}

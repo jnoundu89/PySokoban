@@ -1048,81 +1048,32 @@ class EnhancedSokolutionSolver:
     
     def _fess_search(self, progress_callback: Optional[Callable] = None) -> Optional[List[str]]:
         """
-        Implémentation de l'algorithme FESS (Feature Space Search).
+        Implémentation du vrai algorithme FESS (Feature Space Search).
         
-        Basé sur Shoham and Schaeffer [2020], cet algorithme utilise l'extraction
-        de features pour guider la recherche de manière plus intelligente.
+        Basé sur Shoham and Schaeffer [2020] - implémentation authentique
+        qui utilise l'espace de features 4D et les advisors domain-spécifiques.
         """
         if progress_callback:
-            progress_callback("🔬 Initialisation FESS (Feature Space Search) - Extraction des caractéristiques du niveau...")
+            progress_callback("🔬 Initialisation du vrai FESS (Shoham & Schaeffer 2020)")
         
-        # Initialiser l'heuristique FESS
-        fess_heuristic = FESSHeuristic(self.level)
+        # Utiliser le vrai moteur de recherche FESS
+        from .authentic_fess import FESSSearchEngine
         
-        initial_state = self._create_initial_state()
-        initial_state.h_cost = fess_heuristic.calculate_heuristic(initial_state)
-        initial_state.f_cost = initial_state.g_cost + initial_state.h_cost
+        fess_engine = FESSSearchEngine(
+            level=self.level,
+            max_states=self.max_states,
+            time_limit=self.time_limit
+        )
         
-        # Utiliser un algorithme A* modifié avec l'heuristique FESS
-        self.open_set = [initial_state]
-        self.transposition_table.add(initial_state)
+        # Lancer la recherche authentique FESS
+        solution_moves = fess_engine.search(progress_callback)
         
-        # Variables spécifiques à FESS
-        feature_cache = {}  # Cache des features calculées
-        adaptation_factor = 1.0  # Facteur d'adaptation dynamique
-        stagnation_counter = 0
-        last_best_h = initial_state.h_cost
+        # Mettre à jour nos métriques avec celles du moteur FESS
+        fess_stats = fess_engine.get_statistics()
+        self.states_explored = fess_stats['search_statistics']['states_explored']
+        self.states_generated = fess_stats['search_statistics']['states_generated']
         
-        while self.open_set and self._within_limits():
-            current_state = heapq.heappop(self.open_set)
-            self.states_explored += 1
-            
-            # Adaptation dynamique des poids basée sur le progrès
-            if self.states_explored % 1000 == 0:
-                adaptation_factor = self._adapt_fess_parameters(
-                    current_state, last_best_h, stagnation_counter
-                )
-                
-                if progress_callback:
-                    elapsed = time.time() - self.start_time
-                    progress_callback(f"🔬 FESS: {self.states_explored:,} états explorés, "
-                                    f"heuristique={current_state.h_cost:.1f}, "
-                                    f"adaptation={adaptation_factor:.2f} ({elapsed:.1f}s)")
-            
-            if self._is_goal_state(current_state):
-                if progress_callback:
-                    progress_callback("🎯 FESS: Solution trouvée!")
-                return self._reconstruct_path(current_state)
-            
-            # Générer et évaluer les successeurs avec FESS
-            successors = self._generate_successors(current_state)
-            
-            for successor in successors:
-                if self.transposition_table.contains(successor):
-                    continue
-                
-                # Calculer l'heuristique FESS avec adaptation
-                successor.h_cost = fess_heuristic.calculate_heuristic(successor) * adaptation_factor
-                successor.f_cost = successor.g_cost + successor.h_cost
-                
-                # Ajouter des bonus/malus basés sur les features
-                self._apply_fess_bonuses(successor, fess_heuristic.feature_extractor)
-                
-                heapq.heappush(self.open_set, successor)
-                self.transposition_table.add(successor)
-                self.states_generated += 1
-                
-                # Mettre à jour le tracking du meilleur h_cost
-                if successor.h_cost < last_best_h:
-                    last_best_h = successor.h_cost
-                    stagnation_counter = 0
-                else:
-                    stagnation_counter += 1
-        
-        if progress_callback:
-            progress_callback("❌ FESS: Aucune solution trouvée dans les limites")
-        
-        return None
+        return solution_moves
     
     def _adapt_fess_parameters(self, current_state: SokolutionState,
                               last_best_h: float, stagnation_counter: int) -> float:
