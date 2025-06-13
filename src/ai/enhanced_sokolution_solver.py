@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .algorithm_selector import Algorithm
+import numpy as np
 
 
 class SearchMode(Enum):
@@ -469,6 +470,409 @@ class DeadlockDetector:
         }
 
 
+class FeatureExtractor:
+    """
+    Extracteur de features pour l'algorithme FESS (Feature Space Search).
+    
+    Basé sur Shoham and Schaeffer [2020], cet extracteur calcule des features
+    sophistiquées pour guider la recherche dans l'espace des états Sokoban.
+    """
+    
+    def __init__(self, level):
+        self.level = level
+        self.width = level.width
+        self.height = level.height
+        self.targets = set(level.targets)
+        
+        # Précalculs pour optimiser l'extraction de features
+        self._precompute_topology_features()
+        
+    def _precompute_topology_features(self):
+        """Précalcule les features topologiques statiques du niveau."""
+        self.wall_density = self._calculate_wall_density()
+        self.corridor_map = self._calculate_corridor_map()
+        self.deadlock_zones = self._calculate_deadlock_zones()
+        self.target_connectivity = self._calculate_target_connectivity()
+        
+    def _calculate_wall_density(self) -> float:
+        """Calcule la densité de murs dans le niveau."""
+        total_cells = self.width * self.height
+        wall_count = sum(1 for y in range(self.height) for x in range(self.width)
+                        if self.level.is_wall(x, y))
+        return wall_count / total_cells if total_cells > 0 else 0
+        
+    def _calculate_corridor_map(self) -> Dict[Tuple[int, int], bool]:
+        """Identifie les cellules qui sont dans des corridors."""
+        corridor_map = {}
+        for y in range(self.height):
+            for x in range(self.width):
+                if not self.level.is_wall(x, y):
+                    corridor_map[(x, y)] = self._is_corridor_cell(x, y)
+        return corridor_map
+        
+    def _is_corridor_cell(self, x: int, y: int) -> bool:
+        """Vérifie si une cellule fait partie d'un corridor."""
+        if self.level.is_wall(x, y):
+            return False
+            
+        # Compter les murs adjacents
+        adjacent_walls = sum(1 for dx, dy in [(0,1), (1,0), (0,-1), (-1,0)]
+                           if self.level.is_wall(x + dx, y + dy))
+        
+        # Un corridor a typiquement 2 murs adjacents
+        return adjacent_walls >= 2
+        
+    def _calculate_deadlock_zones(self) -> Set[Tuple[int, int]]:
+        """Identifie les zones de deadlock potentielles."""
+        deadlock_zones = set()
+        for y in range(self.height):
+            for x in range(self.width):
+                if not self.level.is_wall(x, y) and (x, y) not in self.targets:
+                    if self._is_potential_deadlock_zone(x, y):
+                        deadlock_zones.add((x, y))
+        return deadlock_zones
+        
+    def _is_potential_deadlock_zone(self, x: int, y: int) -> bool:
+        """Vérifie si une position est une zone de deadlock potentielle."""
+        # Coins sans target
+        corner_patterns = [
+            (self.level.is_wall(x-1, y) and self.level.is_wall(x, y-1)),
+            (self.level.is_wall(x+1, y) and self.level.is_wall(x, y-1)),
+            (self.level.is_wall(x-1, y) and self.level.is_wall(x, y+1)),
+            (self.level.is_wall(x+1, y) and self.level.is_wall(x, y+1))
+        ]
+        return any(corner_patterns)
+        
+    def _calculate_target_connectivity(self) -> Dict[Tuple[int, int], int]:
+        """Calcule la connectivité de chaque target."""
+        connectivity = {}
+        for target in self.targets:
+            x, y = target
+            # Compter les directions libres depuis cette target
+            free_directions = sum(1 for dx, dy in [(0,1), (1,0), (0,-1), (-1,0)]
+                                if not self.level.is_wall(x + dx, y + dy))
+            connectivity[target] = free_directions
+        return connectivity
+        
+    def extract_features(self, state: 'SokolutionState') -> np.ndarray:
+        """
+        Extrait un vecteur de features complet de l'état.
+        
+        Returns:
+            np.ndarray: Vecteur de features normalisé
+        """
+        features = []
+        
+        # 1. Features de base
+        features.extend(self._extract_basic_features(state))
+        
+        # 2. Features géométriques
+        features.extend(self._extract_geometric_features(state))
+        
+        # 3. Features topologiques
+        features.extend(self._extract_topological_features(state))
+        
+        # 4. Features de progès
+        features.extend(self._extract_progress_features(state))
+        
+        # 5. Features de connectivité
+        features.extend(self._extract_connectivity_features(state))
+        
+        return np.array(features, dtype=np.float32)
+        
+    def _extract_basic_features(self, state: 'SokolutionState') -> List[float]:
+        """Features de base : positions et comptages."""
+        features = []
+        
+        # Position du joueur normalisée
+        px, py = state.player_pos
+        features.extend([px / self.width, py / self.height])
+        
+        # Nombre de boxes sur targets
+        boxes_on_targets = len([box for box in state.boxes if box in self.targets])
+        features.append(boxes_on_targets / max(len(self.targets), 1))
+        
+        # Nombre de boxes pas sur targets
+        boxes_off_targets = len(state.boxes) - boxes_on_targets
+        features.append(boxes_off_targets / max(len(state.boxes), 1))
+        
+        return features
+        
+    def _extract_geometric_features(self, state: 'SokolutionState') -> List[float]:
+        """Features géométriques : distances et dispersions."""
+        features = []
+        boxes = list(state.boxes)
+        
+        if not boxes:
+            return [0.0] * 6  # Padding si pas de boxes
+            
+        # Centre de masse des boxes
+        center_x = sum(box[0] for box in boxes) / len(boxes)
+        center_y = sum(box[1] for box in boxes) / len(boxes)
+        features.extend([center_x / self.width, center_y / self.height])
+        
+        # Dispersion des boxes
+        if len(boxes) > 1:
+            variance_x = sum((box[0] - center_x) ** 2 for box in boxes) / len(boxes)
+            variance_y = sum((box[1] - center_y) ** 2 for box in boxes) / len(boxes)
+            dispersion = (variance_x + variance_y) / (self.width * self.height)
+        else:
+            dispersion = 0
+        features.append(dispersion)
+        
+        # Distance moyenne joueur-boxes
+        if boxes:
+            avg_distance = sum(abs(px - box[0]) + abs(py - box[1])
+                              for box in boxes for px, py in [state.player_pos]) / len(boxes)
+            max_distance = max(self.width + self.height, 1)
+            features.append(avg_distance / max_distance)
+        else:
+            features.append(0.0)
+        
+        # Distance minimale aux targets pour boxes non placées
+        unplaced_boxes = [box for box in boxes if box not in self.targets]
+        if unplaced_boxes and self.targets:
+            min_distances = []
+            for box in unplaced_boxes:
+                min_dist = min(abs(box[0] - target[0]) + abs(box[1] - target[1])
+                              for target in self.targets)
+                min_distances.append(min_dist)
+            avg_min_distance = sum(min_distances) / max(len(min_distances), 1)
+            features.append(avg_min_distance / max(max_distance, 1))
+        else:
+            features.append(0.0)
+        
+        # Compacité (ratio périmètre/aire)
+        compactness = self._calculate_box_compactness(boxes)
+        features.append(compactness)
+        
+        return features
+        
+    def _extract_topological_features(self, state: 'SokolutionState') -> List[float]:
+        """Features topologiques : structure et contraintes."""
+        features = []
+        
+        # Boxes dans des corridors
+        boxes_in_corridors = sum(1 for box in state.boxes
+                               if self.corridor_map.get(box, False))
+        corridor_ratio = boxes_in_corridors / len(state.boxes) if state.boxes else 0
+        features.append(corridor_ratio)
+        
+        # Boxes dans des zones de deadlock
+        boxes_in_deadlock_zones = sum(1 for box in state.boxes
+                                    if box in self.deadlock_zones)
+        deadlock_ratio = boxes_in_deadlock_zones / len(state.boxes) if state.boxes else 0
+        features.append(deadlock_ratio)
+        
+        # Densité locale autour du joueur
+        px, py = state.player_pos
+        local_density = self._calculate_local_density(px, py, state.boxes)
+        features.append(local_density)
+        
+        return features
+        
+    def _extract_progress_features(self, state: 'SokolutionState') -> List[float]:
+        """Features de progrès : évaluation de l'avancement."""
+        features = []
+        
+        # Progression globale (boxes sur targets)
+        progress = len([box for box in state.boxes if box in self.targets]) / max(len(self.targets), 1)
+        features.append(progress)
+        
+        # Potentiel d'amélioration
+        unplaced_boxes = [box for box in state.boxes if box not in self.targets]
+        improvement_potential = self._calculate_improvement_potential(unplaced_boxes)
+        features.append(improvement_potential)
+        
+        return features
+        
+    def _extract_connectivity_features(self, state: 'SokolutionState') -> List[float]:
+        """Features de connectivité : accessibilité et mobilité."""
+        features = []
+        
+        # Accessibilité du joueur
+        player_connectivity = self._calculate_player_connectivity(state)
+        features.append(player_connectivity)
+        
+        # Mobilité moyenne des boxes
+        box_mobility = self._calculate_average_box_mobility(state)
+        features.append(box_mobility)
+        
+        return features
+        
+    def _calculate_box_compactness(self, boxes: List[Tuple[int, int]]) -> float:
+        """Calcule la compacité d'un groupe de boxes."""
+        if len(boxes) <= 1:
+            return 1.0
+            
+        # Calculer l'enveloppe convexe simplifiée (bounding box)
+        min_x = min(box[0] for box in boxes)
+        max_x = max(box[0] for box in boxes)
+        min_y = min(box[1] for box in boxes)
+        max_y = max(box[1] for box in boxes)
+        
+        area = (max_x - min_x + 1) * (max_y - min_y + 1)
+        return len(boxes) / area if area > 0 else 0
+        
+    def _calculate_local_density(self, x: int, y: int, boxes: FrozenSet[Tuple[int, int]]) -> float:
+        """Calcule la densité locale autour d'une position."""
+        radius = 2
+        local_count = 0
+        total_count = 0
+        
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    total_count += 1
+                    if (nx, ny) in boxes:
+                        local_count += 1
+        
+        return local_count / total_count if total_count > 0 else 0
+        
+    def _calculate_improvement_potential(self, unplaced_boxes: List[Tuple[int, int]]) -> float:
+        """Calcule le potentiel d'amélioration pour les boxes non placées."""
+        if not unplaced_boxes or not self.targets:
+            return 0.0
+            
+        # Basé sur la facilité d'accès aux targets
+        total_potential = 0
+        for box in unplaced_boxes:
+            # Trouver la target la plus proche
+            min_distance = min(abs(box[0] - target[0]) + abs(box[1] - target[1])
+                             for target in self.targets)
+            # Potentiel inversement proportionnel à la distance
+            potential = 1.0 / (1.0 + min_distance)
+            total_potential += potential
+            
+        return total_potential / max(len(unplaced_boxes), 1)
+        
+    def _calculate_player_connectivity(self, state: 'SokolutionState') -> float:
+        """Calcule la connectivité du joueur."""
+        px, py = state.player_pos
+        reachable_count = 0
+        total_count = 0
+        
+        # BFS simple pour compter les positions accessibles
+        visited = set()
+        queue = deque([(px, py)])
+        visited.add((px, py))
+        
+        while queue and len(visited) < 100:  # Limiter pour la performance
+            x, y = queue.popleft()
+            reachable_count += 1
+            
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                if (0 <= nx < self.width and 0 <= ny < self.height and
+                    not self.level.is_wall(nx, ny) and (nx, ny) not in state.boxes and
+                    (nx, ny) not in visited):
+                    visited.add((nx, ny))
+                    queue.append((nx, ny))
+        
+        # Compter le total d'espaces libres
+        for y in range(self.height):
+            for x in range(self.width):
+                if not self.level.is_wall(x, y):
+                    total_count += 1
+        
+        return reachable_count / total_count if total_count > 0 else 0
+        
+    def _calculate_average_box_mobility(self, state: 'SokolutionState') -> float:
+        """Calcule la mobilité moyenne des boxes."""
+        if not state.boxes:
+            return 0.0
+            
+        total_mobility = 0
+        for box in state.boxes:
+            mobility = self._calculate_box_mobility(box, state.boxes)
+            total_mobility += mobility
+            
+        return total_mobility / max(len(state.boxes), 1)
+        
+    def _calculate_box_mobility(self, box: Tuple[int, int], boxes: FrozenSet[Tuple[int, int]]) -> float:
+        """Calcule la mobilité d'une box individuelle."""
+        x, y = box
+        free_directions = 0
+        
+        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            nx, ny = x + dx, y + dy
+            # Vérifier si la box peut potentiellement bouger dans cette direction
+            if (0 <= nx < self.width and 0 <= ny < self.height and
+                not self.level.is_wall(nx, ny) and (nx, ny) not in boxes):
+                free_directions += 1
+                
+        return free_directions / 4.0  # Normaliser par le nombre max de directions
+
+
+class FESSHeuristic:
+    """
+    Heuristique FESS utilisant les features extraites pour estimer la distance au goal.
+    """
+    
+    def __init__(self, level):
+        self.level = level
+        self.feature_extractor = FeatureExtractor(level)
+        
+        # Poids appris/configurés pour les différentes features
+        self.feature_weights = self._initialize_feature_weights()
+        
+    def _initialize_feature_weights(self) -> np.ndarray:
+        """
+        Initialise les poids des features.
+        
+        Dans une implémentation complète, ces poids seraient appris par ML.
+        Ici, on utilise des poids heuristiques basés sur l'expérience.
+        """
+        # Nombre total de features estimé
+        num_features = 15  # À ajuster selon le nombre réel de features
+        
+        # Poids heuristiques (à affiner empiriquement)
+        weights = np.array([
+            # Basic features (4)
+            0.1, 0.1,  # position joueur
+            -10.0,     # boxes sur targets (négatif car on veut maximiser)
+            2.0,       # boxes pas sur targets
+            
+            # Geometric features (6)
+            0.5, 0.5,  # centre de masse
+            1.0,       # dispersion
+            1.5,       # distance joueur-boxes
+            3.0,       # distance boxes-targets
+            0.8,       # compacité
+            
+            # Topological features (3)
+            2.0,       # boxes dans corridors
+            5.0,       # boxes dans zones deadlock
+            1.0,       # densité locale
+            
+            # Progress features (2)
+            -8.0,      # progression (négatif car on veut maximiser)
+            -2.0,      # potentiel d'amélioration
+            
+            # Connectivity features (2)
+            -1.0,      # connectivité joueur
+            -1.5       # mobilité boxes
+        ], dtype=np.float32)
+        
+        return weights[:num_features] if len(weights) > num_features else weights
+        
+    def calculate_heuristic(self, state: 'SokolutionState') -> float:
+        """Calcule la valeur heuristique basée sur les features."""
+        features = self.feature_extractor.extract_features(state)
+        
+        # Assurer que les dimensions correspondent
+        min_len = min(len(features), len(self.feature_weights))
+        features_trimmed = features[:min_len]
+        weights_trimmed = self.feature_weights[:min_len]
+        
+        # Produit scalaire pour obtenir la valeur heuristique
+        heuristic_value = np.dot(features_trimmed, weights_trimmed)
+        
+        # S'assurer que la valeur est positive et raisonnable
+        return max(0.0, float(heuristic_value))
+
+
 class EnhancedSokolutionSolver:
     """
     Solver Sokoban unifié et optimisé basé sur les techniques Sokolution.
@@ -524,7 +928,9 @@ class EnhancedSokolutionSolver:
             progress_callback(f"Démarrage du solver {algorithm.value} en mode {mode.value}...")
         
         # Sélection de l'algorithme de recherche
-        if algorithm == Algorithm.BFS:
+        if algorithm == Algorithm.FESS:
+            solution_moves = self._fess_search(progress_callback)
+        elif algorithm == Algorithm.BFS:
             solution_moves = self._bfs_search(progress_callback)
         elif algorithm == Algorithm.ASTAR:
             solution_moves = self._astar_search(progress_callback)
@@ -639,7 +1045,139 @@ class EnhancedSokolutionSolver:
         return (time.time() - self.start_time <= self.time_limit and
                 self.states_explored <= self.max_states)
     
-    # Les implémentations des algorithmes de recherche suivront dans la suite...
+    def _fess_search(self, progress_callback: Optional[Callable] = None) -> Optional[List[str]]:
+        """
+        Implémentation de l'algorithme FESS (Feature Space Search).
+        
+        Basé sur Shoham and Schaeffer [2020], cet algorithme utilise l'extraction
+        de features pour guider la recherche de manière plus intelligente.
+        """
+        if progress_callback:
+            progress_callback("Initialisation FESS (Feature Space Search)...")
+        
+        # Initialiser l'heuristique FESS
+        fess_heuristic = FESSHeuristic(self.level)
+        
+        initial_state = self._create_initial_state()
+        initial_state.h_cost = fess_heuristic.calculate_heuristic(initial_state)
+        initial_state.f_cost = initial_state.g_cost + initial_state.h_cost
+        
+        # Utiliser un algorithme A* modifié avec l'heuristique FESS
+        self.open_set = [initial_state]
+        self.transposition_table.add(initial_state)
+        
+        # Variables spécifiques à FESS
+        feature_cache = {}  # Cache des features calculées
+        adaptation_factor = 1.0  # Facteur d'adaptation dynamique
+        stagnation_counter = 0
+        last_best_h = initial_state.h_cost
+        
+        while self.open_set and self._within_limits():
+            current_state = heapq.heappop(self.open_set)
+            self.states_explored += 1
+            
+            # Adaptation dynamique des poids basée sur le progrès
+            if self.states_explored % 1000 == 0:
+                adaptation_factor = self._adapt_fess_parameters(
+                    current_state, last_best_h, stagnation_counter
+                )
+                
+                if progress_callback:
+                    elapsed = time.time() - self.start_time
+                    progress_callback(f"FESS: Exploré {self.states_explored} états, "
+                                    f"h={current_state.h_cost:.1f}, adaptation={adaptation_factor:.2f} "
+                                    f"({elapsed:.1f}s)")
+            
+            if self._is_goal_state(current_state):
+                if progress_callback:
+                    progress_callback("🎯 FESS: Solution trouvée!")
+                return self._reconstruct_path(current_state)
+            
+            # Générer et évaluer les successeurs avec FESS
+            successors = self._generate_successors(current_state)
+            
+            for successor in successors:
+                if self.transposition_table.contains(successor):
+                    continue
+                
+                # Calculer l'heuristique FESS avec adaptation
+                successor.h_cost = fess_heuristic.calculate_heuristic(successor) * adaptation_factor
+                successor.f_cost = successor.g_cost + successor.h_cost
+                
+                # Ajouter des bonus/malus basés sur les features
+                self._apply_fess_bonuses(successor, fess_heuristic.feature_extractor)
+                
+                heapq.heappush(self.open_set, successor)
+                self.transposition_table.add(successor)
+                self.states_generated += 1
+                
+                # Mettre à jour le tracking du meilleur h_cost
+                if successor.h_cost < last_best_h:
+                    last_best_h = successor.h_cost
+                    stagnation_counter = 0
+                else:
+                    stagnation_counter += 1
+        
+        if progress_callback:
+            progress_callback("❌ FESS: Aucune solution trouvée dans les limites")
+        
+        return None
+    
+    def _adapt_fess_parameters(self, current_state: SokolutionState,
+                              last_best_h: float, stagnation_counter: int) -> float:
+        """
+        Adapte dynamiquement les paramètres FESS basé sur le progrès.
+        
+        Cette fonction ajuste les poids et stratégies selon la performance
+        de la recherche actuelle.
+        """
+        base_factor = 1.0
+        
+        # Si on stagne, augmenter l'exploration
+        if stagnation_counter > 500:
+            base_factor *= 1.2  # Augmenter l'exploration
+        elif stagnation_counter > 1000:
+            base_factor *= 1.5  # Exploration plus agressive
+        
+        # Si on progresse bien, rester concentré
+        if current_state.h_cost < last_best_h:
+            base_factor *= 0.9  # Rester plus concentré
+        
+        # Adaptation basée sur la profondeur
+        depth_factor = 1.0 + (current_state.g_cost * 0.001)
+        
+        return base_factor * depth_factor
+    
+    def _apply_fess_bonuses(self, state: SokolutionState, feature_extractor: FeatureExtractor):
+        """
+        Applique des bonus/malus spécifiques FESS basés sur les features.
+        """
+        # Bonus pour les configurations prometteuses
+        boxes_on_targets = len([box for box in state.boxes if box in self.level.targets])
+        total_boxes = len(state.boxes)
+        
+        if total_boxes > 0:
+            progress_ratio = boxes_on_targets / total_boxes
+            
+            # Bonus significatif si beaucoup de progrès
+            if progress_ratio > 0.8:
+                state.f_cost *= 0.5  # Forte priorité
+            elif progress_ratio > 0.6:
+                state.f_cost *= 0.8  # Priorité modérée
+        
+        # Malus pour les positions dangereuses (deadlocks potentiels)
+        dangerous_boxes = sum(1 for box in state.boxes
+                            if box in feature_extractor.deadlock_zones)
+        if dangerous_boxes > 0:
+            danger_ratio = dangerous_boxes / total_boxes
+            state.f_cost *= (1.0 + danger_ratio * 2.0)  # Pénaliser les configurations dangereuses
+        
+        # Bonus pour la mobilité du joueur
+        player_connectivity = feature_extractor._calculate_player_connectivity(state)
+        if player_connectivity > 0.7:
+            state.f_cost *= 0.95  # Léger bonus pour bonne connectivité
+    
+    # Les autres implémentations d'algorithmes suivent...
     
     def _bfs_search(self, progress_callback: Optional[Callable] = None) -> Optional[List[str]]:
         """Implémentation BFS."""

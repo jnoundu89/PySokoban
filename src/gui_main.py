@@ -526,34 +526,23 @@ class GUIGame(Game):
         if selected_algorithm is None:
             return  # User cancelled
 
-        # Define progress callback for real-time updates
-        def progress_callback(message):
-            # Render current level with enhanced AI overlay
-            self.renderer.render_level(
-                self.level_manager.current_level,
-                self.level_manager,
-                self.show_grid,
-                self.zoom_level,
-                self.scroll_x,
-                self.scroll_y,
-                self.skin_manager,
-                show_completion_message=False
-            )
-
-            # Add enhanced solving overlay with algorithm info
-            self._render_enhanced_solving_overlay(message)
-            pygame.display.flip()
+        # Show initial solving message
+        self._render_enhanced_solving_overlay("🤖 Analyzing level and preparing AI solver...")
+        pygame.display.flip()
 
         try:
-            # Use the new unified AI system to solve and animate
+            # Use the new unified AI system to solve WITHOUT animation during solving
             result = self.visual_ai_solver.solve_level_visual(
                 level=self.level_manager.current_level,
                 algorithm=selected_algorithm,
-                animate_immediately=True,
-                progress_callback=progress_callback
+                animate_immediately=False,  # Don't animate during solving
+                progress_callback=None      # No progress callbacks during solving
             )
 
             if result['success']:
+                # Now animate the solution after it's found
+                self._animate_solution_after_solving(result['solve_result'])
+                
                 # Show completion statistics
                 solve_info = self.visual_ai_solver.get_last_solve_info()
                 if solve_info:
@@ -1060,6 +1049,109 @@ class GUIGame(Game):
         instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2,
                                                               text_rect.bottom + 30))
         self.renderer.screen.blit(instruction_surface, instruction_rect)
+
+    def _animate_solution_after_solving(self, solve_result):
+        """
+        Animate the solution after it has been found.
+        
+        Args:
+            solve_result: The SolveResult containing the solution
+        """
+        if not solve_result.success or not solve_result.solution_data:
+            return
+        
+        moves = solve_result.solution_data.moves
+        if not moves:
+            return
+        
+        # Reset level to initial state
+        self.level_manager.current_level.reset()
+        
+        # Show animation start message
+        total_moves = len(moves)
+        self._render_enhanced_solving_overlay(f"🎬 Animating solution: {total_moves} moves")
+        pygame.display.flip()
+        pygame.time.wait(1000)  # Give user time to read
+        
+        # Animate each move
+        for i, move in enumerate(moves):
+            # Check for user input to skip animation
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        # Skip to end
+                        self._execute_remaining_moves(moves[i:])
+                        return
+                    elif event.key == pygame.K_ESCAPE:
+                        return
+                elif event.type == pygame.QUIT:
+                    return
+            
+            # Execute the move
+            success = self._execute_ai_move(move)
+            
+            # Render current state
+            self.renderer.render_level(
+                self.level_manager.current_level,
+                self.level_manager,
+                self.show_grid,
+                self.zoom_level,
+                self.scroll_x,
+                self.scroll_y,
+                self.skin_manager,
+                show_completion_message=False
+            )
+            
+            # Show progress overlay
+            progress = (i + 1) / total_moves * 100
+            overlay_text = f"🤖 AI Solution: Move {i+1}/{total_moves} ({progress:.1f}%)\n"
+            overlay_text += f"Direction: {move} -> {'✅' if success else '❌'}\n"
+            overlay_text += "SPACE: Skip animation | ESC: Stop"
+            
+            self._render_enhanced_solving_overlay(overlay_text)
+            pygame.display.flip()
+            
+            # Animation delay
+            pygame.time.wait(300)  # 300ms per move
+            
+            # Check if level is completed
+            if self.level_manager.current_level.is_completed():
+                break
+    
+    def _execute_ai_move(self, move: str) -> bool:
+        """Execute a move from the AI solution."""
+        direction_map = {
+            'UP': (0, -1),
+            'DOWN': (0, 1),
+            'LEFT': (-1, 0),
+            'RIGHT': (1, 0)
+        }
+        
+        if move in direction_map:
+            dx, dy = direction_map[move]
+            return self.level_manager.current_level.move(dx, dy)
+        
+        return False
+    
+    def _execute_remaining_moves(self, remaining_moves):
+        """Execute all remaining moves instantly."""
+        for move in remaining_moves:
+            self._execute_ai_move(move)
+            if self.level_manager.current_level.is_completed():
+                break
+        
+        # Render final state
+        self.renderer.render_level(
+            self.level_manager.current_level,
+            self.level_manager,
+            self.show_grid,
+            self.zoom_level,
+            self.scroll_x,
+            self.scroll_y,
+            self.skin_manager,
+            show_completion_message=False
+        )
+        pygame.display.flip()
 
     def _quit_game(self):
         """

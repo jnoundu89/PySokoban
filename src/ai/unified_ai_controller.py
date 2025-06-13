@@ -69,7 +69,7 @@ class UnifiedAIController:
         self.is_solving = False
         self.current_solution = None
     
-    def solve_level(self, request: SolveRequest, 
+    def solve_level(self, request: SolveRequest,
                    progress_callback: Optional[Callable[[str], None]] = None) -> SolveResult:
         """
         Résout un niveau avec les paramètres spécifiés.
@@ -118,13 +118,13 @@ class UnifiedAIController:
                 time_limit=request.time_limit
             )
             
-            # 3. Résolution
+            # 3. Résolution avec fallback pour FESS
             if progress_callback:
                 progress_callback("Démarrage de la résolution...")
             
-            solution_data = self.current_solver.solve(
-                algorithm=selected_algorithm,
-                mode=request.mode,
+            solution_data = self._solve_with_fallback(
+                selected_algorithm=selected_algorithm,
+                request=request,
                 progress_callback=progress_callback
             )
             
@@ -207,6 +207,56 @@ class UnifiedAIController:
         
         finally:
             self.is_solving = False
+    
+    def _solve_with_fallback(self, selected_algorithm: Algorithm, request: SolveRequest,
+                           progress_callback: Optional[Callable[[str], None]] = None) -> Optional[SolutionData]:
+        """
+        Résout avec fallback automatique si FESS échoue.
+        
+        Args:
+            selected_algorithm: Algorithme principal à utiliser
+            request: Requête de résolution
+            progress_callback: Callback pour les mises à jour
+            
+        Returns:
+            SolutionData si solution trouvée, None sinon
+        """
+        # Essayer l'algorithme principal
+        solution_data = self.current_solver.solve(
+            algorithm=selected_algorithm,
+            mode=request.mode,
+            progress_callback=progress_callback
+        )
+        
+        # Si FESS échoue, essayer l'algorithme de fallback
+        if solution_data is None and selected_algorithm == Algorithm.FESS:
+            if progress_callback:
+                progress_callback("FESS n'a pas trouvé de solution, passage au fallback...")
+            
+            # Obtenir l'algorithme de fallback
+            fallback_algorithm = self.algorithm_selector.get_fallback_algorithm(request.level)
+            
+            if progress_callback:
+                progress_callback(f"Tentative avec algorithme de fallback: {fallback_algorithm.value}")
+            
+            # Réinitialiser le solver pour le fallback
+            self.current_solver = EnhancedSokolutionSolver(
+                level=request.level,
+                max_states=request.max_states,
+                time_limit=request.time_limit
+            )
+            
+            # Essayer avec l'algorithme de fallback
+            solution_data = self.current_solver.solve(
+                algorithm=fallback_algorithm,
+                mode=request.mode,
+                progress_callback=progress_callback
+            )
+            
+            if solution_data and progress_callback:
+                progress_callback(f"✅ Solution trouvée avec fallback {fallback_algorithm.value}!")
+        
+        return solution_data
     
     def solve_level_auto(self, level, progress_callback: Optional[Callable[[str], None]] = None,
                         collect_ml_metrics: bool = True, generate_report: bool = False) -> SolveResult:
@@ -446,7 +496,7 @@ class UnifiedAIController:
             Dict: Résultats du benchmark
         """
         if algorithms is None:
-            algorithms = [Algorithm.BFS, Algorithm.ASTAR, Algorithm.GREEDY, Algorithm.IDA_STAR]
+            algorithms = [Algorithm.FESS, Algorithm.BFS, Algorithm.ASTAR, Algorithm.GREEDY, Algorithm.IDA_STAR]
         
         benchmark_results = {
             'level_info': {

@@ -12,6 +12,7 @@ import math
 
 class Algorithm(Enum):
     """Énumération des algorithmes disponibles."""
+    FESS = "FESS"  # Feature Space Search - Algorithme par défaut
     BFS = "BFS"
     ASTAR = "A*"
     IDA_STAR = "IDA*"
@@ -153,6 +154,7 @@ class AlgorithmSelector:
         
         # Statistiques de sélection
         self.selection_stats = {
+            Algorithm.FESS: 0,
             Algorithm.BFS: 0,
             Algorithm.ASTAR: 0,
             Algorithm.IDA_STAR: 0,
@@ -172,20 +174,33 @@ class AlgorithmSelector:
         """
         complexity_score = self.complexity_analyzer.calculate_complexity_score(level)
         
-        # Sélection basée sur les seuils de complexité
-        if complexity_score < self.algorithm_thresholds['simple']:
-            selected_algorithm = Algorithm.BFS
-        elif complexity_score < self.algorithm_thresholds['medium']:
-            selected_algorithm = Algorithm.ASTAR
-        elif complexity_score < self.algorithm_thresholds['complex']:
-            selected_algorithm = Algorithm.IDA_STAR
-        else:
-            selected_algorithm = Algorithm.BIDIRECTIONAL_GREEDY
+        # FESS comme algorithme par défaut pour tous les niveaux
+        # Il s'adapte automatiquement à la complexité via ses features
+        selected_algorithm = Algorithm.FESS
+        
+        # Garder l'ancienne logique comme fallback si FESS échoue
+        self.fallback_algorithm = self._select_fallback_algorithm(complexity_score)
         
         # Mise à jour des statistiques
         self.selection_stats[selected_algorithm] += 1
         
         return selected_algorithm
+    
+    def _select_fallback_algorithm(self, complexity_score: float) -> Algorithm:
+        """Sélectionne un algorithme de fallback si FESS échoue."""
+        if complexity_score < self.algorithm_thresholds['simple']:
+            return Algorithm.BFS
+        elif complexity_score < self.algorithm_thresholds['medium']:
+            return Algorithm.ASTAR
+        elif complexity_score < self.algorithm_thresholds['complex']:
+            return Algorithm.IDA_STAR
+        else:
+            return Algorithm.BIDIRECTIONAL_GREEDY
+    
+    def get_fallback_algorithm(self, level) -> Algorithm:
+        """Obtient l'algorithme de fallback pour un niveau."""
+        complexity_score = self.complexity_analyzer.calculate_complexity_score(level)
+        return self._select_fallback_algorithm(complexity_score)
     
     def get_algorithm_recommendation(self, level) -> Dict[str, Any]:
         """
@@ -225,6 +240,7 @@ class AlgorithmSelector:
         category = self._get_complexity_category(complexity_score)
         
         reasoning_map = {
+            Algorithm.FESS: f"Niveau {category.lower()} (score: {complexity_score:.1f}) - FESS (Feature Space Search) recommandé comme algorithme optimal adaptatif",
             Algorithm.BFS: f"Niveau {category.lower()} (score: {complexity_score:.1f}) - BFS optimal pour exploration exhaustive rapide",
             Algorithm.ASTAR: f"Niveau {category.lower()} (score: {complexity_score:.1f}) - A* optimal avec heuristique pour équilibrer rapidité et optimalité",
             Algorithm.IDA_STAR: f"Niveau {category.lower()} (score: {complexity_score:.1f}) - IDA* recommandé pour économiser la mémoire sur niveau complexe",
@@ -236,6 +252,12 @@ class AlgorithmSelector:
     def _get_expected_performance(self, algorithm: Algorithm) -> Dict[str, str]:
         """Obtient les performances attendues pour un algorithme."""
         performance_map = {
+            Algorithm.FESS: {
+                'speed': 'Très rapide',
+                'memory': 'Optimisée',
+                'optimality': 'Quasi-optimal',
+                'suitability': 'Tous niveaux'
+            },
             Algorithm.BFS: {
                 'speed': 'Rapide',
                 'memory': 'Modérée',

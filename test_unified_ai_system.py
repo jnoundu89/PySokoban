@@ -407,7 +407,7 @@ class AISystemValidator:
             "#####"
         ]
         
-        return Level.from_string("\n".join(level_data))
+        return Level(level_data="\n".join(level_data))
     
     def _load_thinking_rabbit_level_1(self):
         """Try to load the first Thinking Rabbit level from file."""
@@ -431,7 +431,7 @@ class AISystemValidator:
                         break  # End of first level
                 
                 if level_lines:
-                    return Level.from_string("\n".join(level_lines))
+                    return Level(level_data="\n".join(level_lines))
             
         except Exception as e:
             print(f"   ⚠️  Could not load Thinking Rabbit level: {e}")
@@ -455,7 +455,7 @@ class AISystemValidator:
             "    #######        "
         ]
         
-        return Level.from_string("\n".join(level_data))
+        return Level(level_data="\n".join(level_data))
 
 
 def main():

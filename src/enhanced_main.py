@@ -399,27 +399,89 @@ class EnhancedSokoban:
 
     def _show_ai_features(self):
         """Show the AI features menu with advanced capabilities."""
+        # Store current menu state to restore it after AI features menu closes
+        previous_state = self.menu_system.current_state
+
         # Create an AI features menu
         self._run_ai_features_menu()
 
+        # Restore previous menu state
+        self.menu_system._change_state(previous_state)
+
+        # Clear the event queue to prevent events from being processed again
+        pygame.event.clear()
+
     def _run_ai_features_menu(self):
         """Run the AI features menu."""
+        from src.ui.menu_system import Button
+
         clock = pygame.time.Clock()
         running = True
-        selected_option = 0
 
-        # AI menu options
-        ai_options = [
-            ("🧠 AI System Information", self._show_ai_system_info),
-            ("🧪 Run AI Validation Tests", self._run_ai_validation_tests),
-            ("🏁 Algorithm Benchmark", self._run_algorithm_benchmark),
-            ("🎭 AI Demo on Test Level", self._run_ai_demo),
-            ("📊 View AI Statistics", self._show_ai_statistics),
-            ("🔙 Back to Main Menu", lambda: None)
+        # Calculate responsive button sizing based on screen size
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            button_width = min(max(300, self.screen_width // 5), 400)
+            button_height = min(max(60, self.screen_height // 15), 80)
+            title_offset = 180
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            button_width = min(max(250, self.screen_width // 5.5), 350)
+            button_height = min(max(50, self.screen_height // 18), 70)
+            title_offset = 160
+        else:
+            button_width = min(max(200, self.screen_width // 6), 300)
+            button_height = min(max(40, self.screen_height // 20), 60)
+            title_offset = 150
+
+        # Calculate button positions
+        button_x = (self.screen_width - button_width) // 2
+
+        # Calculate total menu height and center it vertically
+        num_buttons = 6  # Number of AI feature options
+        button_spacing = button_height + max(15, self.screen_height // 40)
+        total_menu_height = num_buttons * button_height + (num_buttons - 1) * button_spacing
+
+        # Start buttons at a position that centers the entire menu block
+        button_y_start = (self.screen_height - total_menu_height) // 2
+
+        # Ensure buttons start below the title
+        if button_y_start < title_offset:
+            button_y_start = title_offset
+
+        # Calculate font size based on button dimensions
+        button_font_size = min(max(24, button_height // 2), 42)
+
+        # Create buttons for AI features
+        ai_buttons = [
+            Button("AI System Information", button_x, button_y_start, 
+                   button_width, button_height, action=self._show_ai_system_info, 
+                   font_size=button_font_size),
+            Button("Run AI Validation Tests", button_x, button_y_start + button_spacing, 
+                   button_width, button_height, action=self._run_ai_validation_tests, 
+                   font_size=button_font_size),
+            Button("Algorithm Benchmark", button_x, button_y_start + button_spacing * 2, 
+                   button_width, button_height, action=self._run_algorithm_benchmark, 
+                   font_size=button_font_size),
+            Button("AI Demo on Test Level", button_x, button_y_start + button_spacing * 3, 
+                   button_width, button_height, action=self._run_ai_demo, 
+                   font_size=button_font_size),
+            Button("View AI Statistics", button_x, button_y_start + button_spacing * 4, 
+                   button_width, button_height, action=self._show_ai_statistics, 
+                   font_size=button_font_size),
+            Button("Back to Main Menu", button_x, button_y_start + button_spacing * 5, 
+                   button_width, button_height, action=None, 
+                   color=(200, 100, 100), hover_color=(255, 130, 130),
+                   font_size=button_font_size)
         ]
 
-        font = pygame.font.Font(None, 36)
-        small_font = pygame.font.Font(None, 24)
+        # Get colors from menu system if available
+        background_color = self.menu_system.colors['background'] if hasattr(self.menu_system, 'colors') else (240, 240, 240)
+        title_color = self.menu_system.colors['title'] if hasattr(self.menu_system, 'colors') else (70, 70, 150)
+        text_color = self.menu_system.colors['text'] if hasattr(self.menu_system, 'colors') else (50, 50, 50)
+
+        # Use menu system fonts if available
+        title_font = self.menu_system.title_font if hasattr(self.menu_system, 'title_font') else pygame.font.Font(None, 48)
+        subtitle_font = self.menu_system.subtitle_font if hasattr(self.menu_system, 'subtitle_font') else pygame.font.Font(None, 36)
+        text_font = self.menu_system.text_font if hasattr(self.menu_system, 'text_font') else pygame.font.Font(None, 24)
 
         while running:
             for event in pygame.event.get():
@@ -427,67 +489,89 @@ class EnhancedSokoban:
                     self.running = False
                     running = False
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_UP:
-                        selected_option = (selected_option - 1) % len(ai_options)
-                    elif event.key == pygame.K_DOWN:
-                        selected_option = (selected_option + 1) % len(ai_options)
-                    elif event.key == pygame.K_RETURN:
-                        option_name, action = ai_options[selected_option]
-                        if action:
-                            if option_name == "🔙 Back to Main Menu":
-                                running = False
-                            else:
-                                action()
-                        else:
-                            running = False
-                    elif event.key == pygame.K_ESCAPE:
+                    if event.key == pygame.K_ESCAPE:
                         running = False
+                    elif event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+
+                # Handle button events
+                for button in ai_buttons:
+                    if button.handle_event(event):
+                        if button.text == "🔙 Back to Main Menu":
+                            running = False
+                        break
 
             # Draw AI features menu
-            self.screen.fill((20, 40, 60))  # Dark blue background
+            self.screen.fill(background_color)
 
-            # Title
-            title = font.render("🤖 Enhanced AI System Features", True, (255, 255, 255))
-            title_rect = title.get_rect(center=(self.screen_width // 2, 100))
-            self.screen.blit(title, title_rect)
+            # Draw title with shadow effect for better visibility
+            title_text = "AI FEATURES"
 
-            # Subtitle
-            subtitle = small_font.render("Advanced Sokoban solving with ML analytics", True, (200, 200, 200))
-            subtitle_rect = subtitle.get_rect(center=(self.screen_width // 2, 140))
-            self.screen.blit(subtitle, subtitle_rect)
+            # Draw shadow
+            shadow_color = (50, 50, 100)
+            shadow_offset = 2
+            title_shadow = title_font.render(title_text, True, shadow_color)
+            shadow_rect = title_shadow.get_rect(center=(self.screen_width // 2 + shadow_offset, 100 + shadow_offset))
+            self.screen.blit(title_shadow, shadow_rect)
 
-            # Menu options
-            start_y = 200
-            for i, (option_text, _) in enumerate(ai_options):
-                color = (255, 255, 100) if i == selected_option else (255, 255, 255)
-                prefix = "► " if i == selected_option else "  "
+            # Draw main title
+            title_surface = title_font.render(title_text, True, title_color)
+            title_rect = title_surface.get_rect(center=(self.screen_width // 2, 100))
+            self.screen.blit(title_surface, title_rect)
 
-                option_surface = small_font.render(prefix + option_text, True, color)
-                option_rect = option_surface.get_rect(center=(self.screen_width // 2, start_y + i * 40))
-                self.screen.blit(option_surface, option_rect)
+            # Draw subtitle
+            subtitle_surface = subtitle_font.render("Advanced Sokoban Solving", True, text_color)
+            subtitle_rect = subtitle_surface.get_rect(center=(self.screen_width // 2, 150))
+            self.screen.blit(subtitle_surface, subtitle_rect)
 
-            # Instructions
-            instructions = [
-                "↑↓ Navigate | ENTER Select | ESC Back"
-            ]
+            # Update and draw buttons
+            mouse_pos = pygame.mouse.get_pos()
+            for button in ai_buttons:
+                button.update(mouse_pos)
+                button.draw(self.screen)
 
-            for i, instruction in enumerate(instructions):
-                inst_surface = small_font.render(instruction, True, (150, 150, 150))
-                inst_rect = inst_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 80 + i * 25))
-                self.screen.blit(inst_surface, inst_rect)
+            # Draw fullscreen instruction at the bottom of the screen
+            instruction_text = "Press F11 to toggle fullscreen mode | ESC to go back"
+            instruction_surface = text_font.render(instruction_text, True, text_color)
+            instruction_rect = instruction_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 30))
+            self.screen.blit(instruction_surface, instruction_rect)
 
             pygame.display.flip()
             clock.tick(60)
 
+        # Clear any pending events after exiting
+        pygame.event.clear()
+
     def _show_ai_system_info(self):
         """Show information about the AI system."""
+        from src.ui.menu_system import Button
+
+        # Clear any pending events before starting
+        pygame.event.clear()
+
         clock = pygame.time.Clock()
         running = True
         scroll_y = 0
         max_scroll = 0
 
-        font = pygame.font.Font(None, 28)
+        # Get colors from menu system if available
+        background_color = self.menu_system.colors['background'] if hasattr(self.menu_system, 'colors') else (240, 240, 240)
+        title_color = self.menu_system.colors['title'] if hasattr(self.menu_system, 'colors') else (70, 70, 150)
+        text_color = self.menu_system.colors['text'] if hasattr(self.menu_system, 'colors') else (50, 50, 50)
+
+        # Use menu system fonts if available
+        title_font = self.menu_system.title_font if hasattr(self.menu_system, 'title_font') else pygame.font.Font(None, 48)
+        subtitle_font = self.menu_system.subtitle_font if hasattr(self.menu_system, 'subtitle_font') else pygame.font.Font(None, 36)
+        text_font = self.menu_system.text_font if hasattr(self.menu_system, 'text_font') else pygame.font.Font(None, 24)
         small_font = pygame.font.Font(None, 20)
+
+        # Create back button
+        button_width = 120
+        button_height = 40
+        margin = 20
+        back_button = Button("Back", margin, self.screen_height - button_height - margin, 
+                            button_width, button_height, action=None, 
+                            font_size=24)
 
         # Prepare info content
         info_content = [
@@ -522,7 +606,7 @@ class EnhancedSokoban:
             "  ✅ Visual animation: Smooth real-time display",
             "  ✅ Benchmark system: Multi-algorithm comparison",
             "",
-            "Press ESC to return to AI menu"
+            "Use UP/DOWN arrows to scroll | ESC or Back button to return"
         ]
 
         # Calculate max scroll
@@ -542,14 +626,30 @@ class EnhancedSokoban:
                         scroll_y = max(0, scroll_y - 20)
                     elif event.key == pygame.K_DOWN:
                         scroll_y = min(max_scroll, scroll_y + 20)
+                    elif event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+
+                # Handle back button
+                if back_button.handle_event(event):
+                    running = False
 
             # Draw info screen
-            self.screen.fill((30, 30, 50))
+            self.screen.fill(background_color)
 
-            # Title
-            title = font.render("AI System Information", True, (255, 255, 255))
-            title_rect = title.get_rect(center=(self.screen_width // 2, 50))
-            self.screen.blit(title, title_rect)
+            # Draw title with shadow effect
+            title_text = "AI SYSTEM INFORMATION"
+
+            # Draw shadow
+            shadow_color = (50, 50, 100)
+            shadow_offset = 2
+            title_shadow = title_font.render(title_text, True, shadow_color)
+            shadow_rect = title_shadow.get_rect(center=(self.screen_width // 2 + shadow_offset, 50 + shadow_offset))
+            self.screen.blit(title_shadow, shadow_rect)
+
+            # Draw main title
+            title_surface = title_font.render(title_text, True, title_color)
+            title_rect = title_surface.get_rect(center=(self.screen_width // 2, 50))
+            self.screen.blit(title_surface, title_rect)
 
             # Content with scrolling
             start_y = 100 - scroll_y
@@ -558,16 +658,16 @@ class EnhancedSokoban:
                 if -50 < y_pos < self.screen_height + 50:  # Only render visible lines
                     if line.startswith("🤖") or line.startswith("🧠") or line.startswith("📊") or line.startswith(
                             "🎮") or line.startswith("🏆"):
-                        color = (100, 255, 100)
-                        surface = font.render(line, True, color)
+                        color = (100, 150, 200)  # Blue for headers to match theme
+                        surface = subtitle_font.render(line, True, color)
                     elif line.startswith("  ✅"):
-                        color = (100, 255, 100)
+                        color = (100, 180, 100)  # Green for success items
                         surface = small_font.render(line, True, color)
                     elif line.startswith("  •"):
-                        color = (200, 200, 255)
+                        color = text_color  # Use theme text color for bullet points
                         surface = small_font.render(line, True, color)
                     else:
-                        color = (255, 255, 255) if line.strip() else (100, 100, 100)
+                        color = text_color if line.strip() else (150, 150, 150)
                         surface = small_font.render(line, True, color)
 
                     surface_rect = surface.get_rect(center=(self.screen_width // 2, y_pos))
@@ -577,12 +677,26 @@ class EnhancedSokoban:
             if max_scroll > 0:
                 scroll_bar_height = max(20, int((screen_content_area / content_height) * screen_content_area))
                 scroll_bar_y = 100 + int((scroll_y / max_scroll) * (screen_content_area - scroll_bar_height))
-                pygame.draw.rect(self.screen, (100, 100, 100), (self.screen_width - 20, 100, 10, screen_content_area))
-                pygame.draw.rect(self.screen, (200, 200, 200),
+                pygame.draw.rect(self.screen, (200, 200, 200), (self.screen_width - 20, 100, 10, screen_content_area))
+                pygame.draw.rect(self.screen, (100, 100, 200),
                                  (self.screen_width - 20, scroll_bar_y, 10, scroll_bar_height))
+
+            # Update and draw back button
+            mouse_pos = pygame.mouse.get_pos()
+            back_button.update(mouse_pos)
+            back_button.draw(self.screen)
+
+            # Draw fullscreen instruction
+            instruction_text = "Press F11 to toggle fullscreen mode"
+            instruction_surface = small_font.render(instruction_text, True, text_color)
+            instruction_rect = instruction_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 20))
+            self.screen.blit(instruction_surface, instruction_rect)
 
             pygame.display.flip()
             clock.tick(60)
+
+        # Clear any pending events after exiting
+        pygame.event.clear()
 
     def _run_ai_validation_tests(self):
         """Run AI validation tests with visual feedback."""
@@ -673,7 +787,7 @@ class EnhancedSokoban:
             ]
 
             from src.core.level import Level
-            level = Level.from_string("\n".join(level_data))
+            level = Level(level_data="\n".join(level_data))
 
             # Run benchmark
             results = self.ai_controller.benchmark_algorithms(level)
@@ -775,11 +889,31 @@ class EnhancedSokoban:
 
     def _show_ai_message(self, title: str, content_lines: list):
         """Show an AI-related message screen."""
+        from src.ui.menu_system import Button
+
+        # Clear any pending events before starting
+        pygame.event.clear()
+
         clock = pygame.time.Clock()
         running = True
 
-        font = pygame.font.Font(None, 32)
-        small_font = pygame.font.Font(None, 24)
+        # Get colors from menu system if available
+        background_color = self.menu_system.colors['background'] if hasattr(self.menu_system, 'colors') else (240, 240, 240)
+        title_color = self.menu_system.colors['title'] if hasattr(self.menu_system, 'colors') else (70, 70, 150)
+        text_color = self.menu_system.colors['text'] if hasattr(self.menu_system, 'colors') else (50, 50, 50)
+
+        # Use menu system fonts if available
+        title_font = self.menu_system.title_font if hasattr(self.menu_system, 'title_font') else pygame.font.Font(None, 48)
+        subtitle_font = self.menu_system.subtitle_font if hasattr(self.menu_system, 'subtitle_font') else pygame.font.Font(None, 36)
+        text_font = self.menu_system.text_font if hasattr(self.menu_system, 'text_font') else pygame.font.Font(None, 24)
+
+        # Create OK button
+        button_width = 120
+        button_height = 40
+        ok_button = Button("OK", (self.screen_width - button_width) // 2, 
+                          self.screen_height - button_height - 40, 
+                          button_width, button_height, action=None, 
+                          font_size=24)
 
         while running:
             for event in pygame.event.get():
@@ -787,13 +921,28 @@ class EnhancedSokoban:
                     self.running = False
                     running = False
                 elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                        running = False
+                    elif event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+
+                # Handle OK button
+                if ok_button.handle_event(event):
                     running = False
 
             # Draw message screen
-            self.screen.fill((20, 40, 60))
+            self.screen.fill(background_color)
 
-            # Title
-            title_surface = font.render(title, True, (255, 255, 255))
+            # Draw title with shadow effect
+            # Draw shadow
+            shadow_color = (50, 50, 100)
+            shadow_offset = 2
+            title_shadow = subtitle_font.render(title, True, shadow_color)
+            shadow_rect = title_shadow.get_rect(center=(self.screen_width // 2 + shadow_offset, 100 + shadow_offset))
+            self.screen.blit(title_shadow, shadow_rect)
+
+            # Draw main title
+            title_surface = subtitle_font.render(title, True, title_color)
             title_rect = title_surface.get_rect(center=(self.screen_width // 2, 100))
             self.screen.blit(title_surface, title_rect)
 
@@ -801,20 +950,34 @@ class EnhancedSokoban:
             start_y = 180
             for i, line in enumerate(content_lines):
                 if line.startswith("✅") or line.startswith("🏆") or line.startswith("⚡"):
-                    color = (100, 255, 100)
+                    color = (100, 180, 100)  # Green for success items
                 elif line.startswith("❌") or line.startswith("⚠️"):
-                    color = (255, 100, 100)
+                    color = (200, 100, 100)  # Red for error items
                 elif line.startswith("  "):
-                    color = (200, 200, 200)
+                    color = text_color  # Use theme text color for indented lines
                 else:
-                    color = (255, 255, 255)
+                    color = text_color  # Use theme text color for normal lines
 
-                line_surface = small_font.render(line, True, color)
+                line_surface = text_font.render(line, True, color)
                 line_rect = line_surface.get_rect(center=(self.screen_width // 2, start_y + i * 30))
                 self.screen.blit(line_surface, line_rect)
 
+            # Update and draw OK button
+            mouse_pos = pygame.mouse.get_pos()
+            ok_button.update(mouse_pos)
+            ok_button.draw(self.screen)
+
+            # Draw instruction
+            instruction_text = "Press ENTER, SPACE, ESC or click OK to continue"
+            instruction_surface = text_font.render(instruction_text, True, text_color)
+            instruction_rect = instruction_surface.get_rect(center=(self.screen_width // 2, self.screen_height - 20))
+            self.screen.blit(instruction_surface, instruction_rect)
+
             pygame.display.flip()
             clock.tick(60)
+
+        # Clear any pending events after exiting
+        pygame.event.clear()
 
     def toggle_fullscreen(self):
         """Toggle between fullscreen and windowed mode."""

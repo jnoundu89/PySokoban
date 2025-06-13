@@ -86,13 +86,6 @@ class VisualAISolver:
         Returns:
             Dict: Résultats complets de la résolution
         """
-        # Afficher l'info de démarrage
-        if progress_callback:
-            if algorithm:
-                progress_callback(f"🤖 Résolution avec algorithme {algorithm.value}...")
-            else:
-                progress_callback("🤖 Analyse du niveau et sélection d'algorithme...")
-        
         # Créer la requête de résolution
         request = SolveRequest(
             level=level,
@@ -101,8 +94,14 @@ class VisualAISolver:
             generate_report=self.debug_mode
         )
         
-        # Résoudre avec l'IA
-        solve_result = self.ai_controller.solve_level(request, progress_callback)
+        # Résoudre avec l'IA - utiliser un progress_callback allégé si fourni
+        lightweight_callback = None
+        if progress_callback:
+            def lightweight_callback(message):
+                # Ne pas faire de rendu - juste stocker le message
+                pass
+        
+        solve_result = self.ai_controller.solve_level(request, lightweight_callback)
         
         # Stocker les résultats
         self.last_solve_result = solve_result
@@ -112,9 +111,6 @@ class VisualAISolver:
             self.solution_moves = solve_result.solution_data.moves
             
             if animate_immediately:
-                if progress_callback:
-                    progress_callback("🎬 Animation de la solution...")
-                
                 self.animate_solution(level, progress_callback)
         
         return {

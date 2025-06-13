@@ -109,7 +109,7 @@ class Button:
         Returns:
             bool: True if the button was clicked, False otherwise.
         """
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             if self.is_hovered(pygame.mouse.get_pos()):
                 if self.action:
                     self.action()
@@ -182,7 +182,7 @@ class ToggleButton(Button):
         Returns:
             bool: True if the button was clicked, False otherwise.
         """
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             if self.is_hovered(pygame.mouse.get_pos()):
                 self.toggle()
                 return True
