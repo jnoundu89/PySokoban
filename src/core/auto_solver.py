@@ -229,7 +229,7 @@ class AutoSolver:
             level_manager: Level manager for rendering context.
         """
         if not self.solution or not self.renderer:
-            return
+            return False
 
         self.is_animating = True
 
@@ -241,7 +241,7 @@ class AutoSolver:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         self.is_animating = False
-                        return
+                        return False
 
                 # Convert move to direction
                 direction_map = {
@@ -279,12 +279,15 @@ class AutoSolver:
                         # Show level completion screen
                         if hasattr(level_manager, '_show_level_completion_screen'):
                             level_manager._show_level_completion_screen()
-                        break
+                        self.is_animating = False
+                        return True
 
         except Exception as e:
             print(f"Error during solution execution: {e}")
+            return False
         finally:
             self.is_animating = False
+            return True
 
     def stop_solving(self):
         """Stop the current solving process."""
