@@ -620,7 +620,7 @@ class MenuSystem:
         button_x = (self.screen_width - button_width) // 2
 
         # Calculate total menu height and center it vertically
-        num_buttons = 6
+        num_buttons = 7  # Updated to 7 buttons (added AI Features)
         button_spacing = button_height + max(15, self.screen_height // 40)  # Responsive spacing
         total_menu_height = num_buttons * button_height + (num_buttons - 1) * button_spacing
 
@@ -640,14 +640,17 @@ class MenuSystem:
                    action=None, font_size=button_font_size),  # Action will be set by EnhancedSokoban
             Button("Level Editor", button_x, button_y_start + button_spacing, button_width, button_height,
                    action=None, font_size=button_font_size),  # Action will be set by EnhancedSokoban
-            Button("Settings", button_x, button_y_start + button_spacing * 2, button_width, button_height,
+            Button("AI Features", button_x, button_y_start + button_spacing * 2, button_width, button_height,
+                   action=None, color=(100, 150, 200), hover_color=(130, 180, 255),
+                   font_size=button_font_size),  # Action will be set by EnhancedSokoban
+            Button("Settings", button_x, button_y_start + button_spacing * 3, button_width, button_height,
                    action=lambda: self._change_state('settings'), font_size=button_font_size),
-            Button("Skins", button_x, button_y_start + button_spacing * 3, button_width, button_height,
+            Button("Skins", button_x, button_y_start + button_spacing * 4, button_width, button_height,
                    action=None, font_size=button_font_size),  # Action will be set by EnhancedSokoban
-            Button("Credits", button_x, button_y_start + button_spacing * 4, button_width, button_height,
+            Button("Credits", button_x, button_y_start + button_spacing * 5, button_width, button_height,
                    action=lambda: self._change_state('credits'), font_size=button_font_size),
-            Button("Exit", button_x, button_y_start + button_spacing * 5, button_width, button_height,
-                   action=self._exit_game, color=(200, 100, 100), hover_color=(255, 130, 130), 
+            Button("Exit", button_x, button_y_start + button_spacing * 6, button_width, button_height,
+                   action=self._exit_game, color=(200, 100, 100), hover_color=(255, 130, 130),
                    font_size=button_font_size)
         ]
 

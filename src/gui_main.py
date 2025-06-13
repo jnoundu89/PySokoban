@@ -9,6 +9,7 @@ This is the main module that starts the GUI version of the game.
 import os
 import sys
 import pygame
+from typing import Optional, Dict, Any
 from src.core.constants import KEY_BINDINGS, QWERTY, AZERTY, DEFAULT_KEYBOARD, TITLE
 from src.core.level import Level
 from src.level_management.level_manager import LevelManager
@@ -16,6 +17,8 @@ from src.renderers.gui_renderer import GUIRenderer
 from src.core.game import Game
 from src.core.auto_solver import AutoSolver
 from src.core.config_manager import get_config_manager
+from src.ai.visual_ai_solver import VisualAISolver
+from src.ai.algorithm_selector import Algorithm
 
 
 class GUIGame(Game):
@@ -71,8 +74,11 @@ class GUIGame(Game):
         self.move_delay = self.config_manager.get('game', 'movement_cooldown')  # milliseconds between moves when holding key
         self.initial_move_delay = 300  # milliseconds before starting continuous movement
 
-        # Auto solver for solving levels
+        # Auto solver for solving levels (legacy)
         self.auto_solver = None
+
+        # New unified AI system
+        self.visual_ai_solver = VisualAISolver(self.renderer, self.skin_manager)
 
         # Load custom keybindings from config
         self.custom_keybindings = self.config_manager.get_keybindings()
@@ -133,10 +139,14 @@ class GUIGame(Game):
                             except:
                                 continue
                     else:
-                        # Add key to pressed keys set
-                        self.keys_pressed.add(event.key)
-                        self._handle_key_event(event)
-                        self.last_move_time = current_time
+                        # Check if AI system handles this event first
+                        ai_handled = self.visual_ai_solver.handle_events([event])
+                        
+                        if not ai_handled:
+                            # Add key to pressed keys set
+                            self.keys_pressed.add(event.key)
+                            self._handle_key_event(event)
+                            self.last_move_time = current_time
                 elif event.type == pygame.KEYUP:
                     # Remove key from pressed keys set
                     self.keys_pressed.discard(event.key)
@@ -502,25 +512,23 @@ class GUIGame(Game):
 
     def _solve_current_level(self):
         """
-        Solve the current level automatically and animate the solution.
+        Solve the current level using the new unified AI system with enhanced features.
         """
         if not self.level_manager.current_level:
             return
 
         # Don't solve if already solving
-        if self.auto_solver and self.auto_solver.is_solving:
+        if self.visual_ai_solver.is_busy():
             return
 
-        # Create auto solver for current level
-        self.auto_solver = AutoSolver(
-            self.level_manager.current_level,
-            self.renderer,
-            self.skin_manager
-        )
+        # Show algorithm selection menu
+        selected_algorithm = self._show_algorithm_selection_menu()
+        if selected_algorithm is None:
+            return  # User cancelled
 
-        # Show solving message
+        # Define progress callback for real-time updates
         def progress_callback(message):
-            # Render current level with overlay (without completion message)
+            # Render current level with enhanced AI overlay
             self.renderer.render_level(
                 self.level_manager.current_level,
                 self.level_manager,
@@ -532,48 +540,34 @@ class GUIGame(Game):
                 show_completion_message=False
             )
 
-            # Add solving overlay
-            self._render_solving_overlay(message)
+            # Add enhanced solving overlay with algorithm info
+            self._render_enhanced_solving_overlay(message)
             pygame.display.flip()
 
-        # Try to solve the level
-        success = self.auto_solver.solve_level(progress_callback)
-
-        if success:
-            # Execute the solution live - AI takes control
-            self.auto_solver.execute_solution_live(
-                move_delay=400,  # 400ms between moves for smoother experience
-                show_grid=self.show_grid,
-                zoom_level=self.zoom_level,
-                scroll_x=self.scroll_x,
-                scroll_y=self.scroll_y,
-                level_manager=self.level_manager
-            )
-        else:
-            # Show "no solution" message with more details (without completion message)
-            self.renderer.render_level(
-                self.level_manager.current_level,
-                self.level_manager,
-                self.show_grid,
-                self.zoom_level,
-                self.scroll_x,
-                self.scroll_y,
-                self.skin_manager,
-                show_completion_message=False
+        try:
+            # Use the new unified AI system to solve and animate
+            result = self.visual_ai_solver.solve_level_visual(
+                level=self.level_manager.current_level,
+                algorithm=selected_algorithm,
+                animate_immediately=True,
+                progress_callback=progress_callback
             )
 
-            # Create detailed message
-            level_size = self.level_manager.current_level.width * self.level_manager.current_level.height
-            box_count = len(self.level_manager.current_level.boxes)
-
-            if level_size > 100 or box_count > 8:
-                message = f"Level too complex for AI! ({box_count} boxes, {level_size} cells)\nTry a simpler level. Press any key to continue..."
+            if result['success']:
+                # Show completion statistics
+                solve_info = self.visual_ai_solver.get_last_solve_info()
+                if solve_info:
+                    self._show_ai_completion_stats(solve_info)
             else:
-                message = "AI couldn't find solution in time limit.\nLevel might be unsolvable. Press any key to continue..."
+                # Show enhanced failure message with AI insights
+                self._show_ai_failure_message(selected_algorithm)
 
-            self._render_solving_overlay(message)
+        except Exception as e:
+            # Handle any errors gracefully
+            error_message = f"AI Error: {str(e)}\nPress any key to continue..."
+            self._render_enhanced_solving_overlay(error_message)
             pygame.display.flip()
-
+            
             # Wait for user input
             waiting = True
             while waiting:
@@ -581,9 +575,468 @@ class GUIGame(Game):
                     if event.type == pygame.KEYDOWN or event.type == pygame.QUIT:
                         waiting = False
 
+    def _show_algorithm_selection_menu(self) -> Optional[Algorithm]:
+        """
+        Show algorithm selection menu and return selected algorithm using game's UI standards.
+        
+        Returns:
+            Algorithm or None: Selected algorithm, None if auto-selection or cancelled
+        """
+        # Get recommendation for current level
+        recommendation = self.visual_ai_solver.get_algorithm_recommendation(self.level_manager.current_level)
+        
+        # Create algorithm selection screen with game's color scheme
+        screen = self.renderer.screen
+        
+        # Use consistent colors with the game's theme
+        background_color = (240, 240, 240)  # Light gray like menu system
+        text_color = (50, 50, 50)  # Dark gray for readability
+        title_color = (70, 70, 150)  # Blue for title
+        selected_color = (100, 150, 200)  # Blue for selection
+        recommendation_color = (100, 180, 100)  # Green for recommendation
+        
+        # Responsive font sizing based on screen size
+        base_dimension = min(screen.get_width(), screen.get_height())
+        title_size = min(max(28, base_dimension // 20), 48)
+        text_size = min(max(20, base_dimension // 30), 32)
+        small_size = min(max(16, base_dimension // 40), 24)
+        
+        title_font = pygame.font.Font(None, title_size)
+        text_font = pygame.font.Font(None, text_size)
+        small_font = pygame.font.Font(None, small_size)
+        
+        # Algorithm options (None = auto-selection)
+        algorithms = [None] + list(Algorithm)
+        algorithm_names = ["🤖 Auto-Select (Recommended)"] + [f"🔧 {alg.value}" for alg in Algorithm]
+        selected_index = 0
+        
+        # Button dimensions
+        button_width = min(max(300, screen.get_width() // 3), 500)
+        button_height = min(max(40, screen.get_height() // 20), 60)
+        
+        clock = pygame.time.Clock()
+        
+        while True:
+            # Clear screen with game's background color
+            screen.fill(background_color)
+            
+            # Title with shadow effect (like in menu system)
+            title_text = "🧠 AI Algorithm Selection"
+            
+            # Draw shadow
+            shadow_color = (50, 50, 100)
+            shadow_offset = 2
+            title_shadow = title_font.render(title_text, True, shadow_color)
+            shadow_rect = title_shadow.get_rect(center=(screen.get_width() // 2 + shadow_offset, 80 + shadow_offset))
+            screen.blit(title_shadow, shadow_rect)
+            
+            # Draw main title
+            title_surface = title_font.render(title_text, True, title_color)
+            title_rect = title_surface.get_rect(center=(screen.get_width() // 2, 80))
+            screen.blit(title_surface, title_rect)
+            
+            # Level analysis section
+            y_pos = 140
+            analysis_title = text_font.render("Level Analysis", True, title_color)
+            analysis_rect = analysis_title.get_rect(center=(screen.get_width() // 2, y_pos))
+            screen.blit(analysis_title, analysis_rect)
+            
+            y_pos += 35
+            complexity_text = f"Complexity: {recommendation['complexity_category']} (Score: {recommendation['complexity_score']:.1f})"
+            complexity_surface = small_font.render(complexity_text, True, text_color)
+            complexity_rect = complexity_surface.get_rect(center=(screen.get_width() // 2, y_pos))
+            screen.blit(complexity_surface, complexity_rect)
+            
+            # Recommended algorithm
+            if recommendation:
+                y_pos += 25
+                rec_text = f"Recommended: {recommendation['recommended_algorithm'].value}"
+                rec_surface = small_font.render(rec_text, True, recommendation_color)
+                rec_rect = rec_surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                screen.blit(rec_surface, rec_rect)
+            
+            # Algorithm selection section
+            y_pos += 60
+            selection_title = text_font.render("Select Algorithm", True, title_color)
+            selection_rect = selection_title.get_rect(center=(screen.get_width() // 2, y_pos))
+            screen.blit(selection_title, selection_rect)
+            
+            # Algorithm options with button-like appearance
+            y_start = y_pos + 50
+            button_x = (screen.get_width() - button_width) // 2
+            
+            for i, name in enumerate(algorithm_names):
+                button_y = y_start + i * (button_height + 10)
+                
+                # Button background
+                if i == selected_index:
+                    button_color = selected_color
+                    text_display_color = (255, 255, 255)
+                else:
+                    button_color = (200, 200, 200)
+                    text_display_color = text_color
+                
+                # Draw button with rounded corners
+                pygame.draw.rect(screen, button_color,
+                               (button_x, button_y, button_width, button_height), 0, 10)
+                pygame.draw.rect(screen, (100, 100, 100),
+                               (button_x, button_y, button_width, button_height), 2, 10)
+                
+                # Button text
+                option_surface = small_font.render(name, True, text_display_color)
+                option_rect = option_surface.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
+                screen.blit(option_surface, option_rect)
+            
+            # Instructions section
+            instructions_y = screen.get_height() - 120
+            instruction_title = text_font.render("Controls", True, title_color)
+            instruction_title_rect = instruction_title.get_rect(center=(screen.get_width() // 2, instructions_y))
+            screen.blit(instruction_title, instruction_title_rect)
+            
+            instructions = [
+                "↑↓ Navigate | ENTER Select | ESC Cancel",
+                "B - Run Algorithm Benchmark"
+            ]
+            
+            for i, instruction in enumerate(instructions):
+                inst_surface = small_font.render(instruction, True, text_color)
+                inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, instructions_y + 30 + i * 20))
+                screen.blit(inst_surface, inst_rect)
+            
+            pygame.display.flip()
+            clock.tick(60)
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return None
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        selected_index = (selected_index - 1) % len(algorithms)
+                    elif event.key == pygame.K_DOWN:
+                        selected_index = (selected_index + 1) % len(algorithms)
+                    elif event.key == pygame.K_RETURN:
+                        return algorithms[selected_index]
+                    elif event.key == pygame.K_ESCAPE:
+                        return None
+                    elif event.key == pygame.K_b:
+                        # Run benchmark
+                        self._run_algorithm_benchmark()
+                        return None
+
+    def _run_algorithm_benchmark(self):
+        """Run algorithm benchmark and show results."""
+        def benchmark_progress(message):
+            self.renderer.screen.fill((30, 30, 50))
+            font = pygame.font.Font(None, 32)
+            text = font.render("🔬 Running Algorithm Benchmark...", True, (255, 255, 255))
+            text_rect = text.get_rect(center=(self.renderer.screen.get_width() // 2, 200))
+            self.renderer.screen.blit(text, text_rect)
+            
+            small_font = pygame.font.Font(None, 24)
+            status = small_font.render(message, True, (200, 200, 200))
+            status_rect = status.get_rect(center=(self.renderer.screen.get_width() // 2, 250))
+            self.renderer.screen.blit(status, status_rect)
+            
+            pygame.display.flip()
+        
+        # Run benchmark
+        benchmark_results = self.visual_ai_solver.benchmark_algorithms(
+            self.level_manager.current_level,
+            progress_callback=benchmark_progress
+        )
+        
+        # Show results
+        self._show_benchmark_results(benchmark_results)
+
+    def _show_benchmark_results(self, results: Dict[str, Any]):
+        """Show benchmark results screen."""
+        screen = self.renderer.screen
+        font = pygame.font.Font(None, 28)
+        small_font = pygame.font.Font(None, 20)
+        
+        waiting = True
+        while waiting:
+            screen.fill((30, 30, 50))
+            
+            # Title
+            title = font.render("🏆 Algorithm Benchmark Results", True, (255, 255, 255))
+            title_rect = title.get_rect(center=(screen.get_width() // 2, 50))
+            screen.blit(title, title_rect)
+            
+            # Level info
+            level_info = results.get('level_info', {})
+            info_text = f"Level: {level_info.get('width', 0)}x{level_info.get('height', 0)}, {level_info.get('boxes_count', 0)} boxes"
+            info_surface = small_font.render(info_text, True, (200, 200, 200))
+            info_rect = info_surface.get_rect(center=(screen.get_width() // 2, 80))
+            screen.blit(info_surface, info_rect)
+            
+            # Results
+            y_pos = 120
+            algorithm_results = results.get('algorithm_results', {})
+            
+            for algorithm, result in algorithm_results.items():
+                if result.get('success'):
+                    moves = result.get('moves_count', 0)
+                    time = result.get('solve_time', 0)
+                    states = result.get('states_explored', 0)
+                    
+                    # Color code based on performance
+                    color = (100, 255, 100) if algorithm == results.get('best_algorithm') else (255, 255, 255)
+                    if algorithm == results.get('fastest_algorithm'):
+                        color = (100, 200, 255)
+                    
+                    text = f"{algorithm}: {moves} moves, {time:.2f}s, {states:,} states"
+                    surface = small_font.render(text, True, color)
+                    rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                    screen.blit(surface, rect)
+                else:
+                    text = f"{algorithm}: FAILED - {result.get('error', 'Unknown error')}"
+                    surface = small_font.render(text, True, (255, 100, 100))
+                    rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                    screen.blit(surface, rect)
+                
+                y_pos += 25
+            
+            # Best algorithm highlight
+            if results.get('best_algorithm'):
+                y_pos += 20
+                best_text = f"🏆 Best Solution: {results['best_algorithm']}"
+                best_surface = small_font.render(best_text, True, (255, 215, 0))
+                best_rect = best_surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                screen.blit(best_surface, best_rect)
+            
+            if results.get('fastest_algorithm'):
+                y_pos += 25
+                fastest_text = f"⚡ Fastest: {results['fastest_algorithm']}"
+                fastest_surface = small_font.render(fastest_text, True, (100, 200, 255))
+                fastest_rect = fastest_surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                screen.blit(fastest_surface, fastest_rect)
+            
+            # Instructions
+            instruction = "Press any key to continue..."
+            inst_surface = small_font.render(instruction, True, (150, 150, 150))
+            inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, screen.get_height() - 50))
+            screen.blit(inst_surface, inst_rect)
+            
+            pygame.display.flip()
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or event.type == pygame.KEYDOWN:
+                    waiting = False
+
+    def _render_enhanced_solving_overlay(self, text):
+        """
+        Render an enhanced overlay with AI solving progress text.
+
+        Args:
+            text (str): Text to display.
+        """
+        # Create semi-transparent overlay
+        overlay = pygame.Surface(self.renderer.screen.get_size(), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        self.renderer.screen.blit(overlay, (0, 0))
+
+        # Main text
+        font = pygame.font.Font(None, 32)
+        
+        # Split text by lines for multi-line support
+        lines = text.split('\n')
+        y_offset = self.renderer.screen.get_height() // 2 - (len(lines) * 20)
+        
+        for line in lines:
+            text_surface = font.render(line, True, (255, 255, 255))
+            text_rect = text_surface.get_rect(center=(self.renderer.screen.get_width() // 2, y_offset))
+            self.renderer.screen.blit(text_surface, text_rect)
+            y_offset += 40
+
+        # Add AI indicator
+        ai_font = pygame.font.Font(None, 24)
+        ai_text = "🤖 Enhanced AI System Active"
+        ai_surface = ai_font.render(ai_text, True, (100, 255, 100))
+        ai_rect = ai_surface.get_rect(center=(self.renderer.screen.get_width() // 2, y_offset + 20))
+        self.renderer.screen.blit(ai_surface, ai_rect)
+
+        # Control instructions
+        instruction_font = pygame.font.Font(None, 20)
+        instructions = [
+            "SPACE: Pause/Resume | ESC: Stop | +/-: Speed | F1: Debug | F2: Metrics"
+        ]
+        
+        for i, instruction in enumerate(instructions):
+            instruction_surface = instruction_font.render(instruction, True, (180, 180, 180))
+            instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2, y_offset + 60 + i * 25))
+            self.renderer.screen.blit(instruction_surface, instruction_rect)
+
+    def _show_ai_completion_stats(self, solve_info: Dict[str, Any]):
+        """Show AI completion statistics."""
+        screen = self.renderer.screen
+        font = pygame.font.Font(None, 28)
+        small_font = pygame.font.Font(None, 22)
+        
+        # Create stats display
+        waiting = True
+        while waiting:
+            screen.fill((20, 50, 20))  # Dark green background
+            
+            # Title
+            title = font.render("🎉 AI Solution Complete!", True, (100, 255, 100))
+            title_rect = title.get_rect(center=(screen.get_width() // 2, 60))
+            screen.blit(title, title_rect)
+            
+            # Statistics
+            stats_lines = [
+                f"Algorithm Used: {solve_info.get('algorithm_used', 'Unknown')}",
+                f"Moves: {solve_info.get('moves_count', 0)}",
+                f"Solve Time: {solve_info.get('solve_time', 0):.2f} seconds",
+                f"States Explored: {solve_info.get('states_explored', 0):,}",
+                f"States Generated: {solve_info.get('states_generated', 0):,}",
+                f"Deadlocks Avoided: {solve_info.get('deadlocks_pruned', 0)}",
+                f"Memory Used: {solve_info.get('memory_peak', 0):,} states",
+                f"Heuristic Calls: {solve_info.get('heuristic_calls', 0):,}"
+            ]
+            
+            y_pos = 120
+            for line in stats_lines:
+                surface = small_font.render(line, True, (255, 255, 255))
+                rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                screen.blit(surface, rect)
+                y_pos += 30
+            
+            # Performance analysis
+            if solve_info.get('states_explored', 0) > 0 and solve_info.get('solve_time', 0) > 0:
+                efficiency = solve_info['states_explored'] / max(solve_info.get('states_generated', 1), 1)
+                speed = solve_info['states_explored'] / solve_info['solve_time']
+                
+                y_pos += 20
+                perf_lines = [
+                    f"Search Efficiency: {efficiency:.1%}",
+                    f"Search Speed: {speed:,.0f} states/sec"
+                ]
+                
+                for line in perf_lines:
+                    surface = small_font.render(line, True, (200, 255, 200))
+                    rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                    screen.blit(surface, rect)
+                    y_pos += 25
+            
+            # Instructions
+            instruction = "Press any key to continue..."
+            inst_surface = small_font.render(instruction, True, (150, 255, 150))
+            inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, screen.get_height() - 50))
+            screen.blit(inst_surface, inst_rect)
+            
+            pygame.display.flip()
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or event.type == pygame.KEYDOWN:
+                    waiting = False
+
+    def _show_ai_failure_message(self, algorithm: Optional[Algorithm]):
+        """Show enhanced AI failure message with insights."""
+        screen = self.renderer.screen
+        font = pygame.font.Font(None, 28)
+        small_font = pygame.font.Font(None, 22)
+        
+        # Get level complexity analysis
+        recommendation = self.visual_ai_solver.get_algorithm_recommendation(self.level_manager.current_level)
+        
+        waiting = True
+        while waiting:
+            screen.fill((50, 20, 20))  # Dark red background
+            
+            # Title
+            title = font.render("🤔 AI Analysis Complete", True, (255, 100, 100))
+            title_rect = title.get_rect(center=(screen.get_width() // 2, 60))
+            screen.blit(title, title_rect)
+            
+            # Level analysis
+            level = self.level_manager.current_level
+            analysis_lines = [
+                f"Level Size: {level.width}x{level.height} ({level.width * level.height} cells)",
+                f"Boxes: {len(level.boxes)} | Targets: {len(level.targets)}",
+                f"Complexity: {recommendation['complexity_category']} (Score: {recommendation['complexity_score']:.1f})",
+                f"Algorithm Used: {algorithm.value if algorithm else 'Auto-Selected'}"
+            ]
+            
+            y_pos = 120
+            for line in analysis_lines:
+                surface = small_font.render(line, True, (255, 255, 255))
+                rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                screen.blit(surface, rect)
+                y_pos += 25
+            
+            # Determine failure reason and suggestions
+            complexity_score = recommendation['complexity_score']
+            box_count = len(level.boxes)
+            level_size = level.width * level.height
+            
+            y_pos += 20
+            if complexity_score > 300:
+                reason = "Level complexity exceeds AI capabilities"
+                suggestions = [
+                    "• Try a simpler level first",
+                    "• This level may require advanced human strategies",
+                    "• Consider using manual solving techniques"
+                ]
+            elif level_size > 200:
+                reason = "Level size may cause memory limitations"
+                suggestions = [
+                    "• Large levels require significant computation",
+                    "• Try smaller levels for better AI performance",
+                    "• AI works best on focused puzzle areas"
+                ]
+            elif box_count > 10:
+                reason = "High number of boxes increases search complexity"
+                suggestions = [
+                    "• Many boxes create exponential search space",
+                    "• AI performs better with fewer moving pieces",
+                    "• Consider levels with 3-8 boxes for optimal results"
+                ]
+            else:
+                reason = "Level may be unsolvable or require unique strategy"
+                suggestions = [
+                    "• Some levels have no solution",
+                    "• AI may need more time for complex patterns",
+                    "• Try different algorithm selections"
+                ]
+            
+            # Display reason
+            reason_surface = small_font.render(f"Analysis: {reason}", True, (255, 200, 100))
+            reason_rect = reason_surface.get_rect(center=(screen.get_width() // 2, y_pos))
+            screen.blit(reason_surface, reason_rect)
+            y_pos += 40
+            
+            # Display suggestions
+            suggestion_title = small_font.render("Suggestions:", True, (200, 200, 255))
+            suggestion_rect = suggestion_title.get_rect(center=(screen.get_width() // 2, y_pos))
+            screen.blit(suggestion_title, suggestion_rect)
+            y_pos += 25
+            
+            for suggestion in suggestions:
+                surface = small_font.render(suggestion, True, (180, 180, 180))
+                rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
+                screen.blit(surface, rect)
+                y_pos += 22
+            
+            # Instructions
+            instruction = "Press any key to continue..."
+            inst_surface = small_font.render(instruction, True, (255, 150, 150))
+            inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, screen.get_height() - 50))
+            screen.blit(inst_surface, inst_rect)
+            
+            pygame.display.flip()
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or event.type == pygame.KEYDOWN:
+                    waiting = False
+
     def _render_solving_overlay(self, text):
         """
-        Render an overlay with solving progress text.
+        Render a basic overlay with solving progress text (legacy method).
 
         Args:
             text (str): Text to display.
