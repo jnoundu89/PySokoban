@@ -925,7 +925,8 @@ class EnhancedSokolutionSolver:
         self.start_time = time.time()
         
         if progress_callback:
-            progress_callback(f"Démarrage du solver {algorithm.value} en mode {mode.value}...")
+            level_complexity = len(self.level.boxes) * self.level.width * self.level.height
+            progress_callback(f"🔍 Démarrage solver {algorithm.value} (mode {mode.value}) - Complexité: {level_complexity}")
         
         # Sélection de l'algorithme de recherche
         if algorithm == Algorithm.FESS:
@@ -1053,7 +1054,7 @@ class EnhancedSokolutionSolver:
         de features pour guider la recherche de manière plus intelligente.
         """
         if progress_callback:
-            progress_callback("Initialisation FESS (Feature Space Search)...")
+            progress_callback("🔬 Initialisation FESS (Feature Space Search) - Extraction des caractéristiques du niveau...")
         
         # Initialiser l'heuristique FESS
         fess_heuristic = FESSHeuristic(self.level)
@@ -1084,9 +1085,9 @@ class EnhancedSokolutionSolver:
                 
                 if progress_callback:
                     elapsed = time.time() - self.start_time
-                    progress_callback(f"FESS: Exploré {self.states_explored} états, "
-                                    f"h={current_state.h_cost:.1f}, adaptation={adaptation_factor:.2f} "
-                                    f"({elapsed:.1f}s)")
+                    progress_callback(f"🔬 FESS: {self.states_explored:,} états explorés, "
+                                    f"heuristique={current_state.h_cost:.1f}, "
+                                    f"adaptation={adaptation_factor:.2f} ({elapsed:.1f}s)")
             
             if self._is_goal_state(current_state):
                 if progress_callback:

@@ -104,12 +104,12 @@ class UnifiedAIController:
                 if progress_callback:
                     complexity_score = algorithm_recommendation['complexity_score']
                     category = algorithm_recommendation['complexity_category']
-                    progress_callback(f"Niveau {category} (score: {complexity_score:.1f}) - Algorithme sélectionné: {selected_algorithm.value}")
+                    progress_callback(f"🎯 Niveau {category} (score: {complexity_score:.1f}) → Algorithme sélectionné: {selected_algorithm.value}")
             else:
                 selected_algorithm = request.algorithm
                 
                 if progress_callback:
-                    progress_callback(f"Utilisation de l'algorithme spécifié: {selected_algorithm.value}")
+                    progress_callback(f"🔧 Utilisation de l'algorithme spécifié: {selected_algorithm.value}")
             
             # 2. Initialisation du solver
             self.current_solver = EnhancedSokolutionSolver(
@@ -118,9 +118,13 @@ class UnifiedAIController:
                 time_limit=request.time_limit
             )
             
+            if progress_callback:
+                solver_info = f"Limites: {request.max_states:,} états max, {request.time_limit:.0f}s timeout"
+                progress_callback(f"⚙️ Initialisation solver {selected_algorithm.value} - {solver_info}")
+            
             # 3. Résolution avec fallback pour FESS
             if progress_callback:
-                progress_callback("Démarrage de la résolution...")
+                progress_callback(f"🚀 Démarrage de l'analyse algorithmique...")
             
             solution_data = self._solve_with_fallback(
                 selected_algorithm=selected_algorithm,
@@ -231,13 +235,13 @@ class UnifiedAIController:
         # Si FESS échoue, essayer l'algorithme de fallback
         if solution_data is None and selected_algorithm == Algorithm.FESS:
             if progress_callback:
-                progress_callback("FESS n'a pas trouvé de solution, passage au fallback...")
+                progress_callback("🔄 FESS n'a pas trouvé de solution, passage au fallback...")
             
             # Obtenir l'algorithme de fallback
             fallback_algorithm = self.algorithm_selector.get_fallback_algorithm(request.level)
             
             if progress_callback:
-                progress_callback(f"Tentative avec algorithme de fallback: {fallback_algorithm.value}")
+                progress_callback(f"🔧 Tentative avec algorithme de fallback: {fallback_algorithm.value}")
             
             # Réinitialiser le solver pour le fallback
             self.current_solver = EnhancedSokolutionSolver(

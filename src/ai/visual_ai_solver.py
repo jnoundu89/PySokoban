@@ -94,14 +94,29 @@ class VisualAISolver:
             generate_report=self.debug_mode
         )
         
-        # Résoudre avec l'IA - utiliser un progress_callback allégé si fourni
-        lightweight_callback = None
+        # Enhanced analysis tracking with detailed level information
+        level_info = f"Niveau {level.width}x{level.height}, {len(level.boxes)} boxes, {len(level.targets)} targets"
         if progress_callback:
-            def lightweight_callback(message):
-                # Ne pas faire de rendu - juste stocker le message
-                pass
+            progress_callback(f"📊 Analyse démarrée: {level_info}")
         
-        solve_result = self.ai_controller.solve_level(request, lightweight_callback)
+        # Enhanced callback with better formatting
+        enhanced_callback = None
+        if progress_callback:
+            def enhanced_callback(message):
+                # Add timing and context to messages
+                if "Exploré" in message and "états" in message:
+                    # Already detailed progress messages from FESS
+                    progress_callback(f"⚙️ {message}")
+                elif "Algorithme" in message or "solver" in message.lower():
+                    progress_callback(f"🔧 {message}")
+                elif "Solution" in message or "trouvée" in message:
+                    progress_callback(f"✅ {message}")
+                elif "Aucune solution" in message or "fallback" in message:
+                    progress_callback(f"🔄 {message}")
+                else:
+                    progress_callback(f"📋 {message}")
+        
+        solve_result = self.ai_controller.solve_level(request, enhanced_callback)
         
         # Stocker les résultats
         self.last_solve_result = solve_result

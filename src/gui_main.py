@@ -530,13 +530,19 @@ class GUIGame(Game):
         self._render_enhanced_solving_overlay("🤖 Analyzing level and preparing AI solver...")
         pygame.display.flip()
 
+        # Enhanced progress callback for detailed analysis tracking
+        def enhanced_analysis_callback(message):
+            print(f"🧠 LEVEL_ANALYSIS: {message}")
+        
+        print("🚀 SOLVE_START: Début de l'analyse et résolution du niveau")
+
         try:
             # Use the new unified AI system to solve WITHOUT animation during solving
             result = self.visual_ai_solver.solve_level_visual(
                 level=self.level_manager.current_level,
                 algorithm=selected_algorithm,
                 animate_immediately=False,  # Don't animate during solving
-                progress_callback=None      # No progress callbacks during solving
+                progress_callback=enhanced_analysis_callback  # Enhanced callback for better tracking
             )
 
             if result['success']:
