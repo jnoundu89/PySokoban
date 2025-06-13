@@ -254,10 +254,16 @@ class GUIGame(Game):
                     # Go to previous level
                     self._prev_level()
                 elif action == 'undo':
-                    # Get the previous sprite before undoing the move
+                    # Undo the move in the game state
                     if self.level_manager.current_level.undo():
                         # Get previous sprite from history
-                        self.skin_manager.get_previous_sprite()
+                        # This will pop the current sprite and return the previous one
+                        # When undoing multiple moves, this will return each previous sprite in reverse order
+                        prev_sprite = self.skin_manager.get_previous_sprite()
+                        prev_sprite_info = self.skin_manager.get_sprite_info(prev_sprite) if prev_sprite else "None"
+                        print(f"UNDO: Restored to sprite: {prev_sprite_info}")
+                    else:
+                        print("UNDO: No moves to undo")
                 elif action == 'help':
                     self.show_help = True
                 elif action == 'grid':
@@ -351,7 +357,10 @@ class GUIGame(Game):
         # If the player moved, advance the animation
         if moved:
             # Get the player sprite with advance_animation=True to move to the next frame
-            self.skin_manager.get_player_sprite(advance_animation=True)
+            player_sprite = self.skin_manager.get_player_sprite(advance_animation=True)
+            sprite_info = self.skin_manager.get_sprite_info(player_sprite)
+            print(f"MOVEMENT_COMPLETE: Advanced animation to sprite: {sprite_info}")
+            print(f"MOVEMENT_DEBUG: Move #{self.skin_manager.move_counter - 1}, Direction: {direction}, State: {self.skin_manager.current_player_state}")
 
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():

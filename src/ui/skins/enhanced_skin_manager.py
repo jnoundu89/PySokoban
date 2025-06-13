@@ -27,6 +27,7 @@ class EnhancedSkinManager:
     - Animation sequences for player movement
     - Custom sprite loading
     - Background support
+    - Advanced undo sprite restoration system
 
     Layer System:
     - Background layer: Contains floor sprites
@@ -36,7 +37,8 @@ class EnhancedSkinManager:
     - Uses sequential sprites for each direction
     - One sprite per movement in sequence
     - Cycles through available sprites for each direction
-    - Tracks sprite history for undo functionality
+    - Tracks sprite history for undo functionality with detailed debugging
+    - Supports undo mode for accurate sprite restoration
     """
 
     def __init__(self, skins_dir='skins'):
@@ -91,7 +93,18 @@ class EnhancedSkinManager:
             'pushing_left': 0,
             'pushing_right': 0
         }
+        
+        # Enhanced sprite history and undo system
         self.sprite_history = []  # Track sprites used for undo functionality
+        self.detailed_sprite_history = []  # Detailed history with metadata
+        self.undo_mode = False  # Flag to indicate we're in undo mode
+        self.undo_sprite = None  # The sprite to use during undo mode
+        self.move_counter = 0  # Track move numbers for debugging
+        
+        # Debugging support
+        import time
+        self.debug_timestamps = {}
+        self.start_time = time.time()
 
         # Layer system
         self.layers = {
@@ -509,50 +522,159 @@ class EnhancedSkinManager:
             self.config_manager.set_skin_config(self.current_skin, self.tile_size)
             self._load_current_skin()
 
+    def _log_debug(self, message, category="GENERAL"):
+        """
+        Log debug message with timestamp and category.
+        
+        Args:
+            message (str): Debug message to log
+            category (str): Category of the debug message
+        """
+        import time
+        current_time = time.time()
+        elapsed = current_time - self.start_time
+        timestamp = f"[{elapsed:.3f}s]"
+        print(f"{timestamp} [{category}] {message}")
+
+    def get_sprite_info(self, sprite):
+        """
+        Get identifying information about a sprite for debugging.
+        
+        Args:
+            sprite (pygame.Surface): The sprite to identify
+            
+        Returns:
+            str: Human-readable sprite identifier
+        """
+        if not sprite:
+            return "None"
+        
+        # Try to find the sprite in our known sprites
+        skin_data = self._load_current_skin()
+        for key, value in skin_data.items():
+            if value is sprite:
+                return f"sprite_{key}"
+        
+        # Check animation frames
+        for base_key, frames in self.animation_frames.items():
+            for i, frame in enumerate(frames):
+                if frame is sprite:
+                    return f"anim_{base_key}_frame_{i}"
+        
+        # Fallback to memory address
+        return f"sprite_{id(sprite)}"
+
+    def enter_undo_mode(self, undo_sprite):
+        """
+        Enter undo mode with a specific sprite to display.
+        
+        Args:
+            undo_sprite (pygame.Surface): The sprite to use during undo mode
+        """
+        self.undo_mode = True
+        self.undo_sprite = undo_sprite
+        sprite_info = self.get_sprite_info(undo_sprite)
+        self._log_debug(f"Entering undo mode with sprite: {sprite_info}", "UNDO_MODE")
+        self._log_debug(f"Current sprite history length: {len(self.sprite_history)}", "UNDO_MODE")
+        self._log_debug(f"Detailed history length: {len(self.detailed_sprite_history)}", "UNDO_MODE")
+
+    def exit_undo_mode(self):
+        """
+        Exit undo mode and return to normal sprite calculation.
+        """
+        if self.undo_mode:
+            self._log_debug("Exiting undo mode", "UNDO_MODE")
+            self.undo_mode = False
+            self.undo_sprite = None
+
     def get_previous_sprite(self):
         """
         Get the previous sprite from the history for undo functionality.
 
+        When undoing multiple moves, this will return each previous sprite
+        in reverse order, allowing the player to see the exact sequence
+        of sprites that were used during the original moves.
+
         Returns:
             pygame.Surface: The previous sprite, or None if history is empty.
         """
-        if len(self.sprite_history) > 1:
-            # Remove the current sprite
-            self.sprite_history.pop()
-            # Return the previous sprite (now the last one in history)
-            previous_sprite = self.sprite_history[-1]
-            # Debug output to help diagnose issues
-            # print(f"Returning previous sprite from history (remaining: {len(self.sprite_history)})")
-            return previous_sprite
-        elif len(self.sprite_history) == 1:
-            # If only one sprite in history, return it but don't remove
-            # Debug output to help diagnose issues
-            # print("Only one sprite in history, returning it without removing")
-            return self.sprite_history[0]
-        else:
-            # If history is empty, return None
-            # Debug output to help diagnose issues
-            # print("Sprite history is empty, returning None")
+        self._log_debug(f"get_previous_sprite called", "UNDO")
+        self._log_debug(f"Sprite history length: {len(self.sprite_history)}", "UNDO")
+        self._log_debug(f"Detailed history length: {len(self.detailed_sprite_history)}", "UNDO")
+        
+        if not self.sprite_history:
+            self._log_debug("Sprite history is empty, returning None", "UNDO")
             return None
+
+        # Pop the current sprite from history
+        current_sprite = self.sprite_history.pop()
+        current_sprite_info = self.get_sprite_info(current_sprite)
+        self._log_debug(f"Popped current sprite: {current_sprite_info}", "UNDO")
+
+        # Also pop from detailed history if available
+        if self.detailed_sprite_history:
+            detailed_entry = self.detailed_sprite_history.pop()
+            self._log_debug(f"Popped detailed entry: move_{detailed_entry['move_number']}, state_{detailed_entry['player_state']}, sprite_{self.get_sprite_info(detailed_entry['sprite'])}", "UNDO")
+            # Adjust move counter to maintain consistency
+            if self.detailed_sprite_history:
+                self.move_counter = self.detailed_sprite_history[-1]['move_number'] + 1
+            else:
+                self.move_counter = 0
+
+        # If there are no more sprites in history, return the current sprite
+        if not self.sprite_history:
+            # Add it back to history so we don't lose it
+            self.sprite_history.append(current_sprite)
+            if 'detailed_entry' in locals():
+                self.detailed_sprite_history.append(detailed_entry)
+                # Restore move counter
+                self.move_counter = detailed_entry['move_number'] + 1
+            self._log_debug(f"Only one sprite in history, returning it: {current_sprite_info}", "UNDO")
+            self._log_debug(f"Updated sprite history length: {len(self.sprite_history)}", "UNDO")
+            # Enter undo mode with this sprite
+            self.enter_undo_mode(current_sprite)
+            return current_sprite
+
+        # Return the previous sprite (now the last one in history)
+        previous_sprite = self.sprite_history[-1]
+        previous_sprite_info = self.get_sprite_info(previous_sprite)
+        self._log_debug(f"Returning previous sprite from history: {previous_sprite_info}", "UNDO")
+        self._log_debug(f"Remaining sprite history length: {len(self.sprite_history)}", "UNDO")
+        
+        # Enter undo mode with the previous sprite
+        self.enter_undo_mode(previous_sprite)
+        return previous_sprite
 
     def reset_sprite_history(self):
         """Reset the sprite history when starting a new level."""
+        self._log_debug("Resetting sprite history", "RESET")
         self.sprite_history = []
+        self.detailed_sprite_history = []
         self.first_movement = True
         self.current_player_state = 'idle'  # Reset to idle state
         self.last_move_direction = None  # Reset direction
+        self.move_counter = 0
+        self.exit_undo_mode()  # Make sure we're not in undo mode
+        
         # Reset all frame indices
         for state in self.current_frame_indices:
             self.current_frame_indices[state] = 0
 
-        # Debug output to help diagnose issues
-        # print("Sprite history reset")
+        self._log_debug("Sprite history reset completed", "RESET")
+        self._log_debug(f"All frame indices reset: {self.current_frame_indices}", "RESET")
 
     def update_player_state(self, direction=None, is_pushing=False, is_blocked=False):
         """Update the player state for directional sprites."""
+        # Exit undo mode when player makes a new move
+        if direction and self.undo_mode:
+            self.exit_undo_mode()
+        
+        self._log_debug(f"update_player_state called: direction={direction}, pushing={is_pushing}, blocked={is_blocked}", "STATE_UPDATE")
+        
         # If this is the first movement, set first_movement to False
         if direction and self.first_movement:
             self.first_movement = False
+            self._log_debug("First movement detected, setting first_movement=False", "STATE_UPDATE")
 
         # Check if direction changed
         direction_changed = direction != self.last_move_direction
@@ -570,17 +692,19 @@ class EnhancedSkinManager:
             # Reset frame index if direction changed
             if direction_changed and state in self.current_frame_indices:
                 self.current_frame_indices[state] = 0
+                self._log_debug(f"Reset frame index for {state} due to direction change", "STATE_UPDATE")
         elif direction:
             state = f'walking_{direction}'
             self.current_player_state = state
             # Reset frame index if direction changed
             if direction_changed and state in self.current_frame_indices:
                 self.current_frame_indices[state] = 0
+                self._log_debug(f"Reset frame index for {state} due to direction change", "STATE_UPDATE")
         else:
             self.current_player_state = 'idle'
 
-        # Debug output to help diagnose issues
-        # print(f"Player state updated: {previous_state} -> {self.current_player_state}, Direction: {direction}, Pushing: {is_pushing}, Blocked: {is_blocked}")
+        self._log_debug(f"Player state updated: {previous_state} -> {self.current_player_state}", "STATE_UPDATE")
+        self._log_debug(f"Direction changed: {direction_changed}, Last direction: {self.last_move_direction}", "STATE_UPDATE")
 
     def get_player_sprite(self, advance_animation=False):
         """
@@ -597,18 +721,33 @@ class EnhancedSkinManager:
         Returns:
             pygame.Surface: The player sprite to display.
         """
+        # Only log when advancing animation (not every frame)
+        if advance_animation:
+            self._log_debug(f"get_player_sprite called: advance_animation={advance_animation}, undo_mode={self.undo_mode}", "SPRITE_GET")
+        
+        # If we're in undo mode, return the undo sprite
+        if self.undo_mode and self.undo_sprite is not None:
+            return self.undo_sprite
+        
         skin_data = self._load_current_skin()
 
         # If this is the first movement (game just started), use the default player sprite
         if self.first_movement:
             default_sprite = skin_data.get(PLAYER, skin_data.get('player'))
+            sprite_info = self.get_sprite_info(default_sprite)
             # Only add to history if not already there
             if not self.sprite_history or self.sprite_history[-1] != default_sprite:
                 self.sprite_history.append(default_sprite)
+                # Add to detailed history
+                self._add_to_detailed_history(default_sprite, "idle", "first_movement")
+                self._log_debug(f"Added default sprite to history: {sprite_info}", "SPRITE_GET")
             return default_sprite
 
         # Try to get directional sprite
         sprite_key = self.player_states.get(self.current_player_state, 'player')
+        # Only log state changes during animation advancement
+        if advance_animation:
+            self._log_debug(f"Current player state: {self.current_player_state}, sprite_key: {sprite_key}", "SPRITE_GET")
 
         # Get the sprite based on the current state
         if self.current_player_state in ['walking_up', 'walking_down', 'walking_left', 'walking_right',
@@ -620,46 +759,113 @@ class EnhancedSkinManager:
                 if frames:
                     # Get the current frame index for this direction
                     frame_index = self.current_frame_indices[self.current_player_state]
+                    
+                    # Only log animation details when advancing
+                    if advance_animation:
+                        self._log_debug(f"Animation frames available for {base_sprite_key}: {len(frames)} frames, current index: {frame_index}", "SPRITE_GET")
 
                     # Make sure frame_index is within bounds
                     if frame_index >= len(frames):
                         frame_index = 0
                         self.current_frame_indices[self.current_player_state] = 0
+                        if advance_animation:
+                            self._log_debug(f"Frame index out of bounds, reset to 0", "SPRITE_GET")
 
                     # Get the sprite for this frame
                     sprite = frames[frame_index]
+                    sprite_info = self.get_sprite_info(sprite)
 
                     # Only increment the frame index if advance_animation is True
                     if advance_animation:
                         # Increment the frame index for next movement in this direction
-                        self.current_frame_indices[self.current_player_state] = (frame_index + 1) % len(frames)
+                        next_frame_index = (frame_index + 1) % len(frames)
+                        self.current_frame_indices[self.current_player_state] = next_frame_index
                         # Add to sprite history only when advancing animation
                         self.sprite_history.append(sprite)
+                        # Add to detailed history
+                        self._add_to_detailed_history(sprite, self.current_player_state, f"animation_frame_{frame_index}")
+                        self._log_debug(f"Advanced animation: added frame sprite to history: {sprite_info}", "SPRITE_GET")
 
                     return sprite
 
             # If no animation frames, use the basic directional sprite
             if sprite_key in skin_data:
                 sprite = skin_data[sprite_key]
+                sprite_info = self.get_sprite_info(sprite)
                 # Only add to history if advance_animation is True
                 if advance_animation:
                     self.sprite_history.append(sprite)
+                    # Add to detailed history
+                    self._add_to_detailed_history(sprite, self.current_player_state, "basic_directional")
+                    self._log_debug(f"Added basic directional sprite to history: {sprite_info}", "SPRITE_GET")
                 return sprite
 
         # For other states (idle, blocked, etc.)
         if sprite_key in skin_data:
             sprite = skin_data[sprite_key]
+            sprite_info = self.get_sprite_info(sprite)
             # Only add to history if advance_animation is True
             if advance_animation:
                 self.sprite_history.append(sprite)
+                # Add to detailed history
+                self._add_to_detailed_history(sprite, self.current_player_state, "other_state")
+                self._log_debug(f"Added other state sprite to history: {sprite_info}", "SPRITE_GET")
             return sprite
 
         # Fallback to basic player sprite
         default_sprite = skin_data.get(PLAYER, skin_data.get('player'))
+        sprite_info = self.get_sprite_info(default_sprite)
         # Only add to history if advance_animation is True
         if advance_animation:
             self.sprite_history.append(default_sprite)
+            # Add to detailed history
+            self._add_to_detailed_history(default_sprite, self.current_player_state, "fallback")
+            self._log_debug(f"Added fallback sprite to history: {sprite_info}", "SPRITE_GET")
         return default_sprite
+
+    def _add_to_detailed_history(self, sprite, player_state, sprite_type):
+        """
+        Add entry to detailed sprite history with metadata.
+        
+        Args:
+            sprite (pygame.Surface): The sprite being added
+            player_state (str): Current player state
+            sprite_type (str): Type/source of the sprite
+        """
+        import time
+        entry = {
+            'move_number': self.move_counter,
+            'sprite': sprite,
+            'player_state': player_state,
+            'sprite_type': sprite_type,
+            'timestamp': time.time(),
+            'frame_indices': self.current_frame_indices.copy()
+        }
+        self.detailed_sprite_history.append(entry)
+        self.move_counter += 1
+        
+        # Only log detailed history additions during important operations
+        if sprite_type in ["first_movement"] or "undo" in sprite_type.lower():
+            sprite_info = self.get_sprite_info(sprite)
+            self._log_debug(f"Added to detailed history: move_{entry['move_number']}, state_{player_state}, type_{sprite_type}, sprite_{sprite_info}", "DETAILED_HISTORY")
+
+    def get_undo_debug_info(self):
+        """
+        Get comprehensive debug information about sprite history.
+        
+        Returns:
+            dict: Debug information about current sprite state
+        """
+        return {
+            'sprite_history_length': len(self.sprite_history),
+            'detailed_history_length': len(self.detailed_sprite_history),
+            'current_player_state': self.current_player_state,
+            'undo_mode': self.undo_mode,
+            'move_counter': self.move_counter,
+            'frame_indices': self.current_frame_indices.copy(),
+            'last_move_direction': self.last_move_direction,
+            'undo_sprite_info': self.get_sprite_info(self.undo_sprite) if self.undo_sprite else None
+        }
 
     def get_skin(self):
         """
@@ -703,3 +909,69 @@ class EnhancedSkinManager:
     def get_current_skin_name(self):
         """Get the current skin name."""
         return self.current_skin
+    
+    def print_sprite_history_debug(self):
+        """
+        Print detailed debug information about the complete sprite history.
+        """
+        self._log_debug("=== SPRITE HISTORY DEBUG START ===", "DEBUG")
+        self._log_debug(f"Basic sprite history length: {len(self.sprite_history)}", "DEBUG")
+        self._log_debug(f"Detailed sprite history length: {len(self.detailed_sprite_history)}", "DEBUG")
+        self._log_debug(f"Undo mode: {self.undo_mode}", "DEBUG")
+        self._log_debug(f"Current player state: {self.current_player_state}", "DEBUG")
+        self._log_debug(f"Move counter: {self.move_counter}", "DEBUG")
+        
+        if self.sprite_history:
+            self._log_debug("Basic sprite history (recent to old):", "DEBUG")
+            for i, sprite in enumerate(reversed(self.sprite_history)):
+                sprite_info = self.get_sprite_info(sprite)
+                self._log_debug(f"  [{i}] {sprite_info}", "DEBUG")
+        
+        if self.detailed_sprite_history:
+            self._log_debug("Detailed sprite history (recent to old):", "DEBUG")
+            for i, entry in enumerate(reversed(self.detailed_sprite_history)):
+                sprite_info = self.get_sprite_info(entry['sprite'])
+                self._log_debug(f"  [{i}] Move #{entry['move_number']}: {sprite_info} (state={entry['player_state']}, type={entry['sprite_type']})", "DEBUG")
+        
+        self._log_debug(f"Current frame indices: {self.current_frame_indices}", "DEBUG")
+        
+        if self.undo_sprite:
+            undo_sprite_info = self.get_sprite_info(self.undo_sprite)
+            self._log_debug(f"Undo sprite: {undo_sprite_info}", "DEBUG")
+        
+        self._log_debug("=== SPRITE HISTORY DEBUG END ===", "DEBUG")
+    
+    def validate_sprite_history_integrity(self):
+        """
+        Validate that sprite history is in a consistent state.
+        
+        Returns:
+            bool: True if history is consistent, False otherwise
+        """
+        try:
+            # Check that basic and detailed histories have same length
+            if len(self.sprite_history) != len(self.detailed_sprite_history):
+                self._log_debug(f"INTEGRITY ERROR: History length mismatch - basic: {len(self.sprite_history)}, detailed: {len(self.detailed_sprite_history)}", "VALIDATION")
+                return False
+            
+            # Check that sprites match between basic and detailed histories
+            for i, (basic_sprite, detailed_entry) in enumerate(zip(self.sprite_history, self.detailed_sprite_history)):
+                if basic_sprite != detailed_entry['sprite']:
+                    basic_info = self.get_sprite_info(basic_sprite)
+                    detailed_info = self.get_sprite_info(detailed_entry['sprite'])
+                    self._log_debug(f"INTEGRITY ERROR: Sprite mismatch at index {i} - basic: {basic_info}, detailed: {detailed_info}", "VALIDATION")
+                    return False
+            
+            # Check move counter consistency
+            if self.detailed_sprite_history:
+                last_move = self.detailed_sprite_history[-1]['move_number']
+                if last_move + 1 != self.move_counter:
+                    self._log_debug(f"INTEGRITY ERROR: Move counter inconsistent - last move: {last_move}, counter: {self.move_counter}", "VALIDATION")
+                    return False
+            
+            self._log_debug("Sprite history integrity validation passed", "VALIDATION")
+            return True
+            
+        except Exception as e:
+            self._log_debug(f"INTEGRITY ERROR: Exception during validation: {e}", "VALIDATION")
+            return False
