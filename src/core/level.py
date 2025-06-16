@@ -340,35 +340,45 @@ class Level:
             second_letter = chr(65 + (col_index % 26))
             return first_letter + second_letter
 
-    def get_state_string(self):
+    def get_state_string(self, show_fess_coordinates=True):
         """
         Get a string representation of the current level state with coordinate labels.
 
-        The coordinate system uses:
+        The coordinate system uses FESS notation:
         - Columns labeled A-Z (and AA, BB, etc. for larger levels)
         - Rows numbered 1, 2, 3, etc.
         - Origin at the top-left corner
+        - Compatible with FESS algorithm macro move notation
+
+        Args:
+            show_fess_coordinates (bool): Whether to show FESS coordinate labels
 
         Returns:
             str: String representation of the level with coordinate labels.
         """
         rows = []
 
-        # Add column headers
-        header = '   ' # Space for row numbers
-        for x in range(self.width):
-            header += self._get_column_label(x)
-        rows.append(header)
+        if show_fess_coordinates:
+            # Add column headers (FESS notation)
+            header = '   ' # Space for row numbers
+            for x in range(self.width):
+                header += self._get_column_label(x)
+            rows.append(header)
 
-        # Add a separator line
-        separator = '  ' + '+' + '-' * self.width
-        rows.append(separator)
+            # Add a separator line
+            separator = '  ' + '+' + '-' * self.width
+            rows.append(separator)
 
-        # Add rows with row numbers
-        for y in range(self.height):
-            row_num = f"{y+1:2d}|"  # Row number with padding and separator
-            row_content = ''.join(self.get_display_char(x, y) for x in range(self.width))
-            rows.append(row_num + row_content)
+            # Add rows with row numbers (FESS notation: 1-based)
+            for y in range(self.height):
+                row_num = f"{y+1:2d}|"  # Row number with padding and separator
+                row_content = ''.join(self.get_display_char(x, y) for x in range(self.width))
+                rows.append(row_num + row_content)
+        else:
+            # Simple representation without coordinates
+            for y in range(self.height):
+                row_content = ''.join(self.get_display_char(x, y) for x in range(self.width))
+                rows.append(row_content)
 
         return '\n'.join(rows)
 
