@@ -19,6 +19,7 @@ from src.core.auto_solver import AutoSolver
 from src.core.config_manager import get_config_manager
 from src.ai.visual_ai_solver import VisualAISolver
 from src.ai.algorithm_selector import Algorithm
+from src.core.deadlock_detector import DeadlockDetector
 
 
 class GUIGame(Game):
@@ -51,6 +52,13 @@ class GUIGame(Game):
         level_manager = LevelManager(levels_dir)
         renderer = GUIRenderer(window_title=TITLE)
         super().__init__(level_manager, renderer, keyboard_layout)
+
+        # Initialize deadlock detector
+        self.deadlock_detector = None
+        self.deadlock_notification_shown = False
+
+        # Load deadlock display setting from config
+        self.show_deadlocks = self.config_manager.get('game', 'show_deadlocks', True)
 
         # Enhanced skin manager for directional sprites
         if skin_manager:
@@ -115,9 +123,10 @@ class GUIGame(Game):
         """
         clock = pygame.time.Clock()
 
-        # Reload keybindings and movement cooldown at the start of each game loop
+        # Reload keybindings and game settings at the start of each game loop
         self.custom_keybindings = self.config_manager.get_keybindings()
         self.move_delay = self.config_manager.get('game', 'movement_cooldown', 200)
+        self.show_deadlocks = self.config_manager.get('game', 'show_deadlocks', True)
         self._update_movement_keys()
 
         while self.running:
@@ -264,6 +273,9 @@ class GUIGame(Game):
                     self.level_manager.reset_current_level()
                     # Reset sprite history for the reset level
                     self.skin_manager.reset_sprite_history()
+                    # Reset deadlock detector for the reset level
+                    self.deadlock_detector = None
+                    self.deadlock_notification_shown = False
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next':
@@ -381,6 +393,25 @@ class GUIGame(Game):
             print(f"MOVEMENT_COMPLETE: Advanced animation to sprite: {sprite_info}")
             print(f"MOVEMENT_DEBUG: Move #{self.skin_manager.move_counter - 1}, Direction: {direction}, State: {self.skin_manager.current_player_state}")
 
+            # Check for deadlocks after the move
+            if self.deadlock_detector is None:
+                self.deadlock_detector = DeadlockDetector(self.level_manager.current_level)
+
+            if self.deadlock_detector.is_deadlock() and not self.deadlock_notification_shown:
+                # Only show deadlock notification if the setting is enabled
+                if self.show_deadlocks:
+                    # Render the current level state
+                    self.renderer.render_level(self.level_manager.current_level, self.level_manager,
+                                             self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
+                                             show_completion_message=False)
+                    pygame.display.flip()
+
+                    # Show deadlock notification
+                    self._show_deadlock_notification()
+
+                # Set the flag to indicate that the notification has been shown
+                self.deadlock_notification_shown = True
+
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():
             # Render the completed level without showing completion message
@@ -412,11 +443,17 @@ class GUIGame(Game):
             self.level_manager.next_level_in_collection()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
         # If no more levels in collection, try next level file
         elif self.level_manager.has_next_level():
             self.level_manager.next_level()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
         else:
             # No more levels, return to selector
             self._return_to_level_selector()
@@ -430,17 +467,95 @@ class GUIGame(Game):
             self.level_manager.prev_level_in_collection()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
         # If no more levels in collection, try previous level file
         elif self.level_manager.has_prev_level():
             self.level_manager.prev_level()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
 
     def _return_to_level_selector(self):
         """
         Return to the level selector.
         """
         self.running = False
+
+    def _show_in_game_popup(self, title, message, timeout=3000):
+        """
+        Show a popup message directly on the game screen.
+
+        Args:
+            title (str): Title of the popup
+            message (str): Message to display
+            timeout (int, optional): Time in milliseconds before the popup disappears. 
+                                    If None, waits for user input. Defaults to 3000.
+        """
+        # Clear the keys_pressed set to prevent automatic movement
+        self.keys_pressed.clear()
+
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.renderer.screen.get_width(), self.renderer.screen.get_height()))
+        overlay.set_alpha(180)  # Semi-transparent
+        overlay.fill((0, 0, 0))  # Black background
+        self.renderer.screen.blit(overlay, (0, 0))
+
+        # Create fonts
+        title_font = pygame.font.Font(None, 36)
+        message_font = pygame.font.Font(None, 24)
+        instruction_font = pygame.font.Font(None, 20)
+
+        # Create text surfaces
+        title_surface = title_font.render(title, True, (255, 255, 255))  # White text
+        message_surface = message_font.render(message, True, (255, 255, 255))  # White text
+        instruction_surface = instruction_font.render("Appuyez sur une touche pour continuer", True, (200, 200, 200))  # Light gray text
+
+        # Position text
+        title_rect = title_surface.get_rect(center=(self.renderer.screen.get_width() // 2, 100))
+        message_rect = message_surface.get_rect(center=(self.renderer.screen.get_width() // 2, 150))
+        instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2, 200))
+
+        # Draw text
+        self.renderer.screen.blit(title_surface, title_rect)
+        self.renderer.screen.blit(message_surface, message_rect)
+        self.renderer.screen.blit(instruction_surface, instruction_rect)
+
+        # Update display
+        pygame.display.flip()
+
+        # Wait for timeout or user input
+        start_time = pygame.time.get_ticks()
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self._quit_game()
+                elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                    waiting = False
+
+            # Check if timeout has elapsed
+            if timeout is not None and pygame.time.get_ticks() - start_time > timeout:
+                waiting = False
+
+            # Small delay to prevent CPU hogging
+            pygame.time.wait(10)
+
+    def _show_deadlock_notification(self):
+        """
+        Show a notification when a deadlock is detected.
+
+        This method displays a popup informing the player that the last move has resulted in a deadlock,
+        making the level unsolvable. The notification is purely informative and doesn't force any action.
+        """
+        # Show the deadlock notification using the in-game popup
+        self._show_in_game_popup(
+            "Deadlock Détecté!",
+            "Le dernier coup rend le niveau infinissable."
+        )
 
     def _show_level_completion_screen(self):
         """
@@ -515,6 +630,9 @@ class GUIGame(Game):
                 self.level_manager.reset_current_level()
                 # Reset sprite history for the reset level
                 self.skin_manager.reset_sprite_history()
+                # Reset deadlock detector for the reset level
+                self.deadlock_detector = None
+                self.deadlock_notification_shown = False
         else:
             # Return to level selection
             self._return_to_level_selector()

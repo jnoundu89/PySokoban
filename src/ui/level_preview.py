@@ -28,6 +28,9 @@ class LevelPreview:
         self.screen_width = screen_width
         self.screen_height = screen_height
 
+        # Custom instruction text (optional)
+        self.custom_instruction_text = None
+
         # Initialize skin manager to use the configured skin
         self.skin_manager = EnhancedSkinManager()
 
@@ -42,15 +45,20 @@ class LevelPreview:
             'play_button_hover': (100, 180, 100),
             'back_button': (200, 100, 100),
             'back_button_hover': (255, 130, 130),
+            'continue_button': (150, 150, 80),
+            'continue_button_hover': (180, 180, 100),
             'button_text': (255, 255, 255)
             # Level preview colors are now provided by the skin manager
         }
 
         # State
         self.running = False
-        self.selected_action = None  # 'play' or 'back'
+        self.selected_action = None  # 'play', 'back', or 'continue'
         self.level = None
         self.level_info = None
+
+        # Additional button (optional)
+        self.continue_button = None
 
         # Initialize UI elements
         self._update_ui_elements()
@@ -86,8 +94,12 @@ class LevelPreview:
         self.button_height = min(max(40, self.screen_height // 20), 50)
         self.button_spacing = max(10, self.screen_width // 100)
 
-        # Calculate button positions
-        total_button_width = 2 * self.button_width + self.button_spacing
+        # Calculate button positions - support for 2 or 3 buttons
+        self.continue_button = None  # Reset continue_button
+
+        # Default to 2 buttons
+        num_buttons = 2
+        total_button_width = num_buttons * self.button_width + (num_buttons - 1) * self.button_spacing
         button_start_x = self.popup_x + (self.popup_width - total_button_width) // 2
         button_y = self.popup_y + self.popup_height - 80
 
@@ -174,6 +186,9 @@ class LevelPreview:
                         # First check if buttons handle the event
                         if self.play_button.handle_event(event) or self.back_button.handle_event(event):
                             event_handled = True
+                        # Check continue button if it exists
+                        elif self.continue_button and self.continue_button.handle_event(event):
+                            event_handled = True
                         elif event.type == pygame.MOUSEBUTTONUP:
                             # Check if click release is outside popup to close (only on UP event)
                             mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -193,6 +208,29 @@ class LevelPreview:
         """Set the selected action and close the popup."""
         self.selected_action = action
         self.running = False
+
+    def add_continue_button(self):
+        """Add a third 'Continue' button to the popup."""
+        # Recalculate button positions for 3 buttons
+        num_buttons = 3
+        total_button_width = num_buttons * self.button_width + (num_buttons - 1) * self.button_spacing
+        button_start_x = self.popup_x + (self.popup_width - total_button_width) // 2
+        button_y = self.popup_y + self.popup_height - 80
+
+        # Update positions of existing buttons
+        self.play_button.x = button_start_x
+        self.back_button.x = button_start_x + 2 * (self.button_width + self.button_spacing)
+
+        # Create continue button in the middle
+        self.continue_button = Button(
+            "Continuer", button_start_x + self.button_width + self.button_spacing, 
+            button_y, self.button_width, self.button_height,
+            action=lambda: self._set_action('continue'),
+            color=self.colors['continue_button'],
+            hover_color=self.colors['continue_button_hover'],
+            text_color=self.colors['button_text'],
+            font_size=self.button_font.get_height()
+        )
 
     def _render(self):
         """Render the level preview popup."""
@@ -226,8 +264,16 @@ class LevelPreview:
         self.back_button.update(mouse_pos)
         self.back_button.draw(self.screen)
 
+        # Draw continue button if it exists
+        if self.continue_button:
+            self.continue_button.update(mouse_pos)
+            self.continue_button.draw(self.screen)
+
         # Draw instructions
-        instruction_text = f"Cliquez {self.play_button.text} pour jouer ou Retour pour revenir à la sélection"
+        if self.custom_instruction_text:
+            instruction_text = self.custom_instruction_text
+        else:
+            instruction_text = f"Cliquez {self.play_button.text} pour jouer ou Retour pour revenir à la sélection"
         instruction_surface = self.text_font.render(instruction_text, True, self.colors['text'])
         instruction_rect = instruction_surface.get_rect(center=(self.popup_x + self.popup_width // 2, 
                                                               self.popup_y + self.popup_height - 30))
