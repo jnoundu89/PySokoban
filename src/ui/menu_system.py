@@ -356,6 +356,17 @@ class TextInput:
         self.cursor_blink_time = 500  # milliseconds
         self.last_blink_time = pygame.time.get_ticks()
 
+    def update(self, mouse_pos):
+        """
+        Update the text input's appearance based on mouse position.
+
+        Args:
+            mouse_pos: (x, y) tuple of mouse position.
+        """
+        # No visual changes needed based on mouse position alone
+        # This method exists to maintain compatibility with the menu system
+        pass
+
     def draw(self, screen):
         """
         Draw the text input on the screen.
@@ -1223,6 +1234,7 @@ class MenuSystem:
             button.draw(self.screen)
 
 
+
         # Show save success message if needed
         if hasattr(self, 'show_save_success_message') and self.show_save_success_message:
             current_time = pygame.time.get_ticks()
@@ -1568,8 +1580,15 @@ class MenuSystem:
 
             # Draw buttons
             mouse_pos = pygame.mouse.get_pos()
+            # Update all buttons with current mouse position
             save_button.update(mouse_pos)
             cancel_button.update(mouse_pos)
+            fullscreen_toggle.update(mouse_pos)
+            width_input.update(mouse_pos)
+            height_input.update(mouse_pos)
+            cooldown_input.update(mouse_pos)
+            keyboard_toggle.update(mouse_pos)
+            deadlock_toggle.update(mouse_pos)
 
             save_button.draw(self.screen)
             cancel_button.draw(self.screen)
@@ -1761,6 +1780,7 @@ class MenuSystem:
 
             # Draw buttons
             mouse_pos = pygame.mouse.get_pos()
+            # Update all buttons with current mouse position
             save_button.update(mouse_pos)
             cancel_button.update(mouse_pos)
             reset_button.update(mouse_pos)
