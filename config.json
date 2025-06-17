@@ -4,8 +4,8 @@
     "tile_size": 64
   },
   "display": {
-    "window_width": 1270,
-    "window_height": 750,
+    "window_width": 1910,
+    "window_height": 1030,
     "fullscreen": false
   },
   "game": {
@@ -17,7 +17,8 @@
       255,
       255,
       255
-    ]
+    ],
+    "show_deadlocks": false
   },
   "keybindings": {
     "up": "up",

@@ -19,6 +19,7 @@ from src.core.auto_solver import AutoSolver
 from src.core.config_manager import get_config_manager
 from src.ai.visual_ai_solver import VisualAISolver
 from src.ai.algorithm_selector import Algorithm
+from src.core.deadlock_detector import DeadlockDetector
 
 
 class GUIGame(Game):
@@ -51,6 +52,13 @@ class GUIGame(Game):
         level_manager = LevelManager(levels_dir)
         renderer = GUIRenderer(window_title=TITLE)
         super().__init__(level_manager, renderer, keyboard_layout)
+
+        # Initialize deadlock detector
+        self.deadlock_detector = None
+        self.deadlock_notification_shown = False
+
+        # Load deadlock display setting from config
+        self.show_deadlocks = self.config_manager.get('game', 'show_deadlocks', True)
 
         # Enhanced skin manager for directional sprites
         if skin_manager:
@@ -115,9 +123,10 @@ class GUIGame(Game):
         """
         clock = pygame.time.Clock()
 
-        # Reload keybindings and movement cooldown at the start of each game loop
+        # Reload keybindings and game settings at the start of each game loop
         self.custom_keybindings = self.config_manager.get_keybindings()
         self.move_delay = self.config_manager.get('game', 'movement_cooldown', 200)
+        self.show_deadlocks = self.config_manager.get('game', 'show_deadlocks', True)
         self._update_movement_keys()
 
         while self.running:
@@ -141,7 +150,7 @@ class GUIGame(Game):
                     else:
                         # Check if AI system handles this event first
                         ai_handled = self.visual_ai_solver.handle_events([event])
-                        
+
                         if not ai_handled:
                             # Add key to pressed keys set
                             self.keys_pressed.add(event.key)
@@ -235,12 +244,21 @@ class GUIGame(Game):
                 # Create a reverse mapping of keys to actions from custom keybindings
                 custom_keys = {v: k for k, v in self.custom_keybindings.items()}
 
-                # Check if this key is bound to an action in the default layout
-                default_action = KEY_BINDINGS[self.keyboard_layout].get(key_name)
+                # Check if this key is already used in any custom keybinding
+                if key_name not in self.custom_keybindings.values():
+                    # Check if this key is bound to an action in the default layout
+                    default_action = KEY_BINDINGS[self.keyboard_layout].get(key_name)
 
-                # Only use the default action if it's not rebound to a different key
-                if default_action and default_action not in custom_keys:
-                    action = default_action
+                    # Special case for 'a' key in AZERTY mode which is mapped to 'quit' by default
+                    if self.keyboard_layout == AZERTY and key_name == 'a' and default_action == 'quit':
+                        # Check if 'quit' is already remapped to a different key
+                        if 'quit' in self.custom_keybindings:
+                            # 'quit' is remapped, so don't use the default action for 'a'
+                            default_action = None
+
+                    # Only use the default action if it's not rebound to a different key
+                    if default_action and default_action not in custom_keys:
+                        action = default_action
 
             if action:
                 if action == 'up':
@@ -255,6 +273,9 @@ class GUIGame(Game):
                     self.level_manager.reset_current_level()
                     # Reset sprite history for the reset level
                     self.skin_manager.reset_sprite_history()
+                    # Reset deadlock detector for the reset level
+                    self.deadlock_detector = None
+                    self.deadlock_notification_shown = False
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next':
@@ -372,6 +393,25 @@ class GUIGame(Game):
             print(f"MOVEMENT_COMPLETE: Advanced animation to sprite: {sprite_info}")
             print(f"MOVEMENT_DEBUG: Move #{self.skin_manager.move_counter - 1}, Direction: {direction}, State: {self.skin_manager.current_player_state}")
 
+            # Check for deadlocks after the move
+            if self.deadlock_detector is None:
+                self.deadlock_detector = DeadlockDetector(self.level_manager.current_level)
+
+            if self.deadlock_detector.is_deadlock() and not self.deadlock_notification_shown:
+                # Only show deadlock notification if the setting is enabled
+                if self.show_deadlocks:
+                    # Render the current level state
+                    self.renderer.render_level(self.level_manager.current_level, self.level_manager,
+                                             self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
+                                             show_completion_message=False)
+                    pygame.display.flip()
+
+                    # Show deadlock notification
+                    self._show_deadlock_notification()
+
+                # Set the flag to indicate that the notification has been shown
+                self.deadlock_notification_shown = True
+
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():
             # Render the completed level without showing completion message
@@ -403,11 +443,17 @@ class GUIGame(Game):
             self.level_manager.next_level_in_collection()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
         # If no more levels in collection, try next level file
         elif self.level_manager.has_next_level():
             self.level_manager.next_level()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
         else:
             # No more levels, return to selector
             self._return_to_level_selector()
@@ -421,17 +467,95 @@ class GUIGame(Game):
             self.level_manager.prev_level_in_collection()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
         # If no more levels in collection, try previous level file
         elif self.level_manager.has_prev_level():
             self.level_manager.prev_level()
             # Reset sprite history for the new level
             self.skin_manager.reset_sprite_history()
+            # Reset deadlock detector for the new level
+            self.deadlock_detector = None
+            self.deadlock_notification_shown = False
 
     def _return_to_level_selector(self):
         """
         Return to the level selector.
         """
         self.running = False
+
+    def _show_in_game_popup(self, title, message, timeout=3000):
+        """
+        Show a popup message directly on the game screen.
+
+        Args:
+            title (str): Title of the popup
+            message (str): Message to display
+            timeout (int, optional): Time in milliseconds before the popup disappears. 
+                                    If None, waits for user input. Defaults to 3000.
+        """
+        # Clear the keys_pressed set to prevent automatic movement
+        self.keys_pressed.clear()
+
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((self.renderer.screen.get_width(), self.renderer.screen.get_height()))
+        overlay.set_alpha(180)  # Semi-transparent
+        overlay.fill((0, 0, 0))  # Black background
+        self.renderer.screen.blit(overlay, (0, 0))
+
+        # Create fonts
+        title_font = pygame.font.Font(None, 36)
+        message_font = pygame.font.Font(None, 24)
+        instruction_font = pygame.font.Font(None, 20)
+
+        # Create text surfaces
+        title_surface = title_font.render(title, True, (255, 255, 255))  # White text
+        message_surface = message_font.render(message, True, (255, 255, 255))  # White text
+        instruction_surface = instruction_font.render("Appuyez sur une touche pour continuer", True, (200, 200, 200))  # Light gray text
+
+        # Position text
+        title_rect = title_surface.get_rect(center=(self.renderer.screen.get_width() // 2, 100))
+        message_rect = message_surface.get_rect(center=(self.renderer.screen.get_width() // 2, 150))
+        instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2, 200))
+
+        # Draw text
+        self.renderer.screen.blit(title_surface, title_rect)
+        self.renderer.screen.blit(message_surface, message_rect)
+        self.renderer.screen.blit(instruction_surface, instruction_rect)
+
+        # Update display
+        pygame.display.flip()
+
+        # Wait for timeout or user input
+        start_time = pygame.time.get_ticks()
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self._quit_game()
+                elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                    waiting = False
+
+            # Check if timeout has elapsed
+            if timeout is not None and pygame.time.get_ticks() - start_time > timeout:
+                waiting = False
+
+            # Small delay to prevent CPU hogging
+            pygame.time.wait(10)
+
+    def _show_deadlock_notification(self):
+        """
+        Show a notification when a deadlock is detected.
+
+        This method displays a popup informing the player that the last move has resulted in a deadlock,
+        making the level unsolvable. The notification is purely informative and doesn't force any action.
+        """
+        # Show the deadlock notification using the in-game popup
+        self._show_in_game_popup(
+            "Deadlock Détecté!",
+            "Le dernier coup rend le niveau infinissable."
+        )
 
     def _show_level_completion_screen(self):
         """
@@ -506,6 +630,9 @@ class GUIGame(Game):
                 self.level_manager.reset_current_level()
                 # Reset sprite history for the reset level
                 self.skin_manager.reset_sprite_history()
+                # Reset deadlock detector for the reset level
+                self.deadlock_detector = None
+                self.deadlock_notification_shown = False
         else:
             # Return to level selection
             self._return_to_level_selector()
@@ -533,7 +660,7 @@ class GUIGame(Game):
         # Enhanced progress callback for detailed analysis tracking
         def enhanced_analysis_callback(message):
             print(f"🧠 LEVEL_ANALYSIS: {message}")
-        
+
         print("🚀 SOLVE_START: Début de l'analyse et résolution du niveau")
 
         try:
@@ -548,7 +675,7 @@ class GUIGame(Game):
             if result['success']:
                 # Now animate the solution after it's found
                 self._animate_solution_after_solving(result['solve_result'])
-                
+
                 # Show completion statistics
                 solve_info = self.visual_ai_solver.get_last_solve_info()
                 if solve_info:
@@ -562,7 +689,7 @@ class GUIGame(Game):
             error_message = f"AI Error: {str(e)}\nPress any key to continue..."
             self._render_enhanced_solving_overlay(error_message)
             pygame.display.flip()
-            
+
             # Wait for user input
             waiting = True
             while waiting:
@@ -573,75 +700,75 @@ class GUIGame(Game):
     def _show_algorithm_selection_menu(self) -> Optional[Algorithm]:
         """
         Show algorithm selection menu and return selected algorithm using game's UI standards.
-        
+
         Returns:
             Algorithm or None: Selected algorithm, None if auto-selection or cancelled
         """
         # Get recommendation for current level
         recommendation = self.visual_ai_solver.get_algorithm_recommendation(self.level_manager.current_level)
-        
+
         # Create algorithm selection screen with game's color scheme
         screen = self.renderer.screen
-        
+
         # Use consistent colors with the game's theme
         background_color = (240, 240, 240)  # Light gray like menu system
         text_color = (50, 50, 50)  # Dark gray for readability
         title_color = (70, 70, 150)  # Blue for title
         selected_color = (100, 150, 200)  # Blue for selection
         recommendation_color = (100, 180, 100)  # Green for recommendation
-        
+
         # Responsive font sizing based on screen size
         base_dimension = min(screen.get_width(), screen.get_height())
         title_size = min(max(28, base_dimension // 20), 48)
         text_size = min(max(20, base_dimension // 30), 32)
         small_size = min(max(16, base_dimension // 40), 24)
-        
+
         title_font = pygame.font.Font(None, title_size)
         text_font = pygame.font.Font(None, text_size)
         small_font = pygame.font.Font(None, small_size)
-        
+
         # Algorithm options (None = auto-selection)
         algorithms = [None] + list(Algorithm)
         algorithm_names = ["🤖 Auto-Select (Recommended)"] + [f"🔧 {alg.value}" for alg in Algorithm]
         selected_index = 0
-        
+
         # Button dimensions
         button_width = min(max(300, screen.get_width() // 3), 500)
         button_height = min(max(40, screen.get_height() // 20), 60)
-        
+
         clock = pygame.time.Clock()
-        
+
         while True:
             # Clear screen with game's background color
             screen.fill(background_color)
-            
+
             # Title with shadow effect (like in menu system)
             title_text = "🧠 AI Algorithm Selection"
-            
+
             # Draw shadow
             shadow_color = (50, 50, 100)
             shadow_offset = 2
             title_shadow = title_font.render(title_text, True, shadow_color)
             shadow_rect = title_shadow.get_rect(center=(screen.get_width() // 2 + shadow_offset, 80 + shadow_offset))
             screen.blit(title_shadow, shadow_rect)
-            
+
             # Draw main title
             title_surface = title_font.render(title_text, True, title_color)
             title_rect = title_surface.get_rect(center=(screen.get_width() // 2, 80))
             screen.blit(title_surface, title_rect)
-            
+
             # Level analysis section
             y_pos = 140
             analysis_title = text_font.render("Level Analysis", True, title_color)
             analysis_rect = analysis_title.get_rect(center=(screen.get_width() // 2, y_pos))
             screen.blit(analysis_title, analysis_rect)
-            
+
             y_pos += 35
             complexity_text = f"Complexity: {recommendation['complexity_category']} (Score: {recommendation['complexity_score']:.1f})"
             complexity_surface = small_font.render(complexity_text, True, text_color)
             complexity_rect = complexity_surface.get_rect(center=(screen.get_width() // 2, y_pos))
             screen.blit(complexity_surface, complexity_rect)
-            
+
             # Recommended algorithm
             if recommendation:
                 y_pos += 25
@@ -649,20 +776,20 @@ class GUIGame(Game):
                 rec_surface = small_font.render(rec_text, True, recommendation_color)
                 rec_rect = rec_surface.get_rect(center=(screen.get_width() // 2, y_pos))
                 screen.blit(rec_surface, rec_rect)
-            
+
             # Algorithm selection section
             y_pos += 60
             selection_title = text_font.render("Select Algorithm", True, title_color)
             selection_rect = selection_title.get_rect(center=(screen.get_width() // 2, y_pos))
             screen.blit(selection_title, selection_rect)
-            
+
             # Algorithm options with button-like appearance
             y_start = y_pos + 50
             button_x = (screen.get_width() - button_width) // 2
-            
+
             for i, name in enumerate(algorithm_names):
                 button_y = y_start + i * (button_height + 10)
-                
+
                 # Button background
                 if i == selected_index:
                     button_color = selected_color
@@ -670,37 +797,37 @@ class GUIGame(Game):
                 else:
                     button_color = (200, 200, 200)
                     text_display_color = text_color
-                
+
                 # Draw button with rounded corners
                 pygame.draw.rect(screen, button_color,
                                (button_x, button_y, button_width, button_height), 0, 10)
                 pygame.draw.rect(screen, (100, 100, 100),
                                (button_x, button_y, button_width, button_height), 2, 10)
-                
+
                 # Button text
                 option_surface = small_font.render(name, True, text_display_color)
                 option_rect = option_surface.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
                 screen.blit(option_surface, option_rect)
-            
+
             # Instructions section
             instructions_y = screen.get_height() - 120
             instruction_title = text_font.render("Controls", True, title_color)
             instruction_title_rect = instruction_title.get_rect(center=(screen.get_width() // 2, instructions_y))
             screen.blit(instruction_title, instruction_title_rect)
-            
+
             instructions = [
                 "↑↓ Navigate | ENTER Select | ESC Cancel",
                 "B - Run Algorithm Benchmark"
             ]
-            
+
             for i, instruction in enumerate(instructions):
                 inst_surface = small_font.render(instruction, True, text_color)
                 inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, instructions_y + 30 + i * 20))
                 screen.blit(inst_surface, inst_rect)
-            
+
             pygame.display.flip()
             clock.tick(60)
-            
+
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -727,20 +854,20 @@ class GUIGame(Game):
             text = font.render("🔬 Running Algorithm Benchmark...", True, (255, 255, 255))
             text_rect = text.get_rect(center=(self.renderer.screen.get_width() // 2, 200))
             self.renderer.screen.blit(text, text_rect)
-            
+
             small_font = pygame.font.Font(None, 24)
             status = small_font.render(message, True, (200, 200, 200))
             status_rect = status.get_rect(center=(self.renderer.screen.get_width() // 2, 250))
             self.renderer.screen.blit(status, status_rect)
-            
+
             pygame.display.flip()
-        
+
         # Run benchmark
         benchmark_results = self.visual_ai_solver.benchmark_algorithms(
             self.level_manager.current_level,
             progress_callback=benchmark_progress
         )
-        
+
         # Show results
         self._show_benchmark_results(benchmark_results)
 
@@ -749,38 +876,38 @@ class GUIGame(Game):
         screen = self.renderer.screen
         font = pygame.font.Font(None, 28)
         small_font = pygame.font.Font(None, 20)
-        
+
         waiting = True
         while waiting:
             screen.fill((30, 30, 50))
-            
+
             # Title
             title = font.render("🏆 Algorithm Benchmark Results", True, (255, 255, 255))
             title_rect = title.get_rect(center=(screen.get_width() // 2, 50))
             screen.blit(title, title_rect)
-            
+
             # Level info
             level_info = results.get('level_info', {})
             info_text = f"Level: {level_info.get('width', 0)}x{level_info.get('height', 0)}, {level_info.get('boxes_count', 0)} boxes"
             info_surface = small_font.render(info_text, True, (200, 200, 200))
             info_rect = info_surface.get_rect(center=(screen.get_width() // 2, 80))
             screen.blit(info_surface, info_rect)
-            
+
             # Results
             y_pos = 120
             algorithm_results = results.get('algorithm_results', {})
-            
+
             for algorithm, result in algorithm_results.items():
                 if result.get('success'):
                     moves = result.get('moves_count', 0)
                     time = result.get('solve_time', 0)
                     states = result.get('states_explored', 0)
-                    
+
                     # Color code based on performance
                     color = (100, 255, 100) if algorithm == results.get('best_algorithm') else (255, 255, 255)
                     if algorithm == results.get('fastest_algorithm'):
                         color = (100, 200, 255)
-                    
+
                     text = f"{algorithm}: {moves} moves, {time:.2f}s, {states:,} states"
                     surface = small_font.render(text, True, color)
                     rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
@@ -790,9 +917,9 @@ class GUIGame(Game):
                     surface = small_font.render(text, True, (255, 100, 100))
                     rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
                     screen.blit(surface, rect)
-                
+
                 y_pos += 25
-            
+
             # Best algorithm highlight
             if results.get('best_algorithm'):
                 y_pos += 20
@@ -800,22 +927,22 @@ class GUIGame(Game):
                 best_surface = small_font.render(best_text, True, (255, 215, 0))
                 best_rect = best_surface.get_rect(center=(screen.get_width() // 2, y_pos))
                 screen.blit(best_surface, best_rect)
-            
+
             if results.get('fastest_algorithm'):
                 y_pos += 25
                 fastest_text = f"⚡ Fastest: {results['fastest_algorithm']}"
                 fastest_surface = small_font.render(fastest_text, True, (100, 200, 255))
                 fastest_rect = fastest_surface.get_rect(center=(screen.get_width() // 2, y_pos))
                 screen.blit(fastest_surface, fastest_rect)
-            
+
             # Instructions
             instruction = "Press any key to continue..."
             inst_surface = small_font.render(instruction, True, (150, 150, 150))
             inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, screen.get_height() - 50))
             screen.blit(inst_surface, inst_rect)
-            
+
             pygame.display.flip()
-            
+
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or event.type == pygame.KEYDOWN:
@@ -835,11 +962,11 @@ class GUIGame(Game):
 
         # Main text
         font = pygame.font.Font(None, 32)
-        
+
         # Split text by lines for multi-line support
         lines = text.split('\n')
         y_offset = self.renderer.screen.get_height() // 2 - (len(lines) * 20)
-        
+
         for line in lines:
             text_surface = font.render(line, True, (255, 255, 255))
             text_rect = text_surface.get_rect(center=(self.renderer.screen.get_width() // 2, y_offset))
@@ -858,7 +985,7 @@ class GUIGame(Game):
         instructions = [
             "SPACE: Pause/Resume | ESC: Stop | +/-: Speed | F1: Debug | F2: Metrics"
         ]
-        
+
         for i, instruction in enumerate(instructions):
             instruction_surface = instruction_font.render(instruction, True, (180, 180, 180))
             instruction_rect = instruction_surface.get_rect(center=(self.renderer.screen.get_width() // 2, y_offset + 60 + i * 25))
@@ -869,17 +996,17 @@ class GUIGame(Game):
         screen = self.renderer.screen
         font = pygame.font.Font(None, 28)
         small_font = pygame.font.Font(None, 22)
-        
+
         # Create stats display
         waiting = True
         while waiting:
             screen.fill((20, 50, 20))  # Dark green background
-            
+
             # Title
             title = font.render("🎉 AI Solution Complete!", True, (100, 255, 100))
             title_rect = title.get_rect(center=(screen.get_width() // 2, 60))
             screen.blit(title, title_rect)
-            
+
             # Statistics
             stats_lines = [
                 f"Algorithm Used: {solve_info.get('algorithm_used', 'Unknown')}",
@@ -891,39 +1018,39 @@ class GUIGame(Game):
                 f"Memory Used: {solve_info.get('memory_peak', 0):,} states",
                 f"Heuristic Calls: {solve_info.get('heuristic_calls', 0):,}"
             ]
-            
+
             y_pos = 120
             for line in stats_lines:
                 surface = small_font.render(line, True, (255, 255, 255))
                 rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
                 screen.blit(surface, rect)
                 y_pos += 30
-            
+
             # Performance analysis
             if solve_info.get('states_explored', 0) > 0 and solve_info.get('solve_time', 0) > 0:
                 efficiency = solve_info['states_explored'] / max(solve_info.get('states_generated', 1), 1)
                 speed = solve_info['states_explored'] / solve_info['solve_time']
-                
+
                 y_pos += 20
                 perf_lines = [
                     f"Search Efficiency: {efficiency:.1%}",
                     f"Search Speed: {speed:,.0f} states/sec"
                 ]
-                
+
                 for line in perf_lines:
                     surface = small_font.render(line, True, (200, 255, 200))
                     rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
                     screen.blit(surface, rect)
                     y_pos += 25
-            
+
             # Instructions
             instruction = "Press any key to continue..."
             inst_surface = small_font.render(instruction, True, (150, 255, 150))
             inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, screen.get_height() - 50))
             screen.blit(inst_surface, inst_rect)
-            
+
             pygame.display.flip()
-            
+
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or event.type == pygame.KEYDOWN:
@@ -934,19 +1061,19 @@ class GUIGame(Game):
         screen = self.renderer.screen
         font = pygame.font.Font(None, 28)
         small_font = pygame.font.Font(None, 22)
-        
+
         # Get level complexity analysis
         recommendation = self.visual_ai_solver.get_algorithm_recommendation(self.level_manager.current_level)
-        
+
         waiting = True
         while waiting:
             screen.fill((50, 20, 20))  # Dark red background
-            
+
             # Title
             title = font.render("🤔 AI Analysis Complete", True, (255, 100, 100))
             title_rect = title.get_rect(center=(screen.get_width() // 2, 60))
             screen.blit(title, title_rect)
-            
+
             # Level analysis
             level = self.level_manager.current_level
             analysis_lines = [
@@ -955,19 +1082,19 @@ class GUIGame(Game):
                 f"Complexity: {recommendation['complexity_category']} (Score: {recommendation['complexity_score']:.1f})",
                 f"Algorithm Used: {algorithm.value if algorithm else 'Auto-Selected'}"
             ]
-            
+
             y_pos = 120
             for line in analysis_lines:
                 surface = small_font.render(line, True, (255, 255, 255))
                 rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
                 screen.blit(surface, rect)
                 y_pos += 25
-            
+
             # Determine failure reason and suggestions
             complexity_score = recommendation['complexity_score']
             box_count = len(level.boxes)
             level_size = level.width * level.height
-            
+
             y_pos += 20
             if complexity_score > 300:
                 reason = "Level complexity exceeds AI capabilities"
@@ -997,33 +1124,33 @@ class GUIGame(Game):
                     "• AI may need more time for complex patterns",
                     "• Try different algorithm selections"
                 ]
-            
+
             # Display reason
             reason_surface = small_font.render(f"Analysis: {reason}", True, (255, 200, 100))
             reason_rect = reason_surface.get_rect(center=(screen.get_width() // 2, y_pos))
             screen.blit(reason_surface, reason_rect)
             y_pos += 40
-            
+
             # Display suggestions
             suggestion_title = small_font.render("Suggestions:", True, (200, 200, 255))
             suggestion_rect = suggestion_title.get_rect(center=(screen.get_width() // 2, y_pos))
             screen.blit(suggestion_title, suggestion_rect)
             y_pos += 25
-            
+
             for suggestion in suggestions:
                 surface = small_font.render(suggestion, True, (180, 180, 180))
                 rect = surface.get_rect(center=(screen.get_width() // 2, y_pos))
                 screen.blit(surface, rect)
                 y_pos += 22
-            
+
             # Instructions
             instruction = "Press any key to continue..."
             inst_surface = small_font.render(instruction, True, (255, 150, 150))
             inst_rect = inst_surface.get_rect(center=(screen.get_width() // 2, screen.get_height() - 50))
             screen.blit(inst_surface, inst_rect)
-            
+
             pygame.display.flip()
-            
+
             # Handle events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or event.type == pygame.KEYDOWN:
@@ -1059,26 +1186,26 @@ class GUIGame(Game):
     def _animate_solution_after_solving(self, solve_result):
         """
         Animate the solution after it has been found.
-        
+
         Args:
             solve_result: The SolveResult containing the solution
         """
         if not solve_result.success or not solve_result.solution_data:
             return
-        
+
         moves = solve_result.solution_data.moves
         if not moves:
             return
-        
+
         # Reset level to initial state
         self.level_manager.current_level.reset()
-        
+
         # Show animation start message
         total_moves = len(moves)
         self._render_enhanced_solving_overlay(f"🎬 Animating solution: {total_moves} moves")
         pygame.display.flip()
         pygame.time.wait(1000)  # Give user time to read
-        
+
         # Animate each move
         for i, move in enumerate(moves):
             # Check for user input to skip animation
@@ -1092,10 +1219,10 @@ class GUIGame(Game):
                         return
                 elif event.type == pygame.QUIT:
                     return
-            
+
             # Execute the move
             success = self._execute_ai_move(move)
-            
+
             # Render current state
             self.renderer.render_level(
                 self.level_manager.current_level,
@@ -1107,23 +1234,23 @@ class GUIGame(Game):
                 self.skin_manager,
                 show_completion_message=False
             )
-            
+
             # Show progress overlay
             progress = (i + 1) / total_moves * 100
             overlay_text = f"🤖 AI Solution: Move {i+1}/{total_moves} ({progress:.1f}%)\n"
             overlay_text += f"Direction: {move} -> {'✅' if success else '❌'}\n"
             overlay_text += "SPACE: Skip animation | ESC: Stop"
-            
+
             self._render_enhanced_solving_overlay(overlay_text)
             pygame.display.flip()
-            
+
             # Animation delay
             pygame.time.wait(300)  # 300ms per move
-            
+
             # Check if level is completed
             if self.level_manager.current_level.is_completed():
                 break
-    
+
     def _execute_ai_move(self, move: str) -> bool:
         """Execute a move from the AI solution."""
         direction_map = {
@@ -1132,20 +1259,20 @@ class GUIGame(Game):
             'LEFT': (-1, 0),
             'RIGHT': (1, 0)
         }
-        
+
         if move in direction_map:
             dx, dy = direction_map[move]
             return self.level_manager.current_level.move(dx, dy)
-        
+
         return False
-    
+
     def _execute_remaining_moves(self, remaining_moves):
         """Execute all remaining moves instantly."""
         for move in remaining_moves:
             self._execute_ai_move(move)
             if self.level_manager.current_level.is_completed():
                 break
-        
+
         # Render final state
         self.renderer.render_level(
             self.level_manager.current_level,
