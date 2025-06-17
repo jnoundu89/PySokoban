@@ -1442,13 +1442,10 @@ class MenuSystem:
                             # Exit without saving
                             running = False
                         else:
-                            # Check if any of the UI elements were clicked
-                            fullscreen_toggle.handle_event(event)
+                            # Handle mouse down events for text inputs
                             width_input.handle_event(event)
                             height_input.handle_event(event)
                             cooldown_input.handle_event(event)
-                            keyboard_toggle.handle_event(event)
-                            deadlock_toggle.handle_event(event)
                     elif event.button == 4:  # Mouse wheel up
                         scroll_offset = max(0, scroll_offset - 20)
                         # Update section positions
@@ -1481,6 +1478,12 @@ class MenuSystem:
                         cooldown_input.y = section3_y
                         keyboard_toggle.y = section4_y
                         deadlock_toggle.y = section5_y
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    if event.button == 1:  # Left mouse button
+                        # Handle mouse up events for toggle buttons
+                        fullscreen_toggle.handle_event(event)
+                        keyboard_toggle.handle_event(event)
+                        deadlock_toggle.handle_event(event)
 
             # Draw the static background (settings menu)
             self.screen.blit(self.background_surface, (0, 0))
