@@ -103,9 +103,12 @@ class EnhancedSokoban:
         self.running = False
         self.current_state = 'menu'  # 'menu', 'playing', 'editor'
 
+        # Get keyboard layout from config
+        keyboard_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
+
         # Create components
         self.menu_system = MenuSystem(self.screen, self.screen_width, self.screen_height, levels_dir, self.skin_manager)
-        self.game = GUIGame(levels_dir, skin_manager=self.skin_manager)
+        self.game = GUIGame(levels_dir, keyboard_layout=keyboard_layout, skin_manager=self.skin_manager)
         self.editor = EnhancedLevelEditor(levels_dir, screen=self.screen)
 
         # Initialize the unified AI system

@@ -105,11 +105,56 @@ class ConfigManager:
             bool: True if saved successfully, False otherwise.
         """
         try:
+            # Print the current keyboard layout before saving
+            keyboard_layout = self.config.get('game', {}).get('keyboard_layout', 'unknown')
+            print(f"ConfigManager: Saving keyboard_layout={keyboard_layout} to {self.config_file}")
+
+            # Check if the config file exists and is writable
+            if os.path.exists(self.config_file):
+                if not os.access(self.config_file, os.W_OK):
+                    print(f"ConfigManager: WARNING - Config file {self.config_file} is not writable!")
+                    # Try to make the file writable
+                    try:
+                        import stat
+                        current_permissions = os.stat(self.config_file).st_mode
+                        os.chmod(self.config_file, current_permissions | stat.S_IWUSR)
+                        print(f"ConfigManager: Attempted to make config file writable")
+                    except Exception as e:
+                        print(f"ConfigManager: Failed to make config file writable: {e}")
+
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
 
+            # Print the full config for debugging
+            print(f"ConfigManager: Full config to save: {self.config}")
+
+            # Try to create a backup of the config file first
+            if os.path.exists(self.config_file):
+                backup_file = f"{self.config_file}.bak"
+                try:
+                    import shutil
+                    shutil.copy2(self.config_file, backup_file)
+                    print(f"ConfigManager: Created backup of config file at {backup_file}")
+                except Exception as e:
+                    print(f"ConfigManager: Failed to create backup of config file: {e}")
+
+            # Write the config file
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
+
+            # Verify the file was written correctly
+            print(f"ConfigManager: Config file saved successfully")
+
+            # Read the file back to verify the changes were saved
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    saved_config = json.load(f)
+                    saved_keyboard_layout = saved_config.get('game', {}).get('keyboard_layout', 'unknown')
+                    print(f"ConfigManager: Verified saved keyboard_layout={saved_keyboard_layout}")
+                    if saved_keyboard_layout != keyboard_layout:
+                        print(f"ConfigManager: WARNING - Saved keyboard layout ({saved_keyboard_layout}) does not match expected value ({keyboard_layout})")
+            except Exception as e:
+                print(f"ConfigManager: Error verifying saved config: {e}")
             return True
         except IOError as e:
             print(f"Warning: Could not save config file: {e}")

@@ -1301,7 +1301,11 @@ def main():
     """
     # Parse command line arguments
     levels_dir = 'levels'
-    keyboard_layout = DEFAULT_KEYBOARD
+
+    # Get default keyboard layout from config
+    from src.core.config_manager import get_config_manager
+    config_manager = get_config_manager()
+    keyboard_layout = config_manager.get('game', 'keyboard_layout', 'qwerty')
 
     i = 1
     while i < len(sys.argv):

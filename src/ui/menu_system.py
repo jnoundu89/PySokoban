@@ -1128,8 +1128,38 @@ class MenuSystem:
         Args:
             is_azerty (bool): True if AZERTY layout is selected, False for QWERTY.
         """
+        # Print the current keyboard layout before changing it
+        current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
+        print(f"Current keyboard layout before toggle: {current_layout}")
+
         layout = 'azerty' if is_azerty else 'qwerty'
-        self.config_manager.set('game', 'keyboard_layout', layout, save=True)
+        print(f"Setting keyboard layout to: {layout}")
+
+        # Force direct update of the config file
+        self.config_manager.config['game']['keyboard_layout'] = layout
+        save_result = self.config_manager.save()
+        print(f"Config save result: {save_result}")
+
+        # Verify the keyboard layout was set correctly
+        updated_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
+        print(f"Keyboard layout after toggle: {updated_layout}")
+
+        # Double-check by reading directly from the file
+        try:
+            import json
+            with open(self.config_manager.config_file, 'r', encoding='utf-8') as f:
+                file_config = json.load(f)
+                file_layout = file_config.get('game', {}).get('keyboard_layout', 'unknown')
+                print(f"Keyboard layout in file: {file_layout}")
+                if file_layout != layout:
+                    print(f"WARNING: File layout ({file_layout}) does not match expected layout ({layout})")
+                    # Try one more time with a direct file write
+                    file_config['game']['keyboard_layout'] = layout
+                    with open(self.config_manager.config_file, 'w', encoding='utf-8') as f2:
+                        json.dump(file_config, f2, indent=2, ensure_ascii=False)
+                    print(f"Forced direct update of config file")
+        except Exception as e:
+            print(f"Error checking config file: {e}")
 
         # Get current keybindings
         keybindings = self.config_manager.get_keybindings()
@@ -1188,6 +1218,11 @@ class MenuSystem:
             # Update the config manager with the current values
             self.config_manager.set('display', 'window_width', window_width, save=False)
             self.config_manager.set('display', 'window_height', window_height, save=False)
+
+        # Save keyboard layout separately to avoid toggling
+        if self.keyboard_layout_toggle:
+            layout = 'azerty' if self.keyboard_layout_toggle.is_on else 'qwerty'
+            self.config_manager.config['game']['keyboard_layout'] = layout
 
         # Save all changes to the config file
         success = self.config_manager.save()
@@ -1416,13 +1451,28 @@ class MenuSystem:
                         mouse_pos = pygame.mouse.get_pos()
                         if save_button.is_hovered(mouse_pos):
                             # Save settings and exit
+                            # Print the current keyboard layout before changing it
+                            current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
+                            print(f"Current keyboard layout before save: {current_layout}")
+
+                            # Update all settings in the config manager
                             self.config_manager.set('display', 'fullscreen', fullscreen_toggle.is_on, save=False)
                             self.config_manager.set('display', 'window_width', width_input.current_value, save=False)
                             self.config_manager.set('display', 'window_height', height_input.current_value, save=False)
                             self.config_manager.set('game', 'movement_cooldown', cooldown_input.current_value, save=False)
-                            layout = 'azerty' if keyboard_toggle.is_on else 'qwerty'
-                            self.config_manager.set('game', 'keyboard_layout', layout, save=False)
                             self.config_manager.set('game', 'show_deadlocks', deadlock_toggle.is_on, save=False)
+
+                            # Save all settings except keyboard layout
+                            self.config_manager.save()
+
+                            # Handle keyboard layout separately to avoid toggling
+                            # Just set the value in the config file without calling the toggle method
+                            layout = 'azerty' if keyboard_toggle.is_on else 'qwerty'
+                            print(f"Setting keyboard layout to: {layout} (toggle is_on: {keyboard_toggle.is_on})")
+
+                            # Update the config file with the new keyboard layout
+                            self.config_manager.config['game']['keyboard_layout'] = layout
+                            self.config_manager.save()
 
                             # Update the actual UI elements
                             self.fullscreen_toggle.is_on = fullscreen_toggle.is_on
@@ -1432,7 +1482,16 @@ class MenuSystem:
                             self.window_height_input.text = str(height_input.current_value)
                             self.movement_cooldown_input.current_value = cooldown_input.current_value
                             self.movement_cooldown_input.text = str(cooldown_input.current_value)
-                            self.keyboard_layout_toggle.is_on = keyboard_toggle.is_on
+
+                            # Update keyboard layout toggle without calling the toggle method
+                            # This prevents the toggle from happening when saving
+                            if self.keyboard_layout_toggle.is_on != keyboard_toggle.is_on:
+                                # Only update if the state has changed
+                                self.keyboard_layout_toggle.is_on = keyboard_toggle.is_on
+                                self.keyboard_layout_toggle.text = self.keyboard_layout_toggle.text_on if keyboard_toggle.is_on else self.keyboard_layout_toggle.text_off
+                                self.keyboard_layout_toggle.color = self.keyboard_layout_toggle.color_on if keyboard_toggle.is_on else self.keyboard_layout_toggle.color_off
+                                self.keyboard_layout_toggle.hover_color = self.keyboard_layout_toggle.hover_color_on if keyboard_toggle.is_on else self.keyboard_layout_toggle.hover_color_off
+                                self.keyboard_layout_toggle.current_color = self.keyboard_layout_toggle.color
 
                             # Apply fullscreen change immediately
                             self._toggle_fullscreen(fullscreen_toggle.is_on)
