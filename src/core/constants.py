@@ -64,6 +64,7 @@ KEY_BINDINGS = {
         'p': 'previous',
         'u': 'undo',
         'h': 'help',
+        'm': 'menu',
         'g': 'grid',
         'f11': 'fullscreen'
     },
@@ -82,6 +83,7 @@ KEY_BINDINGS = {
         'p': 'previous',
         'u': 'undo',
         'h': 'help',
+        'm': 'menu',
         'g': 'grid',
         'f11': 'fullscreen'
     }
