@@ -1,0 +1,147 @@
+How to detect deadlocks
+The implementation of an algorithm for detecting deadlocks depends on which types of deadlocks are to be detected. The deadlocks article describes some of the most common deadlock types. This article describes how to detect these deadlocks by a program. Please read the deadlocks article first because this article assumes the basic knowledge about the deadlock types is already known.
+
+
+
+Detecting simple deadlocks
+Simple deadlocks are a special type of bipartite deadlocks. Hence, they are detected by the bipartite deadlocks recognition algorithm. Nevertheless there should be some special treatment for this type of deadlock in a program. Simple deadlocks squares of a level never change during the gameplay. Therefore they can be precalculated at the time the level is loaded for playing. When a box is pushed during the gameplay the program just has to check if the destination square of the push is a simple deadlock square which results in a huge performance improvement (the bipartite deadlock detection is very time consuming).
+We need to code an algorithm which identifies the squares from which a box never can be pushed to a goal - no matter where the other boxes are located in the level.
+To do this, one can do the following for every goal square in the level:
+
+Delete all boxes from the board
+Place a box at the goal square
+PULL the box from the goal square to every possible square and mark all reached squares as visited
+After this has been done for every goal we know that from all squares that have been visited a box can be pushed to a goal. From this follows that every square not being marked as visited is a simple deadlock square.
+This information is saved. When a box now is pushed to a specific square during the gameplay the program just has to check:
+
+is this square a simple deadlock square ? If yes, then the whole situation is a deadlock and the level has become unsolvable.
+
+
+Detecting freeze deadlocks
+Freeze deadlocks are named "freeze" deadlocks, because one or more boxes are "frozen" on a square, that means they can NEVER be pushed away from that square - no matter how the other boxes in the level are pushed.
+Therefore, to detect "frozen" boxes we have to check whether a box can ever be pushed or not.
+When a box is pushed during the game we have to check whether it and maybe also some other boxes are frozen now. To do this, we do the following for both axes (vertical and horizontal push). Here the example for the horizontal axis:
+The box is blocked along the horizontal axis when one of the following checks are true:
+
+If there is a wall on the left or on the right side of the box then the box is blocked along this axis
+If there is a simple deadlock square on both sides (left and right) of the box the box is blocked along this axis
+If there is a box one the left or right side then this box is blocked if the other box is blocked.
+If the box is blocked along both axes the box is "frozen". Now the program has to check whether any frozen box is not located on a goal. If this is true the level has become unsolvable.
+
+The third check has to be implemented in a recursive algorithm. Here is an example for that:
+
+Image:FreezeDeadlockExample2.png
+
+Pushing the box to the left results in a freeze deadlock. First the algorithm checks the vertical axis -> the box is blocked for pushing vertically by a wall.
+Now the program has to check if the box can be pushed horizontally.
+The first two checks doesn't classify the situation as blocked (no walls and no simple deadlock squares as neighbor squares). However, the box may be blocked by the box on the left! Therefore the same checks have to be done for the box on the left of the just pushed box. This is repeated for the other two boxes. The last box (the box on the lower left) is blocked by a wall. Therefore the box right to that box is also blocked - hence, the box above that box is also blocked - and finally this also means that the box we have pushed is blocked. This means that all boxes are frozen! And, because there is one box that isn't located on a goal, the whole situation is a freeze deadlock.
+
+Avoiding circular checks
+The algorithm needs one refinement. If the algorithm just followed the 3 rules above it would result in an endless loop because (assume that we have pushed the box left to the player on square to the left):
+First the box to the left of the pushed box is checked for being blocked. While doing this check the algorithm detects that the box has a neighbor box to the right. Therefore it will check that box - which is the just pushed box again! This results in a circular check which never ends.
+Fortunately we can avoid this easily: Every box we already have checked for being blocked can be treated as a wall! As a result we just have to check the opposite axis for the next box we want to check for being blocked.
+In the shown example level this means (again assume we just have pushed the box one square to the left):
+The pushed box is checked for being blocked vertically -> yes, it is blocked
+the pushed box is checked for being blocked horizontally -> the result depends on the blocking status of the box to the left -> the box to the left is checked for being blocked. Now we just have to check if this box is blocked vertically! The box may be blocked - the result depends on the blocking status of the box under the currently investigated box. And again we just have to switch the axis: we just have to check if the box is blocked horizontally!
+
+For better understanding here are all checks that have to be done in the shown example situation:
+Checks for the 1. box:
+
+check if the box can be pushed vertically
+is there a wall above or under the box -> yes => the box can't be pushed vertically
+check if the box can be pushed horizontally
+is there a wall left or right to the box -> no
+are there simple deadlock squares on the left and right side of the box -> no
+is there a box on the left or right side that may block the current box -> yes => check that box for being blocked
+Checks for the 2. box:
+
+check if the box can be pushed vertically
+is there a wall above or under the box -> no
+are there simple deadlock squares above and under the box -> no
+is there a box above or under the box that may block the current box -> yes => check that box for being blocked
+Checks for the 3. box:
+
+check if the box can be pushed horizontally
+is there a wall left or right to the box -> no
+are there simple deadlock squares on the left and right side of the box -> no
+is there a box on the left or right side that may block the current box -> yes => check that box for being blocked
+Checks for the 4. box:
+
+check if the box can be pushed vertically
+is there a wall above or under the box -> yes => the box is blocked
+Because the 4. box is blocked all other boxes are blocked, too - they are frozen on their squares and can never be pushed again.
+Now the program has to check whether at least one of the boxes isn't located on a goal. This is true. Hence, the whole situation is a deadlock.
+
+
+
+Detecting corral deadlocks
+A corral is an area the player can't reach.
+
+Hence, to detect corral deadlocks the first step is to calculate the reachable player squares. Every square NOT reachable by the player is part of a corral.
+
+Example level:
+
+Image:Corral_deadlock_detection.png
+
+The corral squares and the boxes adjacent to the corral squares belong to the corral marked by small blue rectangles.
+
+As usual, deadlock detection mechanisms can be implemented with various degrees of sophistication, particularly in this case because a corral deadlock detection mechanism is a solver program in its own right, just working under even more severe time restrictions than the main solver program.
+
+This makes corral deadlock detection a playground for exploring different ideas and algorithms on par with solver programming in general. This is out of scope for this introduction. Here we present a basic approach to corral deadlock detection.
+
+The corral deadlock detection tries to push a box out of the corral or to push all boxes of the corral to a goal. It's too complex to consider all boxes on the board when trying to do that (in fact, this is requires a complete solver coding). Hence, all boxes that aren't part of the corral are removed, so the corral coding just has to deal with the corral boxes. However, boxes that can't be pushed at all (without pushing a corral box first) can stay on the board. These boxes may block the player and reduce the reachable positions for the corral boxes which may help to prove that a corral is a deadlock.
+
+Hence, the second step to detect corral deadlocks is the removal of all pushable boxes that aren't part of the corral.
+
+In the example level this results in this situation:
+
+Image:Corral_deadlock_detection_boxes_removed.png‎
+
+Note that the box at the top left isn't removed because it cannot move - it is frozen. The box next to the player isn't removed, neither. It cannot move since a wall and a box of the corral are blocking any push.
+
+Boxes that can only be pushed to dead squares can stay on the board, too.
+
+None of the goals is removed! This results in an invalid board - there are more goals than boxes. However, it's important that the goals aren't removed because otherwise a corral may falsely be detected as deadlock.
+
+The third step is to start a search that explores all possible pushes, until one of four things happens:
+
+All boxes of the corral have been pushed to a goal (and no goal in the corral is without a box)
+No more pushes are possible
+A box has been pushed to a square NOT part of the corral
+The time allocated for the search is exhausted
+"No more pushes are possible" can either mean: there really is no more push that can be done or all pushes lead to a board situation that already occurred earlier in the search.
+
+A time limit has to be set because there may be huge corrals which take a lot of time to analyze.
+
+Only in the case that no more pushes are possible (but not all boxes are on goals!) the corral has been successfully been detected to be a deadlock. In the other cases the corral may be a deadlock but it can't be detected. Hence, the algorithm has to return that no deadlock has been detected.
+
+
+Corral deadlocks can include all other type of deadlocks. That's one of the reasons it's not possible to detect all corral deadlocks within a reasonable time limit. In fact the corral area (the area the player can't reach) can be seen as an own little sublevel.
+
+Image:CorralDeadlockExample2.png
+
+In this level the player just has pushed the box one square down. This results in an area the player can't reach. Although it's possible to push one box out of the marked area this can only be done by creating another corral - which creates a deadlock! Hence, the depicted situation is a deadlock.
+
+This shows that during the search other deadlocks may occur. Hence, the effectiveness of a corral deadlock detection depends on how much effort is spent on detecting deadlocks during the search.
+
+
+As a fourth step the result of corral deadlock detection regarding a certain corral pattern can be stored in a hash table, thus avoiding repeated searches of the same pattern.
+
+Page Discussion View source History
+Log in
+Navigation
+Main Page
+Current events
+Recent changes
+Random page
+Help
+Search
+
+Toolbox
+What links here
+Related changes
+Special pages
+Printable version
+Permanent link
+Powered by MediaWiki
+This page was last modified on 13 September 2019, at 19:27. This page has been accessed 38,938 times. Privacy policy About Sokoban Wiki Disclaimers
