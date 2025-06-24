@@ -1,0 +1,38 @@
+{
+  "skin": {
+    "current_skin": "Thinking Rabbit 16",
+    "tile_size": 64
+  },
+  "display": {
+    "window_width": 1270,
+    "window_height": 750,
+    "fullscreen": false
+  },
+  "game": {
+    "keyboard_layout": "azerty",
+    "show_grid": false,
+    "zoom_level": 1.0,
+    "movement_cooldown": 350,
+    "grid_color": [
+      255,
+      255,
+      255
+    ],
+    "show_deadlocks": true
+  },
+  "keybindings": {
+    "up": "up",
+    "down": "down",
+    "left": "left",
+    "right": "right",
+    "reset": "r",
+    "quit": "m",
+    "next": "n",
+    "previous": "p",
+    "undo": "u",
+    "help": "h",
+    "grid": "g",
+    "fullscreen": "f11",
+    "solve": "j"
+  }
+}
