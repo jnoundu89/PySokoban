@@ -7,7 +7,15 @@ This is the main module that serves as the entry point for all versions of the g
 """
 
 import argparse
+import os
 import sys
+
+# Add the parent directory to sys.path to allow imports to work in both
+# development and when packaged as an executable
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from src.core.config_manager import get_config_manager
 from src.terminal_game import TerminalGame

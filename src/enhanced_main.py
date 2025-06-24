@@ -16,6 +16,13 @@ This module provides an enhanced version of the Sokoban game with additional fea
 import os
 import sys
 
+# Add the parent directory to sys.path to allow imports to work in both
+# development and when packaged as an executable
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 import pygame
 
 # Import the new unified AI system
