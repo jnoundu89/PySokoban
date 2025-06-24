@@ -1,4 +1,10 @@
 include README.md
+include config.json
+include README_EXECUTABLE.md
+include README_EXECUTABLE_FR.md
+include README_PACKAGE.md
+include README_PACKAGE_FR.md
 recursive-include levels *.txt
 recursive-include skins *.png
+recursive-include assets *
 recursive-include docs *.md
