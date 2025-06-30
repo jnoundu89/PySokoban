@@ -191,6 +191,14 @@ class LevelSelector:
         self.category_scroll_offset = 0
         self.max_visible_buttons = 10  # Maximum buttons visible at once
 
+        # Scrollbar information
+        self.category_scrollbar = {'x': 0, 'y': 0, 'width': 0, 'height': 0, 'thumb_y': 0, 'thumb_height': 0}
+        self.level_scrollbar = {'x': 0, 'y': 0, 'width': 0, 'height': 0, 'thumb_y': 0, 'thumb_height': 0}
+
+        # Scrollbar interaction state
+        self.scrollbar_active = False
+        self.scrollbar_last_pos = None
+
         # Level preview
         self.level_preview = LevelPreview(screen, screen_width, screen_height)
         self.popup_open = False  # Flag to track if popup is open
@@ -348,8 +356,8 @@ class LevelSelector:
         if not self.categories:
             return
 
-        button_width = 300
-        button_height = 60
+        button_width = 600  # Doubled the width as requested
+        button_height = 70  # Slightly increased the height as requested
         button_spacing = 20
 
         # Calculate visible area
@@ -392,8 +400,8 @@ class LevelSelector:
         if not self.selected_category:
             return
 
-        button_width = 300
-        button_height = 50
+        button_width = 600  # Doubled the width as requested
+        button_height = 60  # Slightly increased the height as requested
         button_spacing = 15
 
         # Calculate grid layout
@@ -506,6 +514,76 @@ class LevelSelector:
         else:
             # Exit to main menu
             self.running = False
+
+    def _handle_scrollbar_click(self, pos, event_type):
+        """
+        Handle interactions with the scrollbar.
+
+        Args:
+            pos: (x, y) tuple of mouse position
+            event_type: Type of event (MOUSEBUTTONDOWN, MOUSEBUTTONUP, or MOUSEMOTION)
+
+        Returns:
+            bool: True if the interaction was with a scrollbar and handled, False otherwise
+        """
+        # Determine which scrollbar to check based on current view
+        scrollbar = self.category_scrollbar if self.current_view == 'categories' else self.level_scrollbar
+
+        # Handle mouse down event - start scrollbar interaction
+        if event_type == pygame.MOUSEBUTTONDOWN:
+            # Check if click is within scrollbar bounds
+            if (scrollbar['x'] <= pos[0] <= scrollbar['x'] + scrollbar['width'] and
+                scrollbar['y'] <= pos[1] <= scrollbar['y'] + scrollbar['height']):
+
+                self.scrollbar_active = True
+                self.scrollbar_last_pos = pos
+
+                # Process the initial click position
+                self._process_scrollbar_position(pos)
+                return True
+
+        # Handle mouse up event - end scrollbar interaction
+        elif event_type == pygame.MOUSEBUTTONUP:
+            if self.scrollbar_active:
+                self.scrollbar_active = False
+                self.scrollbar_last_pos = None
+                return True
+
+        # Handle mouse motion event - continue scrolling if active
+        elif event_type == pygame.MOUSEMOTION and self.scrollbar_active:
+            # Process the current mouse position
+            self._process_scrollbar_position(pos)
+            return True
+
+        return False
+
+    def _process_scrollbar_position(self, pos):
+        """
+        Process the scrollbar position and update scroll offset.
+
+        Args:
+            pos: (x, y) tuple of mouse position
+        """
+        # Determine which scrollbar to use based on current view
+        scrollbar = self.category_scrollbar if self.current_view == 'categories' else self.level_scrollbar
+
+        # Check if position is within scrollbar bounds
+        if (scrollbar['x'] <= pos[0] <= scrollbar['x'] + scrollbar['width'] and
+            scrollbar['y'] <= pos[1] <= scrollbar['y'] + scrollbar['height']):
+
+            # Calculate the relative position in the scrollbar
+            # This allows for direct positioning based on where the user clicked
+            if scrollbar['height'] > 0:  # Prevent division by zero
+                relative_pos = (pos[1] - scrollbar['y']) / scrollbar['height']
+                new_scroll = int(relative_pos * scrollbar['max_scroll'])
+
+                # Update the appropriate scroll offset
+                if self.current_view == 'categories':
+                    self.category_scroll_offset = max(0, min(new_scroll, scrollbar['max_scroll']))
+                    self._create_category_buttons()
+                else:
+                    self.scroll_offset = max(0, min(new_scroll, scrollbar['max_scroll']))
+                    self._create_level_buttons()
 
     def _render_hover_preview(self, level_info):
         """
@@ -664,6 +742,21 @@ class LevelSelector:
                 protection_active = (current_time - self.popup_close_time) < self.click_protection_delay
 
                 if not self.popup_open and not protection_active:
+                    # Handle scrollbar interactions first
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        # If interaction was with scrollbar, don't process button clicks
+                        if self._handle_scrollbar_click(event.pos, pygame.MOUSEBUTTONDOWN):
+                            continue
+                    elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                        # Handle mouse up on scrollbar
+                        if self._handle_scrollbar_click(event.pos, pygame.MOUSEBUTTONUP):
+                            continue
+                    elif event.type == pygame.MOUSEMOTION:
+                        # Handle mouse motion for scrollbar dragging
+                        if self._handle_scrollbar_click(event.pos, pygame.MOUSEMOTION):
+                            continue
+
+                    # Handle button clicks
                     active_buttons = []
                     if self.current_view == 'categories':
                         active_buttons = self.category_buttons
@@ -727,17 +820,40 @@ class LevelSelector:
                 self.screen.blit(help_surface, help_rect)
 
                 # Draw scrollbar
-                button_width = 300
+                button_width = 600  # Using the updated button width
                 button_x = (self.screen_width - button_width) // 2
-                scrollbar_x = button_x + button_width + 20  # Position to the right of buttons with some spacing
+                scrollbar_x = button_x + button_width + 40  # Increased spacing to move scrollbar more to the right
                 scrollbar_y = 220  # Same starting y as buttons
-                scrollbar_height = available_height
-                scrollbar_width = 10
+
+                # Calculate the height based on the number of visible buttons
+                if self.category_buttons:
+                    last_button = self.category_buttons[-1]
+                    # Ensure the scrollbar stops at the same level as the last visible button
+                    scrollbar_height = (last_button.y + last_button.height) - scrollbar_y
+                    # Limit the scrollbar height to prevent it from extending beyond the window
+                    max_allowed_height = self.screen_height - scrollbar_y - 20  # 20px margin from bottom
+                    scrollbar_height = min(scrollbar_height, max_allowed_height)
+                else:
+                    scrollbar_height = available_height
+
+                scrollbar_width = 20  # Increased width for easier selection
 
                 # Calculate thumb size and position
                 thumb_height = max(30, scrollbar_height * max_visible_categories / total_categories)
                 max_scroll = total_categories - max_visible_categories
                 thumb_pos = scrollbar_y + (scrollbar_height - thumb_height) * (self.category_scroll_offset / max_scroll) if max_scroll > 0 else scrollbar_y
+
+                # Store scrollbar information for event handling
+                self.category_scrollbar = {
+                    'x': scrollbar_x,
+                    'y': scrollbar_y,
+                    'width': scrollbar_width,
+                    'height': scrollbar_height,
+                    'thumb_y': thumb_pos,
+                    'thumb_height': thumb_height,
+                    'max_scroll': max_scroll,
+                    'visible_items': max_visible_categories
+                }
 
                 # Draw scrollbar track
                 pygame.draw.rect(self.screen, (200, 200, 200), 
@@ -782,8 +898,8 @@ class LevelSelector:
 
         # Draw scroll indicators if needed
         if self.selected_category and len(self.selected_category.levels) > 0:
-            button_width = 300
-            button_height = 50
+            button_width = 600  # Using the updated button width
+            button_height = 60  # Using the updated button height
             button_spacing = 15
             buttons_per_row = max(1, (self.screen_width - 100) // (button_width + 20))
             available_height = self.screen_height - 250
@@ -808,15 +924,38 @@ class LevelSelector:
                 start_x = (self.screen_width - (buttons_per_row * button_width + (buttons_per_row - 1) * 20)) // 2
                 rightmost_button_edge = start_x + (buttons_per_row * button_width) + ((buttons_per_row - 1) * 20)
 
-                scrollbar_x = rightmost_button_edge + 20  # Position to the right of buttons with some spacing
+                scrollbar_x = rightmost_button_edge + 40  # Increased spacing to move scrollbar more to the right
                 scrollbar_y = 220  # Same starting y as buttons
-                scrollbar_height = available_height
-                scrollbar_width = 10
+
+                # Calculate the height based on the number of visible buttons
+                if self.level_buttons:
+                    last_button = self.level_buttons[-1]
+                    # Ensure the scrollbar stops at the same level as the last visible button
+                    scrollbar_height = (last_button.y + last_button.height) - scrollbar_y
+                    # Limit the scrollbar height to prevent it from extending beyond the window
+                    max_allowed_height = self.screen_height - scrollbar_y - 20  # 20px margin from bottom
+                    scrollbar_height = min(scrollbar_height, max_allowed_height)
+                else:
+                    scrollbar_height = available_height
+
+                scrollbar_width = 20  # Increased width for easier selection
 
                 # Calculate thumb size and position
                 thumb_height = max(30, scrollbar_height * max_visible_rows / total_rows)
                 max_scroll = total_rows - max_visible_rows
                 thumb_pos = scrollbar_y + (scrollbar_height - thumb_height) * (self.scroll_offset / max_scroll) if max_scroll > 0 else scrollbar_y
+
+                # Store scrollbar information for event handling
+                self.level_scrollbar = {
+                    'x': scrollbar_x,
+                    'y': scrollbar_y,
+                    'width': scrollbar_width,
+                    'height': scrollbar_height,
+                    'thumb_y': thumb_pos,
+                    'thumb_height': thumb_height,
+                    'max_scroll': max_scroll,
+                    'visible_items': max_visible_rows
+                }
 
                 # Draw scrollbar track
                 pygame.draw.rect(self.screen, (200, 200, 200), 
