@@ -21,7 +21,7 @@ def test_first_levels():
     print("=" * 60)
     
     # Charger le fichier des niveaux
-    levels_file = "src/levels/Original & Extra/Original.txt"
+    levels_file = "../src/levels/Original & Extra/Original.txt"
     
     try:
         with open(levels_file, 'r', encoding='utf-8') as f:

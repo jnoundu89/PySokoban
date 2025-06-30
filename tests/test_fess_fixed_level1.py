@@ -17,7 +17,7 @@ def test_fess_fixed_algorithm():
     print("=" * 60)
     
     # Charger le niveau
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     collection = LevelCollectionParser.parse_file(original_path)
     level_title, level = collection.get_level(0)
     
@@ -108,7 +108,7 @@ def test_specific_moves():
     print(f"\n🔍 Test de moves spécifiques:")
     
     # Charger le niveau
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     collection = LevelCollectionParser.parse_file(original_path)
     level_title, level = collection.get_level(0)
     

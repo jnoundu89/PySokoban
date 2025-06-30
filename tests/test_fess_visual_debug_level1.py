@@ -29,7 +29,7 @@ def debug_level1_step_by_step():
     print("=" * 60)
     
     # Charger le niveau 1 original
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ Fichier non trouvé: {original_path}")
@@ -155,7 +155,7 @@ def debug_level1_analysis():
     print("-" * 50)
     
     # Charger le niveau
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     collection = LevelCollectionParser.parse_file(original_path)
     level_title, level = collection.get_level(0)
     

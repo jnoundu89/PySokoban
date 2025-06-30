@@ -25,7 +25,7 @@ def test_fess_coordinate_system():
     print("=" * 60)
     
     # Load the Original.txt collection
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ File not found: {original_path}")
@@ -82,7 +82,7 @@ def test_fess_macro_move_notation():
     print("=" * 60)
     
     # Load Original Level 1
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     try:
         collection = LevelCollectionParser.parse_file(original_path)
@@ -145,7 +145,7 @@ def test_fess_algorithm_integration():
     
     try:
         # Load Original Level 1
-        original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+        original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
         collection = LevelCollectionParser.parse_file(original_path)
         level_title, level = collection.get_level(0)
         
@@ -197,7 +197,7 @@ def demonstrate_coordinate_compatibility():
     
     try:
         # Load a level
-        original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+        original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
         collection = LevelCollectionParser.parse_file(original_path)
         level_title, level = collection.get_level(0)
         

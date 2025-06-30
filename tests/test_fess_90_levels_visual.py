@@ -326,7 +326,7 @@ def main():
     print("=" * 80)
     
     # Chemin vers la collection
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ Fichier non trouvé: {original_path}")

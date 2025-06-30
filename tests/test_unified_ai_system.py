@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 # Add src to path for imports
-sys.path.insert(0, 'src')
+sys.path.insert(0, '../src')
 
 from core.level import Level
 from ai.unified_ai_controller import UnifiedAIController, SolveRequest
@@ -412,7 +412,7 @@ class AISystemValidator:
     def _load_thinking_rabbit_level_1(self):
         """Try to load the first Thinking Rabbit level from file."""
         try:
-            thinking_rabbit_path = Path("src/levels/Original & Extra/Original.txt")
+            thinking_rabbit_path = Path("../src/levels/Original & Extra/Original.txt")
             if thinking_rabbit_path.exists():
                 with open(thinking_rabbit_path, 'r') as f:
                     content = f.read()
@@ -468,7 +468,7 @@ def main():
     success = validator.run_complete_validation()
     
     # Export results
-    results_file = "ai_validation_results.json"
+    results_file = "../ai_validation_results.json"
     with open(results_file, 'w') as f:
         json.dump(validator.test_results, f, indent=2)
     

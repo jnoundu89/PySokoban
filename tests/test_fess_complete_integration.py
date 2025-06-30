@@ -41,7 +41,7 @@ def create_level1_original() -> Level:
     """Crée le niveau 1 original pour test."""
     try:
         # Essaie de charger la collection Original & Extra
-        collection = LevelCollectionParser.parse_file("src/levels/Original & Extra/Original.txt")
+        collection = LevelCollectionParser.parse_file("../src/levels/Original & Extra/Original.txt")
         level_title, level = collection.get_level(0)  # Niveau 1
         level.title = level_title
         return level

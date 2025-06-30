@@ -719,7 +719,7 @@ class EnhancedSokoban:
 
         try:
             # Import and run the validation test
-            import test_unified_ai_system
+            from tests import test_unified_ai_system
 
             # Run in a separate thread to keep UI responsive
             import threading

@@ -14,7 +14,7 @@ def test_simple_level():
     print("=" * 40)
     
     # Load the simple test level
-    simple_level_path = os.path.join('src', 'levels', 'Test', 'simple_test.txt')
+    simple_level_path = os.path.join('../src', 'levels', 'Test', 'simple_test.txt')
     
     if not os.path.exists(simple_level_path):
         print(f"❌ File not found: {simple_level_path}")

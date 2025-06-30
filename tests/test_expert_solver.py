@@ -20,7 +20,7 @@ def test_expert_solver_on_original():
     print("=" * 70)
     
     # Load the Original.txt collection
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ File not found: {original_path}")

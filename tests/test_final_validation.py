@@ -132,7 +132,7 @@ def test_original_level_detection():
     print("🎯 Testing Original.txt Level Detection")
     print("=" * 80)
     
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ File not found: {original_path}")

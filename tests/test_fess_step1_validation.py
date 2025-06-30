@@ -48,7 +48,7 @@ def test_enhanced_features():
     # Charge le niveau 1
     try:
         # Essaie de charger la collection Original & Extra
-        collection = LevelCollectionParser.parse_file("src/levels/Original & Extra/Original.txt")
+        collection = LevelCollectionParser.parse_file("../src/levels/Original & Extra/Original.txt")
         level_title, level = collection.get_level(0)  # Niveau 1
         level.title = level_title
     except Exception as e:
@@ -148,7 +148,7 @@ def test_room_analysis():
     # Charge le niveau 1
     try:
         # Essaie de charger la collection Original & Extra
-        collection = LevelCollectionParser.parse_file("src/levels/Original & Extra/Original.txt")
+        collection = LevelCollectionParser.parse_file("../src/levels/Original & Extra/Original.txt")
         level_title, level = collection.get_level(0)  # Niveau 1
         level.title = level_title
     except Exception as e:
@@ -202,7 +202,7 @@ def test_advisors_system(features, room_analyzer):
     # Charge le niveau 1
     try:
         # Essaie de charger la collection Original & Extra
-        collection = LevelCollectionParser.parse_file("src/levels/Original & Extra/Original.txt")
+        collection = LevelCollectionParser.parse_file("../src/levels/Original & Extra/Original.txt")
         level_title, level = collection.get_level(0)  # Niveau 1
         level.title = level_title
     except Exception as e:
@@ -256,7 +256,7 @@ def test_integrated_system():
     # Charge le niveau 1
     try:
         # Essaie de charger la collection Original & Extra
-        collection = LevelCollectionParser.parse_file("src/levels/Original & Extra/Original.txt")
+        collection = LevelCollectionParser.parse_file("../src/levels/Original & Extra/Original.txt")
         level_title, level = collection.get_level(0)  # Niveau 1
         level.title = level_title
     except Exception as e:

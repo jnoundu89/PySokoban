@@ -117,7 +117,7 @@ Average pushes per macro move: 10.8
 
 ## Tests et Validation
 
-### Script de Test : [`test_fess_coordinate_system.py`](test_fess_coordinate_system.py)
+### Script de Test : [`test_fess_coordinate_system.py`](tests/test_fess_coordinate_system.py)
 
 **4 Tests Principaux :**
 
@@ -190,7 +190,7 @@ success, moves, stats = fess_solver.solve()
 
 ## Tests et Validation Complète
 
-### Script de Test Spécialisé : [`test_original_level1_fess.py`](test_original_level1_fess.py)
+### Script de Test Spécialisé : [`test_original_level1_fess.py`](tests/test_original_level1_fess.py)
 
 **Test Spécifique au Niveau 1 Original :**
 

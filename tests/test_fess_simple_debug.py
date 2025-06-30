@@ -23,7 +23,7 @@ def test_fess_algorithm_basic():
     print("=" * 50)
     
     # Charger le niveau 1 original
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ Fichier non trouvé: {original_path}")
@@ -96,7 +96,7 @@ def test_macro_moves_generation():
     print("-" * 40)
     
     # Charger le niveau
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     collection = LevelCollectionParser.parse_file(original_path)
     level_title, level = collection.get_level(0)
     
@@ -134,7 +134,7 @@ def test_state_transitions():
     print("-" * 40)
     
     # Charger le niveau
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     collection = LevelCollectionParser.parse_file(original_path)
     level_title, level = collection.get_level(0)
     
@@ -173,7 +173,7 @@ def test_expected_solution():
     print("-" * 50)
     
     # Charger le niveau
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     collection = LevelCollectionParser.parse_file(original_path)
     level_title, level = collection.get_level(0)
     

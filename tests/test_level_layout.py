@@ -18,7 +18,7 @@ def test_level_layout():
     print("=" * 50)
     
     # Load the Original.txt collection
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ File not found: {original_path}")

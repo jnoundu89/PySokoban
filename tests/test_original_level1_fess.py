@@ -36,7 +36,7 @@ def test_original_level1_with_fess():
     print("=" * 70)
     
     # Load the Original.txt collection
-    original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+    original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
     
     if not os.path.exists(original_path):
         print(f"❌ File not found: {original_path}")
@@ -195,7 +195,7 @@ def test_fess_algorithm_compliance():
     
     try:
         # Load level
-        original_path = os.path.join('src', 'levels', 'Original & Extra', 'Original.txt')
+        original_path = os.path.join('../src', 'levels', 'Original & Extra', 'Original.txt')
         collection = LevelCollectionParser.parse_file(original_path)
         level_title, level = collection.get_level(0)
         
