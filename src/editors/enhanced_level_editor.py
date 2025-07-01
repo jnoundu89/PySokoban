@@ -21,6 +21,7 @@ from ..level_management.level_manager import LevelManager
 from ..ui.skins.enhanced_skin_manager import EnhancedSkinManager
 from ..generation.procedural_generator import ProceduralGenerator
 from ..core.auto_solver import AutoSolver
+from ..ui.interactive_highlight import EditorHighlight
 
 class EnhancedLevelEditor:
     """
@@ -141,6 +142,9 @@ class EnhancedLevelEditor:
 
         # Fonts - responsive sizing based on screen dimensions
         self._update_fonts()
+
+        # Interactive highlighting system for editor
+        self.highlight_system = EditorHighlight()
 
         # Create a new empty level by default
         self._create_new_level(self.map_width, self.map_height)
@@ -719,6 +723,31 @@ class EnhancedLevelEditor:
         # Draw grid if enabled (moved after drawing level elements to be in foreground)
         if self.show_grid and self.zoom_level >= 0.3:  # Show grid at lower zoom levels
             self._draw_grid(map_start_x, map_start_y, cell_size)
+
+        # Update and render interactive highlighting
+        mouse_pos = pygame.mouse.get_pos()
+        if mouse_pos:
+            # Set the appropriate mode for highlighting
+            if self.test_mode:
+                self.highlight_system.set_mode('test')
+            elif self.paint_mode:
+                self.highlight_system.set_mode('paint')
+            else:
+                self.highlight_system.set_mode('edit')
+            
+            # Update highlight position based on mouse
+            self.highlight_system.update_mouse_position(
+                mouse_pos, self.map_area_x, self.map_area_y,
+                self.map_area_width, self.map_area_height,
+                self.current_level.width, self.current_level.height,
+                cell_size, self.scroll_x, self.scroll_y
+            )
+            
+            # Render the highlight overlay with element preview
+            self.highlight_system.render_highlight(
+                self.screen, self.map_area_x, self.map_area_y, cell_size,
+                self.scroll_x, self.scroll_y, self.current_element, self.skin_manager
+            )
 
         # Remove clipping
         self.screen.set_clip(None)
@@ -1885,6 +1914,42 @@ class EnhancedLevelEditor:
             config_manager.set_display_config(width=self.screen_width, height=self.screen_height)
 
         self._update_ui_layout()
+
+    def set_highlight_enabled(self, enabled):
+        """
+        Enable or disable the interactive highlighting system.
+        
+        Args:
+            enabled (bool): Whether highlighting should be active.
+        """
+        self.highlight_system.set_enabled(enabled)
+        
+    def set_highlight_alpha(self, alpha):
+        """
+        Set the transparency level of the highlight overlay.
+        
+        Args:
+            alpha (int): Alpha transparency value (0-255).
+        """
+        self.highlight_system.set_alpha(alpha)
+        
+    def set_element_preview(self, enabled):
+        """
+        Enable or disable element preview in the highlight.
+        
+        Args:
+            enabled (bool): Whether to show element preview.
+        """
+        self.highlight_system.set_element_preview(enabled)
+        
+    def get_highlighted_tile(self):
+        """
+        Get the currently highlighted tile coordinates.
+        
+        Returns:
+            tuple or None: (grid_x, grid_y) if a tile is highlighted, None otherwise.
+        """
+        return self.highlight_system.get_highlighted_tile()
 
 
 # Main function to run the enhanced level editor standalone

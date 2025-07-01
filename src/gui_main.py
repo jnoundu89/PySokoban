@@ -10,7 +10,7 @@ import os
 import sys
 import pygame
 from typing import Optional, Dict, Any
-from src.core.constants import KEY_BINDINGS, QWERTY, AZERTY, DEFAULT_KEYBOARD, TITLE
+from src.core.constants import KEY_BINDINGS, QWERTY, AZERTY, DEFAULT_KEYBOARD, TITLE, CELL_SIZE
 from src.core.level import Level
 from src.level_management.level_manager import LevelManager
 from src.renderers.gui_renderer import GUIRenderer
@@ -20,6 +20,7 @@ from src.core.config_manager import get_config_manager
 from src.ai.visual_ai_solver import VisualAISolver
 from src.ai.algorithm_selector import Algorithm
 from src.core.deadlock_detector import DeadlockDetector
+from src.ui.mouse_navigation import MouseNavigationSystem
 
 
 class GUIGame(Game):
@@ -87,6 +88,9 @@ class GUIGame(Game):
 
         # New unified AI system
         self.visual_ai_solver = VisualAISolver(self.renderer, self.skin_manager)
+
+        # Advanced mouse navigation system
+        self.mouse_navigation = MouseNavigationSystem()
 
         # Load custom keybindings from config
         self.custom_keybindings = self.config_manager.get_keybindings()
@@ -159,6 +163,15 @@ class GUIGame(Game):
                 elif event.type == pygame.KEYUP:
                     # Remove key from pressed keys set
                     self.keys_pressed.discard(event.key)
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # Handle mouse clicks for navigation
+                    self._handle_mouse_click(event)
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    # Handle mouse button release for drag-drop
+                    self._handle_mouse_release(event)
+                elif event.type == pygame.MOUSEMOTION:
+                    # Handle mouse movement for drag-drop and path updates
+                    self._handle_mouse_motion(event)
                 elif event.type == pygame.MOUSEWHEEL:
                     # Handle zoom with mouse wheel
                     if event.y > 0:  # Scroll up - zoom in
@@ -172,20 +185,28 @@ class GUIGame(Game):
 
                     # Save new dimensions to config
                     config_manager = get_config_manager()
-                    config_manager.set_display_config(width=event.w, height=event.h)
+                    config_manager.set_display_config(event.w, event.h)
 
             # Handle continuous movement
             if self.keys_pressed and current_time - self.last_move_time > self.move_delay:
                 self._handle_continuous_movement()
                 self.last_move_time = current_time
 
+            # Update mouse navigation system
+            self._update_mouse_navigation(current_time)
+
             # Render the current state
             if self.show_help:
                 self.renderer.render_help(self.custom_keybindings)
             else:
+                # Get current mouse position for interactive highlighting
+                mouse_pos = pygame.mouse.get_pos()
                 self.renderer.render_level(self.level_manager.current_level, self.level_manager,
-                                         self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager, 
-                                         show_completion_message=True)
+                                         self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
+                                         show_completion_message=True, mouse_pos=mouse_pos)
+                
+                # Render mouse navigation overlay
+                self._render_mouse_navigation()
 
             # Cap the frame rate
             clock.tick(60)
@@ -276,6 +297,8 @@ class GUIGame(Game):
                     # Reset deadlock detector for the reset level
                     self.deadlock_detector = None
                     self.deadlock_notification_shown = False
+                    # Clear mouse navigation
+                    self.mouse_navigation.clear_navigation()
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next':
@@ -401,9 +424,10 @@ class GUIGame(Game):
                 # Only show deadlock notification if the setting is enabled
                 if self.show_deadlocks:
                     # Render the current level state
+                    mouse_pos = pygame.mouse.get_pos()
                     self.renderer.render_level(self.level_manager.current_level, self.level_manager,
                                              self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
-                                             show_completion_message=False)
+                                             show_completion_message=False, mouse_pos=mouse_pos)
                     pygame.display.flip()
 
                     # Show deadlock notification
@@ -415,9 +439,10 @@ class GUIGame(Game):
         # Check if level is completed after the move
         if moved and self.level_manager.current_level_completed():
             # Render the completed level without showing completion message
+            mouse_pos = pygame.mouse.get_pos()
             self.renderer.render_level(self.level_manager.current_level, self.level_manager,
                                      self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
-                                     show_completion_message=False)
+                                     show_completion_message=False, mouse_pos=mouse_pos)
             pygame.display.flip()
 
             # Wait for a moment
@@ -446,6 +471,8 @@ class GUIGame(Game):
             # Reset deadlock detector for the new level
             self.deadlock_detector = None
             self.deadlock_notification_shown = False
+            # Clear mouse navigation for new level
+            self.mouse_navigation.clear_navigation()
         # If no more levels in collection, try next level file
         elif self.level_manager.has_next_level():
             self.level_manager.next_level()
@@ -454,6 +481,8 @@ class GUIGame(Game):
             # Reset deadlock detector for the new level
             self.deadlock_detector = None
             self.deadlock_notification_shown = False
+            # Clear mouse navigation for new level
+            self.mouse_navigation.clear_navigation()
         else:
             # No more levels, return to selector
             self._return_to_level_selector()
@@ -470,6 +499,8 @@ class GUIGame(Game):
             # Reset deadlock detector for the new level
             self.deadlock_detector = None
             self.deadlock_notification_shown = False
+            # Clear mouse navigation for new level
+            self.mouse_navigation.clear_navigation()
         # If no more levels in collection, try previous level file
         elif self.level_manager.has_prev_level():
             self.level_manager.prev_level()
@@ -478,6 +509,8 @@ class GUIGame(Game):
             # Reset deadlock detector for the new level
             self.deadlock_detector = None
             self.deadlock_notification_shown = False
+            # Clear mouse navigation for new level
+            self.mouse_navigation.clear_navigation()
 
     def _return_to_level_selector(self):
         """
@@ -1224,6 +1257,7 @@ class GUIGame(Game):
             success = self._execute_ai_move(move)
 
             # Render current state
+            mouse_pos = pygame.mouse.get_pos()
             self.renderer.render_level(
                 self.level_manager.current_level,
                 self.level_manager,
@@ -1232,7 +1266,8 @@ class GUIGame(Game):
                 self.scroll_x,
                 self.scroll_y,
                 self.skin_manager,
-                show_completion_message=False
+                show_completion_message=False,
+                mouse_pos=mouse_pos
             )
 
             # Show progress overlay
@@ -1274,6 +1309,7 @@ class GUIGame(Game):
                 break
 
         # Render final state
+        mouse_pos = pygame.mouse.get_pos()
         self.renderer.render_level(
             self.level_manager.current_level,
             self.level_manager,
@@ -1282,9 +1318,194 @@ class GUIGame(Game):
             self.scroll_x,
             self.scroll_y,
             self.skin_manager,
-            show_completion_message=False
+            show_completion_message=False,
+            mouse_pos=mouse_pos
         )
         pygame.display.flip()
+
+    def _handle_mouse_click(self, event):
+        """
+        Handle mouse click events for navigation.
+        
+        Args:
+            event: Pygame mouse button down event.
+        """
+        if not self.level_manager.current_level or self.show_help:
+            return
+        
+        # Update mouse navigation system with current level
+        self.mouse_navigation.set_level(self.level_manager.current_level)
+        
+        # Calculate map area parameters
+        map_area_x, map_area_y, cell_size = self._get_map_area_params()
+        
+        # Handle left click for navigation
+        if event.button == 1:  # Left click
+            # Check if starting a drag operation
+            if self.mouse_navigation.handle_mouse_drag_start(
+                event.pos, map_area_x, map_area_y, cell_size,
+                self.scroll_x, self.scroll_y
+            ):
+                return  # Drag started, don't process as navigation click
+            
+            # Handle navigation click
+            self.mouse_navigation.handle_mouse_click(
+                event.pos, event.button, map_area_x, map_area_y, cell_size,
+                self.scroll_x, self.scroll_y
+            )
+    
+    def _handle_mouse_release(self, event):
+        """
+        Handle mouse button release events.
+        
+        Args:
+            event: Pygame mouse button up event.
+        """
+        if event.button == 1:  # Left click release
+            self.mouse_navigation.handle_mouse_drag_end()
+    
+    def _handle_mouse_motion(self, event):
+        """
+        Handle mouse motion events for drag operations.
+        
+        Args:
+            event: Pygame mouse motion event.
+        """
+        if not self.level_manager.current_level or self.show_help:
+            return
+        
+        # Calculate map area parameters
+        map_area_x, map_area_y, cell_size = self._get_map_area_params()
+        
+        # Handle drag motion
+        self.mouse_navigation.handle_mouse_drag(
+            event.pos, map_area_x, map_area_y, cell_size,
+            self.scroll_x, self.scroll_y
+        )
+    
+    def _update_mouse_navigation(self, current_time):
+        """
+        Update the mouse navigation system.
+        
+        Args:
+            current_time: Current time in milliseconds.
+        """
+        if not self.level_manager.current_level or self.show_help:
+            return
+        
+        # Update mouse navigation with current level
+        self.mouse_navigation.set_level(self.level_manager.current_level)
+        
+        # Get current mouse position and update navigation
+        mouse_pos = pygame.mouse.get_pos()
+        map_area_x, map_area_y, cell_size = self._get_map_area_params()
+        
+        self.mouse_navigation.update_mouse_position(
+            mouse_pos, map_area_x, map_area_y, cell_size,
+            self.scroll_x, self.scroll_y
+        )
+        
+        # Update automatic movement
+        if self.mouse_navigation.update_movement(current_time):
+            # A movement was executed, get the direction and update sprite animation
+            direction = self.mouse_navigation.last_movement_direction
+            if direction:
+                # Update player state in skin manager for proper animation
+                player_x, player_y = self.level_manager.current_level.player_pos
+                new_x, new_y = player_x, player_y
+                
+                # Calculate new position based on direction
+                if direction == 'up':
+                    new_y -= 1
+                elif direction == 'down':
+                    new_y += 1
+                elif direction == 'left':
+                    new_x -= 1
+                elif direction == 'right':
+                    new_x += 1
+                
+                # Check if move would push a box
+                is_pushing = (new_x, new_y) in self.level_manager.current_level.boxes
+                is_blocked = False  # Movement already succeeded
+                
+                # Update player state in skin manager
+                self.skin_manager.update_player_state(direction, is_pushing, is_blocked)
+                
+                # Advance animation
+                player_sprite = self.skin_manager.get_player_sprite(advance_animation=True)
+                sprite_info = self.skin_manager.get_sprite_info(player_sprite)
+                print(f"MOUSE_NAVIGATION: Advanced animation to sprite: {sprite_info}")
+            
+            # Check for level completion
+            if self.level_manager.current_level.is_completed():
+                # Clear navigation when level is completed
+                self.mouse_navigation.clear_navigation()
+                
+                # Show level completion screen
+                mouse_pos = pygame.mouse.get_pos()
+                self.renderer.render_level(self.level_manager.current_level, self.level_manager,
+                                         self.show_grid, self.zoom_level, self.scroll_x, self.scroll_y, self.skin_manager,
+                                         show_completion_message=False, mouse_pos=mouse_pos)
+                pygame.display.flip()
+                pygame.time.wait(1000)
+                self._show_level_completion_screen()
+    
+    def _render_mouse_navigation(self):
+        """Render the mouse navigation overlay."""
+        if not self.level_manager.current_level or self.show_help:
+            return
+        
+        # Calculate map area parameters
+        map_area_x, map_area_y, cell_size = self._get_map_area_params()
+        
+        # Render navigation guideline and highlights
+        self.mouse_navigation.render_navigation(
+            self.renderer.screen, map_area_x, map_area_y, cell_size,
+            self.scroll_x, self.scroll_y
+        )
+    
+    def _get_map_area_params(self):
+        """
+        Calculate map area parameters for mouse navigation.
+        
+        Returns:
+            Tuple of (map_area_x, map_area_y, cell_size_scaled).
+        """
+        level = self.level_manager.current_level
+        current_screen_width, current_screen_height = self.renderer.screen.get_size()
+        
+        # Calculate base window size needed for the level
+        base_cell_size = CELL_SIZE * self.zoom_level
+        base_window_width = level.width * base_cell_size
+        base_window_height = level.height * base_cell_size + 100  # Extra space for stats
+        
+        # Check if we're in a resized window (including fullscreen)
+        if current_screen_width > base_window_width or current_screen_height > base_window_height:
+            # We're in a larger window, calculate scaling
+            width_scale = current_screen_width / base_window_width
+            height_scale = current_screen_height / base_window_height
+            scale_factor = min(width_scale, height_scale, self.zoom_level) * 0.9  # Use 90% of available space
+            
+            # Calculate centered position with scroll offset
+            offset_x = (current_screen_width - (base_window_width * scale_factor / self.zoom_level)) // 2 + self.scroll_x
+            offset_y = (current_screen_height - (base_window_height * scale_factor / self.zoom_level)) // 2 + self.scroll_y
+        else:
+            # We're in a normal window, use zoom level directly
+            if base_window_width <= current_screen_width and base_window_height <= current_screen_height:
+                scale_factor = self.zoom_level
+                offset_x = (current_screen_width - base_window_width) // 2 + self.scroll_x
+                offset_y = (current_screen_height - base_window_height) // 2 + self.scroll_y
+            else:
+                # Need to fit in window
+                width_scale = current_screen_width / base_window_width
+                height_scale = (current_screen_height - 100) / (base_window_height - 100)
+                scale_factor = min(width_scale, height_scale) * 0.9
+                offset_x = (current_screen_width - (level.width * CELL_SIZE * scale_factor)) // 2 + self.scroll_x
+                offset_y = (current_screen_height - (level.height * CELL_SIZE * scale_factor + 100)) // 2 + self.scroll_y
+        
+        cell_size_scaled = int(CELL_SIZE * scale_factor)
+        
+        return int(offset_x), int(offset_y), cell_size_scaled
 
     def _quit_game(self):
         """

@@ -9,6 +9,7 @@ import os
 import pygame
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET, CELL_SIZE
 from src.core.config_manager import get_config_manager
+from src.ui.interactive_highlight import GameplayHighlight
 
 
 class GUIRenderer:
@@ -56,6 +57,9 @@ class GUIRenderer:
         self.window_size = (display_config['window_width'], display_config['window_height'])
         self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
         self.scale_factor = 1.0  # For scaling elements in fullscreen mode
+
+        # Interactive highlighting system
+        self.highlight_system = GameplayHighlight()
 
         # Font for rendering text
         self.font = pygame.font.Font(None, 24)
@@ -175,7 +179,7 @@ class GUIRenderer:
                                      CELL_SIZE*2//3, CELL_SIZE*2//3))
         return surface
 
-    def render_level(self, level, level_manager=None, show_grid=False, zoom_level=1.0, scroll_x=0, scroll_y=0, skin_manager=None, show_completion_message=True):
+    def render_level(self, level, level_manager=None, show_grid=False, zoom_level=1.0, scroll_x=0, scroll_y=0, skin_manager=None, show_completion_message=True, mouse_pos=None):
         """
         Render the current level state in the GUI.
 
@@ -188,6 +192,7 @@ class GUIRenderer:
             scroll_y: Vertical scroll offset.
             skin_manager: Optional enhanced skin manager for directional sprites.
             show_completion_message: Whether to show the level completion message.
+            mouse_pos: Optional mouse position for interactive highlighting.
 
         Returns:
             pygame.Surface: The updated screen surface.
@@ -390,6 +395,28 @@ class GUIRenderer:
                 end_x = offset_x + level.width * cell_size_scaled
                 if 0 <= line_y <= current_screen_height:
                     pygame.draw.line(self.screen, grid_color, (start_x, line_y), (end_x, line_y), 1)
+
+        # Update and render interactive highlighting
+        if mouse_pos:
+            # Update player position for movement hints
+            self.highlight_system.set_player_position(level.player_pos)
+            
+            # Calculate map area bounds for highlighting
+            map_area_x = offset_x
+            map_area_y = offset_y
+            map_area_width = level.width * cell_size_scaled
+            map_area_height = level.height * cell_size_scaled
+            
+            # Update highlight position based on mouse
+            self.highlight_system.update_mouse_position(
+                mouse_pos, map_area_x, map_area_y, map_area_width, map_area_height,
+                level.width, level.height, cell_size_scaled, scroll_x, scroll_y
+            )
+            
+            # Render the highlight overlay
+            self.highlight_system.render_highlight(
+                self.screen, map_area_x, map_area_y, cell_size_scaled, scroll_x, scroll_y
+            )
 
         # Render game statistics
         stats_text = f"Moves: {level.moves}  Pushes: {level.pushes}"
@@ -742,6 +769,42 @@ class GUIRenderer:
         pygame.display.flip()
 
         return self.screen
+
+    def set_highlight_enabled(self, enabled):
+        """
+        Enable or disable the interactive highlighting system.
+        
+        Args:
+            enabled (bool): Whether highlighting should be active.
+        """
+        self.highlight_system.set_enabled(enabled)
+        
+    def set_highlight_alpha(self, alpha):
+        """
+        Set the transparency level of the highlight overlay.
+        
+        Args:
+            alpha (int): Alpha transparency value (0-255).
+        """
+        self.highlight_system.set_alpha(alpha)
+        
+    def set_movement_hints(self, enabled):
+        """
+        Enable or disable movement hints in the highlighting system.
+        
+        Args:
+            enabled (bool): Whether to show movement hints.
+        """
+        self.highlight_system.set_movement_hints(enabled)
+        
+    def get_highlighted_tile(self):
+        """
+        Get the currently highlighted tile coordinates.
+        
+        Returns:
+            tuple or None: (grid_x, grid_y) if a tile is highlighted, None otherwise.
+        """
+        return self.highlight_system.get_highlighted_tile()
 
     def cleanup(self):
         """
