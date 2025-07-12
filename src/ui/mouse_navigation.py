@@ -80,6 +80,10 @@ class MouseNavigationSystem:
         self.show_path_tiles = False  # Disable yellow square highlights
         self.show_guideline = True    # Enable white path line
 
+        # Box navigation
+        self.hovering_over_movable_box = False
+        self.movable_box_position = None
+
     def set_enabled(self, enabled: bool):
         """Enable or disable the mouse navigation system."""
         self.enabled = enabled
@@ -128,6 +132,8 @@ class MouseNavigationSystem:
         if not (0 <= grid_x < self.level.width and 0 <= grid_y < self.level.height):
             self.target_position = None
             self.current_path = []
+            self.hovering_over_movable_box = False
+            self.movable_box_position = None
             return None
 
         grid_pos = (grid_x, grid_y)
@@ -135,11 +141,42 @@ class MouseNavigationSystem:
         # Update player position
         self.player_position = self.level.player_pos
 
+        # Check if hovering over a movable box
+        is_box = self._is_box_at(grid_pos)
+        is_movable = is_box and self._is_box_movable(grid_pos)
+
+        # Update box hovering state
+        self.hovering_over_movable_box = is_movable
+        self.movable_box_position = grid_pos if is_movable else None
+
         # Only recalculate path if target changed and player is not currently moving
         if grid_pos != self.target_position and not self.is_moving:
             self.target_position = grid_pos
             if not self.is_dragging:
-                self.current_path = self._calculate_path(self.player_position, grid_pos)
+                if self.hovering_over_movable_box:
+                    # First calculate path from player to box
+                    path_to_box = self._calculate_path(self.player_position, self.movable_box_position)
+
+                    # If we can reach the box, calculate the box path
+                    if path_to_box:
+                        # Get the direction to push the box
+                        push_direction = self._get_box_push_direction(self.movable_box_position, grid_pos)
+
+                        if push_direction:
+                            # Calculate the path the box can take
+                            box_path = self._calculate_box_path(self.movable_box_position, push_direction)
+
+                            # Set the current path to the box path
+                            self.current_path = box_path
+                        else:
+                            # If we can't push the box in any direction, just show the box
+                            self.current_path = [self.movable_box_position]
+                    else:
+                        # If we can't reach the box, calculate normal path from player
+                        self.current_path = self._calculate_path(self.player_position, grid_pos)
+                else:
+                    # Normal path calculation from player
+                    self.current_path = self._calculate_path(self.player_position, grid_pos)
 
         return grid_pos
 
@@ -184,12 +221,15 @@ class MouseNavigationSystem:
         if not grid_pos:
             return False
 
-        # Check if clicking on a box adjacent to player
-        if self._is_box_at(grid_pos) and self._is_adjacent_to_player(grid_pos):
+        # Check if clicking on a movable box
+        if self._is_box_at(grid_pos) and self._is_box_movable(grid_pos):
             self.is_dragging = True
             self.drag_start_pos = grid_pos
             self.dragged_box_pos = grid_pos
             self.last_drag_pos = mouse_pos
+
+            # Initialize drag direction as None - will be set on first drag movement
+            self.drag_direction = None
             return True
 
         return False
@@ -206,23 +246,86 @@ class MouseNavigationSystem:
         if not self.is_dragging or not self.level:
             return False
 
-        # Calculate drag direction based on mouse movement
-        if self.last_drag_pos:
-            dx = mouse_pos[0] - self.last_drag_pos[0]
-            dy = mouse_pos[1] - self.last_drag_pos[1]
+        # Get the current grid position of the mouse
+        grid_pos = self.update_mouse_position(mouse_pos, map_area_x, map_area_y,
+                                            cell_size, scroll_x, scroll_y)
+        if not grid_pos:
+            return False
 
-            # Determine primary direction
-            if abs(dx) > abs(dy):
-                direction = 'right' if dx > 0 else 'left'
+        # If this is the first drag movement, determine the drag direction
+        if self.drag_direction is None:
+            # Calculate direction from box to mouse
+            box_x, box_y = self.dragged_box_pos
+            mouse_x, mouse_y = grid_pos
+
+            # Determine primary direction (cardinal direction only)
+            dx = mouse_x - box_x
+            dy = mouse_y - box_y
+
+            # Handle the case where dx and dy are equal
+            if abs(dx) == abs(dy):
+                # Choose based on which is further from zero
+                if abs(dx) > 0:
+                    # Prefer horizontal movement if both are equal and non-zero
+                    self.drag_direction = (1 if dx > 0 else -1, 0)
+                else:
+                    # Both are zero, default to up
+                    self.drag_direction = (0, -1)
+            elif abs(dx) > abs(dy):
+                # Horizontal movement dominates
+                self.drag_direction = (1 if dx > 0 else -1, 0)
             else:
-                direction = 'down' if dy > 0 else 'up'
+                # Vertical movement dominates
+                self.drag_direction = (0, 1 if dy > 0 else -1)
 
-            # Only move if we've moved enough pixels
-            if abs(dx) > self.drag_threshold or abs(dy) > self.drag_threshold:
-                success = self._try_drag_box(direction)
+            # No need to check if player can move to the position needed to push the box
+            # since we're directly swapping player and box positions
+
+            # Convert direction tuple to string for _try_drag_box
+            dir_map = {
+                (0, -1): 'up',
+                (0, 1): 'down',
+                (-1, 0): 'left',
+                (1, 0): 'right'
+            }
+            direction_str = dir_map.get(self.drag_direction)
+
+            # Try to move the box in the determined direction
+            if direction_str:
+                success = self._try_drag_box(direction_str)
                 if success:
                     self.last_drag_pos = mouse_pos
-                return success
+                    return True
+                else:
+                    self.is_dragging = False
+                    self.drag_direction = None
+                    return False
+        else:
+            # For subsequent movements, check if the mouse has moved in the same direction
+            box_x, box_y = self.dragged_box_pos
+            next_box_pos = (box_x + self.drag_direction[0], box_y + self.drag_direction[1])
+
+            # Check if the next position is in the same direction as the mouse
+            dx = grid_pos[0] - box_x
+            dy = grid_pos[1] - box_y
+
+            # Only continue dragging if mouse is in the same direction as the drag
+            if (self.drag_direction[0] * dx >= 0 and self.drag_direction[1] * dy >= 0):
+                # Convert direction tuple to string for _try_drag_box
+                dir_map = {
+                    (0, -1): 'up',
+                    (0, 1): 'down',
+                    (-1, 0): 'left',
+                    (1, 0): 'right'
+                }
+                direction_str = dir_map.get(self.drag_direction)
+
+                # Try to move the box in the determined direction
+                if direction_str:
+                    success = self._try_drag_box(direction_str)
+                    if success:
+                        self.last_drag_pos = mouse_pos
+                        return True
 
         return False
 
@@ -519,8 +622,151 @@ class MouseNavigationSystem:
 
         return abs(px - bx) + abs(py - by) == 1
 
+    def _is_box_movable(self, pos: Tuple[int, int]) -> bool:
+        """
+        Check if a box at the given position is movable.
+        A box is movable if it can be pushed in at least one direction.
+
+        Args:
+            pos (Tuple[int, int]): Position of the box to check
+
+        Returns:
+            bool: True if the box is movable, False otherwise
+        """
+        if not self.level or not self._is_box_at(pos):
+            return False
+
+        # Check if the box can be pushed in any direction
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            # Position behind the box (where it would be pushed to)
+            push_x, push_y = pos[0] + dx, pos[1] + dy
+
+            # Position in front of the box (where the player needs to be)
+            player_x, player_y = pos[0] - dx, pos[1] - dy
+
+            # Check if the player can stand in front of the box
+            if (0 <= player_x < self.level.width and 
+                0 <= player_y < self.level.height and
+                not self.level.is_wall(player_x, player_y) and
+                not self.level.is_box(player_x, player_y)):
+
+                # Check if the box can be pushed to the position behind it
+                if (0 <= push_x < self.level.width and 
+                    0 <= push_y < self.level.height and
+                    not self.level.is_wall(push_x, push_y) and
+                    not self.level.is_box(push_x, push_y)):
+
+                    return True
+
+        return False
+
+    def _get_box_push_direction(self, box_pos: Tuple[int, int], target_pos: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """
+        Determine the direction to push a box based on the target position.
+
+        Args:
+            box_pos (Tuple[int, int]): Position of the box
+            target_pos (Tuple[int, int]): Target position (where the mouse is)
+
+        Returns:
+            Optional[Tuple[int, int]]: Direction vector (dx, dy) or None if no valid direction
+        """
+        # Calculate the direction from box to target
+        dx = target_pos[0] - box_pos[0]
+        dy = target_pos[1] - box_pos[1]
+
+        # Normalize to a cardinal direction (up, down, left, right)
+        if abs(dx) > abs(dy):
+            # Horizontal movement dominates
+            direction = (1 if dx > 0 else -1, 0)
+        else:
+            # Vertical movement dominates
+            direction = (0, 1 if dy > 0 else -1)
+
+        # Check if the box can be pushed in this direction
+        push_x, push_y = box_pos[0] + direction[0], box_pos[1] + direction[1]
+        player_x, player_y = box_pos[0] - direction[0], box_pos[1] - direction[1]
+
+        # Check if the player can stand in front of the box
+        if (0 <= player_x < self.level.width and 
+            0 <= player_y < self.level.height and
+            not self.level.is_wall(player_x, player_y) and
+            not self.level.is_box(player_x, player_y)):
+
+            # Check if the box can be pushed in this direction
+            if (0 <= push_x < self.level.width and 
+                0 <= push_y < self.level.height and
+                not self.level.is_wall(push_x, push_y) and
+                not self.level.is_box(push_x, push_y)):
+
+                return direction
+
+        # Try other cardinal directions if the primary direction doesn't work
+        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            if (dx, dy) != direction:
+                push_x, push_y = box_pos[0] + dx, box_pos[1] + dy
+                player_x, player_y = box_pos[0] - dx, box_pos[1] - dy
+
+                # Check if the player can stand in front of the box
+                if (0 <= player_x < self.level.width and 
+                    0 <= player_y < self.level.height and
+                    not self.level.is_wall(player_x, player_y) and
+                    not self.level.is_box(player_x, player_y)):
+
+                    # Check if the box can be pushed in this direction
+                    if (0 <= push_x < self.level.width and 
+                        0 <= push_y < self.level.height and
+                        not self.level.is_wall(push_x, push_y) and
+                        not self.level.is_box(push_x, push_y)):
+
+                        return (dx, dy)
+
+        return None
+
+    def _calculate_box_path(self, box_pos: Tuple[int, int], direction: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Calculate the path a box can take when pushed in a specific direction.
+
+        Args:
+            box_pos (Tuple[int, int]): Starting position of the box
+            direction (Tuple[int, int]): Direction vector (dx, dy)
+
+        Returns:
+            List[Tuple[int, int]]: Path the box can take, including the starting position
+        """
+        if not self.level or not direction:
+            return [box_pos]
+
+        path = [box_pos]
+        current_pos = box_pos
+        dx, dy = direction
+
+        # Keep pushing the box until it hits an obstacle
+        while True:
+            next_pos = (current_pos[0] + dx, current_pos[1] + dy)
+
+            # Check if the next position is valid
+            if (0 <= next_pos[0] < self.level.width and 
+                0 <= next_pos[1] < self.level.height and
+                not self.level.is_wall(next_pos[0], next_pos[1]) and
+                not self.level.is_box(next_pos[0], next_pos[1])):
+
+                path.append(next_pos)
+                current_pos = next_pos
+            else:
+                break
+
+        return path
+
     def _try_drag_box(self, direction: str) -> bool:
-        """Try to drag box in specified direction."""
+        """
+        Try to drag box in specified direction.
+
+        For the new box dragging behavior, we need to:
+        1. Check if the box can be moved in the specified direction
+        2. Swap the player and box positions
+        3. Move the box one tile further in the drag direction
+        """
         if not self.dragged_box_pos:
             return False
 
@@ -536,26 +782,44 @@ class MouseNavigationSystem:
 
         dx, dy = direction_map[direction]
 
-        # Calculate new positions
+        # Calculate positions
         box_x, box_y = self.dragged_box_pos
         new_box_x, new_box_y = box_x + dx, box_y + dy
 
-        # Player needs to move to the box's current position
-        player_x, player_y = self.player_position
+        # Check if the box can be moved to the new position
+        if not (0 <= new_box_x < self.level.width and 
+                0 <= new_box_y < self.level.height and
+                not self.level.is_wall(new_box_x, new_box_y) and
+                not self.level.is_box(new_box_x, new_box_y)):
+            return False
 
-        # Check if player can move to box position and box can move to new position
-        if (self._is_valid_position(box_x, box_y) and 
-            self._is_valid_position(new_box_x, new_box_y) and
-            not self.level.is_box(new_box_x, new_box_y)):
+        # Save current state for undo
+        self.level._save_state()
 
-            # Execute the movement (this will move both player and box)
-            success = self.level.move(dx, dy)
-            if success:
-                self.dragged_box_pos = (new_box_x, new_box_y)
-                self.player_position = self.level.player_pos
-                return True
+        # Find the box in the level's boxes list
+        box_index = -1
+        for i, (bx, by) in enumerate(self.level.boxes):
+            if (bx, by) == (box_x, box_y):
+                box_index = i
+                break
 
-        return False
+        if box_index == -1:
+            return False  # Box not found
+
+        # Swap player and box positions
+        old_player_pos = self.level.player_pos
+        self.level.player_pos = (box_x, box_y)
+        self.level.boxes[box_index] = (new_box_x, new_box_y)
+
+        # Update our tracking variables
+        self.player_position = self.level.player_pos
+        self.dragged_box_pos = (new_box_x, new_box_y)
+
+        # Update move and push counters
+        self.level.moves += 1
+        self.level.pushes += 1
+
+        return True
 
     def _render_path_tiles(self, screen: pygame.Surface, map_area_x: int,
                           map_area_y: int, cell_size: int, scroll_x: int,
