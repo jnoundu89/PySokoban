@@ -61,6 +61,7 @@ class GraphicalLevelEditor:
         self.selected_element = WALL
         self.show_help = False
         self.show_metrics = False
+        self.show_grid = False  # Grid visibility toggle
 
         # Set up grid
         self.cell_size = CELL_SIZE
@@ -1002,6 +1003,10 @@ class GraphicalLevelEditor:
                 self.selected_element = self.palette_elements[i]
                 break
 
+    def _toggle_grid(self):
+        """Toggle grid visibility."""
+        self.show_grid = not self.show_grid
+
     def _draw_editor(self):
         """Draw the editor interface."""
         # Fill background
@@ -1050,19 +1055,20 @@ class GraphicalLevelEditor:
                     self.screen.blit(skin[TARGET], (cell_x, cell_y))
                     self.screen.blit(skin[BOX], (cell_x, cell_y))
 
-        # Draw grid lines using color from config
-        grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
-        grid_color = tuple(grid_color_list)
+        # Draw grid lines using color from config (only if show_grid is True)
+        if self.show_grid:
+            grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
+            grid_color = tuple(grid_color_list)
 
-        for x in range(self.current_level.width + 1):
-            pygame.draw.line(self.screen, grid_color,
-                            (self.grid_offset_x + x * self.cell_size, self.grid_offset_y),
-                            (self.grid_offset_x + x * self.cell_size, self.grid_offset_y + grid_height))
+            for x in range(self.current_level.width + 1):
+                pygame.draw.line(self.screen, grid_color,
+                                (self.grid_offset_x + x * self.cell_size, self.grid_offset_y),
+                                (self.grid_offset_x + x * self.cell_size, self.grid_offset_y + grid_height))
 
-        for y in range(self.current_level.height + 1):
-            pygame.draw.line(self.screen, grid_color,
-                            (self.grid_offset_x, self.grid_offset_y + y * self.cell_size),
-                            (self.grid_offset_x + grid_width, self.grid_offset_y + y * self.cell_size))
+            for y in range(self.current_level.height + 1):
+                pygame.draw.line(self.screen, grid_color,
+                                (self.grid_offset_x, self.grid_offset_y + y * self.cell_size),
+                                (self.grid_offset_x + grid_width, self.grid_offset_y + y * self.cell_size))
 
         # Draw palette
         palette_rect = pygame.Rect(10, 10, 60, 300)

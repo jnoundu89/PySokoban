@@ -664,10 +664,7 @@ class LevelSelector:
                     # Fallback to a colored rectangle if sprite not found
                     pygame.draw.rect(self.screen, (220, 220, 220), (cell_x, cell_y, cell_size, cell_size))
 
-                # Draw grid lines for better visibility (only if cells are large enough)
-                if cell_size > 4:
-                    pygame.draw.rect(self.screen, (180, 180, 180), 
-                                   (cell_x, cell_y, cell_size, cell_size), 1)
+                # Grid lines are completely removed from hover preview
 
     def start(self):
         """Start the level selector."""

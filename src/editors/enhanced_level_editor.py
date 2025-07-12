@@ -15,6 +15,8 @@ import os
 import sys
 import pygame
 import math
+import tkinter as tk
+from tkinter import filedialog, messagebox
 from ..core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET, CELL_SIZE, TITLE
 from ..core.level import Level
 from ..level_management.level_manager import LevelManager
@@ -72,7 +74,7 @@ class EnhancedLevelEditor:
         self.current_element = WALL
         self.unsaved_changes = False
         self.show_help = False
-        self.show_grid = True
+        self.show_grid = False
         self.show_metrics = False
         self.test_mode = False
         self.player_pos_in_test = None
@@ -88,6 +90,14 @@ class EnhancedLevelEditor:
         # Paint mode (click and drag)
         self.paint_mode = False
         self.last_painted_cell = None
+        self.active_mouse_button = None  # Track which mouse button is being used for painting
+        self.active_slider = None  # Track which slider is currently being adjusted
+
+        # Text input for width and height
+        self.active_text_field = None  # Track which text field is currently active
+        self.text_input = ""  # Current text input
+        self.text_input_cursor_visible = True  # For cursor blinking
+        self.text_input_cursor_timer = 0  # For cursor blinking timing
 
         # Zoom and scroll
         self.zoom_level = 1.0
@@ -97,15 +107,15 @@ class EnhancedLevelEditor:
         self.scroll_y = 0
 
         # Map dimensions
-        self.map_width = 20
-        self.map_height = 15
+        self.map_width = 10
+        self.map_height = 10
         self.min_map_size = 5
-        self.max_map_size = 50
+        self.max_map_size = 255
 
         # UI Layout - improved responsive design
         self.ui_margin = 15
         self.tool_panel_width = 280  # Increased width for better spacing
-        self.right_panel_width = 200  # New right panel for additional tools
+        self.right_panel_width = 280  # Increased width for metrics content
         self.bottom_panel_height = 80  # Reduced height for more map space
 
         # Calculate map area (centered and larger)
@@ -222,35 +232,39 @@ class EnhancedLevelEditor:
              'text': 'Reset View', 'action': self._reset_view, 'section': 'right'},
         ])
 
-        # Bottom panel buttons - evenly distributed
+        # Bottom panel buttons - only Exit button
         bottom_y = self.screen_height - self.bottom_panel_height + (self.bottom_panel_height - small_button_height) // 2
 
-        # Calculate button spacing to distribute evenly
-        available_width = self.screen_width - 2 * self.ui_margin - 3 * bottom_button_width
-        button_spacing = available_width // 4  # Divide remaining space
-
         self.buttons.extend([
-            {'rect': pygame.Rect(self.ui_margin, bottom_y, bottom_button_width, small_button_height),
-             'text': 'Help', 'action': self._toggle_help, 'section': 'bottom'},
-            {'rect': pygame.Rect(self.ui_margin + bottom_button_width + button_spacing, bottom_y, bottom_button_width, small_button_height),
-             'text': 'Metrics', 'action': self._toggle_metrics, 'section': 'bottom'},
             {'rect': pygame.Rect(self.screen_width - self.ui_margin - bottom_button_width, bottom_y, bottom_button_width, small_button_height),
              'text': 'Exit', 'action': self._exit_editor, 'section': 'bottom'}
         ])
 
-        # Size sliders - moved to right panel with proper spacing
+        # Size sliders - moved to right panel with proper spacing and increased size
         slider_y = view_section_y + spacing * 3 + section_spacing
         slider_width = view_button_width
-        slider_height = max(18, button_height // 2)  # Responsive slider height
+        slider_height = max(24, button_height // 2 + 6)  # Increased responsive slider height
+        slider_spacing = spacing + 10  # Increased spacing between sliders
 
         self.sliders = [
             {'rect': pygame.Rect(right_panel_x, slider_y, slider_width, slider_height),
              'label': 'Width', 'value': self.map_width, 'min': self.min_map_size, 'max': self.max_map_size,
-             'callback': self._on_width_change},
-            {'rect': pygame.Rect(right_panel_x, slider_y + spacing, slider_width, slider_height),
+             'callback': self._on_width_change, 'text_field': True},
+            {'rect': pygame.Rect(right_panel_x, slider_y + slider_spacing, slider_width, slider_height),
              'label': 'Height', 'value': self.map_height, 'min': self.min_map_size, 'max': self.max_map_size,
-             'callback': self._on_height_change}
+             'callback': self._on_height_change, 'text_field': True}
         ]
+
+        # Help button - moved to right panel below sliders
+        help_y = slider_y + slider_spacing * 2 + section_spacing
+
+        self.buttons.extend([
+            {'rect': pygame.Rect(right_panel_x, help_y, view_button_width, button_height),
+             'text': 'Help', 'action': self._toggle_help, 'section': 'right'}
+        ])
+
+        # Store the position for metrics section
+        self.metrics_y = help_y + spacing + section_spacing
 
     def _update_fonts(self):
         """Update fonts based on screen size."""
@@ -296,19 +310,19 @@ class EnhancedLevelEditor:
         if self.screen_width >= 1920 or self.screen_height >= 1080:
             # High resolution (e.g., 1920x1080)
             self.tool_panel_width = 320  # Wider panel for high-res
-            self.right_panel_width = 240  # Wider right panel
+            self.right_panel_width = 320  # Increased width for metrics content
             self.bottom_panel_height = 90  # Taller bottom panel
             self.ui_margin = 20  # Larger margins
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             # Medium resolution (e.g., 1200x800)
             self.tool_panel_width = 280  # Standard panel width
-            self.right_panel_width = 200  # Standard right panel
+            self.right_panel_width = 280  # Increased width for metrics content
             self.bottom_panel_height = 80  # Standard bottom panel
             self.ui_margin = 15  # Standard margins
         else:
             # Smaller resolutions
             self.tool_panel_width = 250  # Narrower panel for small screens
-            self.right_panel_width = 180  # Narrower right panel
+            self.right_panel_width = 250  # Increased width for metrics content
             self.bottom_panel_height = 70  # Shorter bottom panel
             self.ui_margin = 10  # Smaller margins
 
@@ -505,13 +519,34 @@ class EnhancedLevelEditor:
 
     def _handle_palette_click(self, mouse_pos):
         """Handle clicks on the element palette."""
-        # Palette is in the tool panel - updated position
-        palette_start_y = 320
-        palette_item_height = 38
+        # Calculate palette dimensions using the same logic as in _draw_tool_panel
+        # Find the Generate button to calculate spacing
+        generate_button_bottom = 0
+        for button in self.buttons:
+            if button.get('text') == 'Generate' and button.get('section') == 'tools':
+                generate_button_bottom = button['rect'].y + button['rect'].height
+                break
+
+        # Calculate responsive palette dimensions based on screen size
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution
+            palette_item_height = 52  # Increased height
+            section_spacing = 80  # Increased spacing between sections
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution
+            palette_item_height = 48  # Increased height
+            section_spacing = 70  # Increased spacing between sections
+        else:
+            # Smaller resolutions
+            palette_item_height = 44  # Increased height
+            section_spacing = 60  # Increased spacing between sections
+
+        # Calculate palette_start_y based on the Generate button position
+        palette_start_y = generate_button_bottom + section_spacing
 
         for i, element in enumerate(self.palette):
-            item_rect = pygame.Rect(20, palette_start_y + i * palette_item_height,
-                                  self.tool_panel_width - 40, palette_item_height - 5)
+            y = palette_start_y + i * palette_item_height
+            item_rect = pygame.Rect(self.ui_margin + 5, y, self.tool_panel_width - self.ui_margin * 2 - 10, palette_item_height - 5)
             if item_rect.collidepoint(mouse_pos):
                 self.current_element = element['char']
                 break
@@ -526,12 +561,7 @@ class EnhancedLevelEditor:
         self.scroll_x += dx
         self.scroll_y += dy
 
-        # Limit scrolling to reasonable bounds
-        max_scroll_x = max(0, self.current_level.width * CELL_SIZE * self.zoom_level - self.map_area_width)
-        max_scroll_y = max(0, self.current_level.height * CELL_SIZE * self.zoom_level - self.map_area_height)
-
-        self.scroll_x = max(-self.map_area_width // 2, min(max_scroll_x, self.scroll_x))
-        self.scroll_y = max(-self.map_area_height // 2, min(max_scroll_y, self.scroll_y))
+        # No scroll limits - allow infinite scrolling in all directions
 
     def _draw_editor(self):
         """Draw the enhanced editor interface."""
@@ -550,8 +580,6 @@ class EnhancedLevelEditor:
         # Draw overlays
         if self.show_help:
             self._draw_help_overlay()
-        if self.show_metrics:
-            self._draw_metrics_overlay()
 
         # Update the display
         pygame.display.flip()
@@ -571,52 +599,57 @@ class EnhancedLevelEditor:
         pygame.draw.line(self.screen, self.colors['border'],
                         (right_panel_x, 0), (right_panel_x, self.screen_height), 2)
 
-        # Left panel title with shadow effect for better visibility
+        # Left panel title - simple text without shadow
         title_text = "Level Editor"
-
-        # Draw shadow
-        shadow_color = (50, 50, 100)
-        shadow_offset = 2
-        title_shadow = self.title_font.render(title_text, True, shadow_color)
-        self.screen.blit(title_shadow, (self.ui_margin + shadow_offset, 15 + shadow_offset))
-
-        # Draw main title
         title_surface = self.title_font.render(title_text, True, self.colors['text'])
         self.screen.blit(title_surface, (self.ui_margin, 15))
 
-        # Right panel title with shadow effect
+        # Right panel title - simple text without shadow
         view_title_text = "View & Size"
-
-        # Draw shadow
-        view_title_shadow = self.text_font.render(view_title_text, True, shadow_color)
-        self.screen.blit(view_title_shadow, (right_panel_x + self.ui_margin + shadow_offset, 15 + shadow_offset))
-
-        # Draw main title
         view_title_surface = self.text_font.render(view_title_text, True, self.colors['text'])
         self.screen.blit(view_title_surface, (right_panel_x + self.ui_margin, 15))
+
+        # Store right_panel_x for use in other methods
+        self.right_panel_x = right_panel_x
+
+        # Find the Generate button to calculate spacing
+        generate_button_bottom = 0
+        for button in self.buttons:
+            if button.get('text') == 'Generate' and button.get('section') == 'tools':
+                generate_button_bottom = button['rect'].y + button['rect'].height
+                break
 
         # Calculate responsive palette dimensions based on screen size
         if self.screen_width >= 1920 or self.screen_height >= 1080:
             # High resolution
-            palette_start_y = 350
-            palette_item_height = 42
-            icon_size = 30
-            icon_margin = 6
-            text_offset_y = 10
+            palette_item_height = 52  # Increased height
+            icon_size = 36  # Increased icon size
+            icon_margin = 8
+            text_offset_y = 15
+            section_spacing = 80  # Increased spacing between sections
         elif self.screen_width >= 1200 or self.screen_height >= 800:
             # Medium resolution
-            palette_start_y = 330
-            palette_item_height = 38
-            icon_size = 28
-            icon_margin = 5
-            text_offset_y = 9
+            palette_item_height = 48  # Increased height
+            icon_size = 34  # Increased icon size
+            icon_margin = 7
+            text_offset_y = 14
+            section_spacing = 70  # Increased spacing between sections
         else:
             # Smaller resolutions
-            palette_start_y = 320
-            palette_item_height = 34
-            icon_size = 25
-            icon_margin = 4
-            text_offset_y = 8
+            palette_item_height = 44  # Increased height
+            icon_size = 32  # Increased icon size
+            icon_margin = 6
+            text_offset_y = 12
+            section_spacing = 60  # Increased spacing between sections
+
+        # Calculate palette_start_y based on the Generate button position
+        palette_start_y = generate_button_bottom + section_spacing
+
+        # Draw a separator line between Generate button and Elements section
+        separator_y = generate_button_bottom + section_spacing // 2
+        pygame.draw.line(self.screen, self.colors['border'],
+                        (self.ui_margin, separator_y), 
+                        (self.tool_panel_width - self.ui_margin, separator_y), 2)
 
         # Element palette - better positioned with section title
         palette_title = self.text_font.render("Elements:", True, self.colors['text'])
@@ -677,6 +710,10 @@ class EnhancedLevelEditor:
         for slider in self.sliders:
             self._draw_slider(slider)
 
+        # Draw metrics panel in the right panel
+        if hasattr(self, 'metrics_y') and self.current_level:
+            self._draw_metrics_panel()
+
     def _draw_map_area(self):
         """Draw the map area in the center with proper clipping."""
         if not self.current_level:
@@ -734,7 +771,7 @@ class EnhancedLevelEditor:
                 self.highlight_system.set_mode('paint')
             else:
                 self.highlight_system.set_mode('edit')
-            
+
             # Update highlight position based on mouse
             self.highlight_system.update_mouse_position(
                 mouse_pos, self.map_area_x, self.map_area_y,
@@ -742,7 +779,7 @@ class EnhancedLevelEditor:
                 self.current_level.width, self.current_level.height,
                 cell_size, self.scroll_x, self.scroll_y
             )
-            
+
             # Render the highlight overlay with element preview
             self.highlight_system.render_highlight(
                 self.screen, self.map_area_x, self.map_area_y, cell_size,
@@ -863,20 +900,49 @@ class EnhancedLevelEditor:
         self.screen.blit(text_surface, text_rect)
 
     def _draw_slider(self, slider):
-        """Draw a slider with enhanced visual effects."""
-        # Label with shadow for better visibility
-        shadow_offset = 1
-        shadow_color = (30, 30, 50, 128)
-
-        # Draw label shadow
-        label_shadow = self.text_font.render(f"{slider['label']}: {slider['value']}",
-                                          True, shadow_color)
-        self.screen.blit(label_shadow, (slider['rect'].x + shadow_offset, slider['rect'].y - 25 + shadow_offset))
-
-        # Draw main label
-        label_surface = self.text_font.render(f"{slider['label']}: {slider['value']}",
-                                           True, self.colors['text'])
+        """Draw a slider with enhanced visual effects and text input field."""
+        # Draw label without shadow
+        label_text = f"{slider['label']}:"
+        label_surface = self.text_font.render(label_text, True, self.colors['text'])
         self.screen.blit(label_surface, (slider['rect'].x, slider['rect'].y - 25))
+
+        # Draw text input field if this slider has one
+        if slider.get('text_field'):
+            # Calculate text field position (to the right of the label)
+            label_width = self.text_font.size(label_text)[0]
+            text_field_x = slider['rect'].x + label_width + 10
+            text_field_y = slider['rect'].y - 25
+            text_field_width = 50
+            text_field_height = 22
+
+            # Draw text field background
+            text_field_rect = pygame.Rect(text_field_x, text_field_y, text_field_width, text_field_height)
+            text_field_color = (255, 255, 255)  # White background
+
+            # Highlight if this is the active text field
+            if self.active_text_field == slider:
+                pygame.draw.rect(self.screen, (220, 220, 255), text_field_rect)  # Light blue highlight
+            else:
+                pygame.draw.rect(self.screen, text_field_color, text_field_rect)
+
+            # Draw border
+            pygame.draw.rect(self.screen, self.colors['border'], text_field_rect, 1)
+
+            # Draw text
+            if self.active_text_field == slider:
+                # Show current text input with cursor
+                display_text = self.text_input
+                if self.text_input_cursor_visible:
+                    display_text += "|"  # Simple cursor
+            else:
+                # Show current value
+                display_text = str(slider['value'])
+
+            text_surface = self.text_font.render(display_text, True, self.colors['text'])
+            # Center text vertically and align left horizontally with padding
+            text_x = text_field_x + 5
+            text_y = text_field_y + (text_field_height - text_surface.get_height()) // 2
+            self.screen.blit(text_surface, (text_x, text_y))
 
         # Slider track with gradient and rounded corners
         track_rect = pygame.Rect(slider['rect'])
@@ -1253,233 +1319,119 @@ class EnhancedLevelEditor:
         self._create_new_level(self.map_width, self.map_height)
 
     def _show_open_level_dialog(self):
-        """Show dialog to open an existing level."""
-        # Get list of level files
-        level_files = self.level_manager.level_files
-        if not level_files:
-            return
+        """Show dialog to open an existing level using a Windows file dialog."""
+        try:
+            # Initialize tkinter
+            root = tk.Tk()
+            root.withdraw()  # Hide the main window
 
-        # Create a dialog
-        dialog_width = 600
-        dialog_height = 500
-        dialog_x = (self.screen_width - dialog_width) // 2
-        dialog_y = (self.screen_height - dialog_height) // 2
+            # Make sure the dialog appears in front of the pygame window
+            root.attributes('-topmost', True)
 
-        dialog_rect = pygame.Rect(dialog_x, dialog_y, dialog_width, dialog_height)
-
-        # Create level buttons
-        level_buttons = []
-        button_height = 30
-        button_spacing = 10
-
-        for i, level_file in enumerate(level_files):
-            level_name = os.path.basename(level_file)
-            level_rect = pygame.Rect(
-                dialog_x + 50,
-                dialog_y + 80 + i * (button_height + button_spacing),
-                dialog_width - 100,
-                button_height
+            # Show the file open dialog
+            file_path = filedialog.askopenfilename(
+                title="Open Level",
+                initialdir=self.levels_dir,
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
             )
 
-            level_buttons.append({
-                'text': level_name,
-                'rect': level_rect,
-                'file': level_file
-            })
-
-        # Create cancel button
-        cancel_rect = pygame.Rect(dialog_x + dialog_width // 2 - 50, dialog_y + dialog_height - 50, 100, 30)
-
-        # Draw the editor once to create a background
-        self._draw_editor()
-        # Create a copy of the screen to use as background
-        background = self.screen.copy()
-
-        # Dialog loop
-        dialog_running = True
-        while dialog_running and not self.exit_requested:
-            # Handle events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.exit_requested = True
-                    dialog_running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        dialog_running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_pos = pygame.mouse.get_pos()
-
-                    # Check if a level button was clicked
-                    for button in level_buttons:
-                        if button['rect'].collidepoint(mouse_pos):
-                            try:
-                                self.current_level = Level(level_file=button['file'])
-                                self.unsaved_changes = False
-                                self._reset_view()
-                                dialog_running = False
-                                break
-                            except Exception as e:
-                                print(f"Error opening level: {e}")
-
-                    # Check if cancel button was clicked
-                    if cancel_rect.collidepoint(mouse_pos):
-                        dialog_running = False
-
-            # Restore the background instead of redrawing everything
-            self.screen.blit(background, (0, 0))
-
-            # Draw dialog box
-            pygame.draw.rect(self.screen, (240, 240, 240), dialog_rect)
-            pygame.draw.rect(self.screen, (0, 0, 0), dialog_rect, 2)
-
-            # Draw title
-            title_surface = self.title_font.render("Open Level", True, (0, 0, 0))
-            title_rect = title_surface.get_rect(center=(dialog_x + dialog_width // 2, dialog_y + 30))
-            self.screen.blit(title_surface, title_rect)
-
-            # Draw level buttons
-            for button in level_buttons:
-                pygame.draw.rect(self.screen, (200, 200, 200), button['rect'])
-                pygame.draw.rect(self.screen, (0, 0, 0), button['rect'], 1)
-
-                text_surface = self.text_font.render(button['text'], True, (0, 0, 0))
-                text_rect = text_surface.get_rect(midleft=(button['rect'].left + 10, button['rect'].centery))
-                self.screen.blit(text_surface, text_rect)
-
-            # Draw cancel button
-            pygame.draw.rect(self.screen, (200, 100, 100), cancel_rect)
-            pygame.draw.rect(self.screen, (0, 0, 0), cancel_rect, 1)
-
-            cancel_text = self.text_font.render("Cancel", True, (255, 255, 255))
-            cancel_text_rect = cancel_text.get_rect(center=cancel_rect.center)
-            self.screen.blit(cancel_text, cancel_text_rect)
-
-            pygame.display.flip()
+            # If a file was selected, open it
+            if file_path:
+                try:
+                    self.current_level = Level(level_file=file_path)
+                    # Update the editor's internal dimensions to match the loaded level
+                    self.map_width = self.current_level.width
+                    self.map_height = self.current_level.height
+                    # Update slider values to match the new dimensions
+                    for slider in self.sliders:
+                        if slider['label'] == 'Width':
+                            slider['value'] = self.map_width
+                        elif slider['label'] == 'Height':
+                            slider['value'] = self.map_height
+                    self.unsaved_changes = False
+                    self._reset_view()
+                except Exception as e:
+                    print(f"Error opening level: {e}")
+        finally:
+            # Clean up tkinter
+            try:
+                root.destroy()
+            except:
+                pass
 
     def _show_save_level_dialog(self):
-        """Show dialog to save the current level."""
+        """Show dialog to save the current level using a Windows file dialog."""
         if not self.current_level:
             return
 
-        # Create a dialog
-        dialog_width = 500
-        dialog_height = 200
-        dialog_x = (self.screen_width - dialog_width) // 2
-        dialog_y = (self.screen_height - dialog_height) // 2
+        # Check if the level is valid before allowing save
+        if not self._validate_level(show_dialog=False):
+            try:
+                # Initialize tkinter
+                root = tk.Tk()
+                root.withdraw()  # Hide the main window
 
-        dialog_rect = pygame.Rect(dialog_x, dialog_y, dialog_width, dialog_height)
+                # Make sure the dialog appears in front of the pygame window
+                root.attributes('-topmost', True)
 
-        # Create input field
-        input_rect = pygame.Rect(dialog_x + 50, dialog_y + 100, dialog_width - 100, 30)
-        input_text = ""
-        input_active = True
+                # Show warning message
+                messagebox.showwarning(
+                    "Invalid Level",
+                    "Cannot save an invalid level. Please ensure:\n\n"
+                    "- The level has a player\n"
+                    "- The level has at least one box\n"
+                    "- The level has at least one target\n"
+                    "- The number of boxes matches the number of targets"
+                )
+            finally:
+                # Clean up tkinter
+                try:
+                    root.destroy()
+                except:
+                    pass
+            return
 
-        # Create buttons
-        save_rect = pygame.Rect(dialog_x + dialog_width // 2 - 110, dialog_y + dialog_height - 50, 100, 30)
-        cancel_rect = pygame.Rect(dialog_x + dialog_width // 2 + 10, dialog_y + dialog_height - 50, 100, 30)
+        try:
+            # Initialize tkinter
+            root = tk.Tk()
+            root.withdraw()  # Hide the main window
 
-        # Draw the editor once to create a background
-        self._draw_editor()
-        # Create a copy of the screen to use as background
-        background = self.screen.copy()
+            # Make sure the dialog appears in front of the pygame window
+            root.attributes('-topmost', True)
 
-        # Dialog loop
-        dialog_running = True
-        while dialog_running and not self.exit_requested:
-            # Handle events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.exit_requested = True
-                    dialog_running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        dialog_running = False
-                    elif event.key == pygame.K_RETURN:
-                        if input_text:
-                            self._save_level(input_text)
-                            dialog_running = False
-                    elif event.key == pygame.K_BACKSPACE:
-                        input_text = input_text[:-1]
-                    else:
-                        # Add character to input text if it's valid for a filename
-                        if event.unicode.isalnum() or event.unicode in "-_. ":
-                            input_text += event.unicode
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_pos = pygame.mouse.get_pos()
+            # Show the file save dialog
+            file_path = filedialog.asksaveasfilename(
+                title="Save Level",
+                initialdir=self.levels_dir,
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+            )
 
-                    # Check if input field was clicked
-                    input_active = input_rect.collidepoint(mouse_pos)
+            # If a file was selected, save it
+            if file_path:
+                # Pass the full file path to _save_level
+                self._save_level(file_path)
+        finally:
+            # Clean up tkinter
+            try:
+                root.destroy()
+            except:
+                pass
 
-                    # Check if save button was clicked
-                    if save_rect.collidepoint(mouse_pos) and input_text:
-                        self._save_level(input_text)
-                        dialog_running = False
-
-                    # Check if cancel button was clicked
-                    elif cancel_rect.collidepoint(mouse_pos):
-                        dialog_running = False
-
-            # Restore the background instead of redrawing everything
-            self.screen.blit(background, (0, 0))
-
-            # Draw dialog box
-            pygame.draw.rect(self.screen, (240, 240, 240), dialog_rect)
-            pygame.draw.rect(self.screen, (0, 0, 0), dialog_rect, 2)
-
-            # Draw title
-            title_surface = self.title_font.render("Save Level", True, (0, 0, 0))
-            title_rect = title_surface.get_rect(center=(dialog_x + dialog_width // 2, dialog_y + 30))
-            self.screen.blit(title_surface, title_rect)
-
-            # Draw input label
-            label_surface = self.text_font.render("Filename:", True, (0, 0, 0))
-            label_rect = label_surface.get_rect(midright=(input_rect.left - 10, input_rect.centery))
-            self.screen.blit(label_surface, label_rect)
-
-            # Draw input field
-            pygame.draw.rect(self.screen, (255, 255, 255), input_rect)
-            pygame.draw.rect(self.screen, (0, 0, 0) if input_active else (100, 100, 100), input_rect, 2)
-
-            # Draw input text
-            input_surface = self.text_font.render(input_text, True, (0, 0, 0))
-            input_text_rect = input_surface.get_rect(midleft=(input_rect.left + 5, input_rect.centery))
-            self.screen.blit(input_surface, input_text_rect)
-
-            # Draw save button
-            pygame.draw.rect(self.screen, (100, 200, 100), save_rect)
-            pygame.draw.rect(self.screen, (0, 0, 0), save_rect, 1)
-
-            save_text = self.text_font.render("Save", True, (255, 255, 255))
-            save_text_rect = save_text.get_rect(center=save_rect.center)
-            self.screen.blit(save_text, save_text_rect)
-
-            # Draw cancel button
-            pygame.draw.rect(self.screen, (200, 100, 100), cancel_rect)
-            pygame.draw.rect(self.screen, (0, 0, 0), cancel_rect, 1)
-
-            cancel_text = self.text_font.render("Cancel", True, (255, 255, 255))
-            cancel_text_rect = cancel_text.get_rect(center=cancel_rect.center)
-            self.screen.blit(cancel_text, cancel_text_rect)
-
-            pygame.display.flip()
-
-    def _save_level(self, filename):
+    def _save_level(self, file_path):
         """Save the current level to a file."""
-        if not filename:
+        if not file_path:
             return
 
         # Add .txt extension if not provided
-        if not filename.endswith('.txt'):
-            filename += '.txt'
+        if not file_path.endswith('.txt'):
+            file_path += '.txt'
 
-        # Create full path
-        level_path = os.path.join(self.levels_dir, filename)
-
-        # Save the level
-        level_string = self.current_level.get_state_string()
+        # Save the level without FESS coordinate labels
+        level_string = self.current_level.get_state_string(show_fess_coordinates=False)
 
         try:
-            with open(level_path, 'w') as file:
+            with open(file_path, 'w') as file:
                 file.write(level_string)
 
             self.unsaved_changes = False
@@ -1712,6 +1664,115 @@ class EnhancedLevelEditor:
         """Toggle help screen."""
         self.show_help = not self.show_help
 
+    def _draw_metrics_panel(self):
+        """Draw the metrics content in the right panel."""
+        if not self.current_level:
+            return
+
+        # Calculate responsive metrics panel dimensions based on screen size
+        if self.screen_width >= 1920 or self.screen_height >= 1080:
+            # High resolution
+            title_padding = 25
+            content_padding = 20
+            line_spacing = 24
+        elif self.screen_width >= 1200 or self.screen_height >= 800:
+            # Medium resolution
+            title_padding = 20
+            content_padding = 15
+            line_spacing = 20
+        else:
+            # Smaller resolutions
+            title_padding = 15
+            content_padding = 10
+            line_spacing = 18
+
+        # Draw a separator line above the metrics section
+        separator_y = self.metrics_y - title_padding
+        pygame.draw.line(self.screen, self.colors['border'],
+                        (self.right_panel_x + self.ui_margin, separator_y), 
+                        (self.right_panel_x + self.right_panel_width - self.ui_margin, separator_y), 2)
+
+        # Draw metrics title
+        metrics_title = self.text_font.render("Level Metrics", True, self.colors['text'])
+        self.screen.blit(metrics_title, (self.right_panel_x + self.ui_margin, self.metrics_y))
+
+        # Calculate level statistics
+        wall_count = sum(row.count(WALL) for row in self.current_level.map_data)
+        floor_count = sum(row.count(FLOOR) for row in self.current_level.map_data)
+        total_cells = self.current_level.width * self.current_level.height
+
+        # Check if level is valid
+        is_valid = (len(self.current_level.boxes) == len(self.current_level.targets) and 
+                   len(self.current_level.boxes) > 0 and 
+                   self.current_level.player_pos != (0, 0))
+
+        # Metrics content with sections
+        metrics_sections = [
+            {
+                'title': 'Level Size',
+                'items': [
+                    f"Dimensions: {self.current_level.width}x{self.current_level.height}",
+                    f"Total cells: {total_cells}"
+                ]
+            },
+            {
+                'title': 'Elements',
+                'items': [
+                    f"Walls: {wall_count}",
+                    f"Floors: {floor_count}",
+                    f"Boxes: {len(self.current_level.boxes)}",
+                    f"Targets: {len(self.current_level.targets)}",
+                    f"Player: {'Set' if self.current_level.player_pos != (0, 0) else 'Not set'}"
+                ]
+            },
+            {
+                'title': 'View',
+                'items': [
+                    f"Zoom: {self.zoom_level:.2f}x",
+                    f"Grid: {'On' if self.show_grid else 'Off'}"
+                ]
+            },
+            {
+                'title': 'Status',
+                'items': [
+                    f"Valid: {'Yes' if is_valid else 'No'}",
+                    f"Mode: {'Test' if self.test_mode else 'Edit'}"
+                ]
+            }
+        ]
+
+        # Draw metrics content
+        content_y = self.metrics_y + title_padding + 5
+
+        for section in metrics_sections:
+            # Draw section title
+            section_title = section['title']
+            section_color = (100, 100, 200)  # Light blue
+
+            section_surface = self.text_font.render(section_title, True, section_color)
+            self.screen.blit(section_surface, (self.right_panel_x + self.ui_margin, content_y))
+
+            content_y += line_spacing
+
+            # Draw section items
+            for item in section['items']:
+                # Determine if this is a status item that needs highlighting
+                if "Valid: No" in item:
+                    text_color = (255, 100, 100)  # Red for invalid
+                elif "Valid: Yes" in item:
+                    text_color = (100, 255, 100)  # Green for valid
+                else:
+                    text_color = self.colors['text']  # Default color
+
+                # Draw item text
+                text_surface = self.small_font.render(item, True, text_color)
+                self.screen.blit(text_surface, (self.right_panel_x + self.ui_margin + content_padding, content_y))
+
+                content_y += line_spacing
+
+            # Add space between sections
+            content_y += line_spacing // 2
+
     def _toggle_metrics(self):
         """Toggle metrics display."""
         self.show_metrics = not self.show_metrics
@@ -1766,6 +1827,13 @@ class EnhancedLevelEditor:
                     elif event.type == pygame.VIDEORESIZE:
                         self._handle_resize(event)
 
+                # Handle cursor blinking for text input
+                if self.active_text_field:
+                    self.text_input_cursor_timer += 1
+                    if self.text_input_cursor_timer >= 30:  # Toggle cursor every 30 frames (about 0.5 seconds at 60 FPS)
+                        self.text_input_cursor_visible = not self.text_input_cursor_visible
+                        self.text_input_cursor_timer = 0
+
                 # Draw the editor
                 self._draw_editor()
 
@@ -1782,8 +1850,50 @@ class EnhancedLevelEditor:
             import traceback
             traceback.print_exc()
 
+    def _apply_text_input(self):
+        """Apply the current text input to the active slider."""
+        if not self.active_text_field:
+            return
+
+        try:
+            # Try to convert the text input to an integer
+            value = int(self.text_input)
+
+            # Clamp the value to the slider's min and max
+            value = max(self.active_text_field['min'], min(self.active_text_field['max'], value))
+
+            # Update the slider's value
+            if value != self.active_text_field['value']:
+                self.active_text_field['value'] = value
+                self.active_text_field['callback'](value)
+        except ValueError:
+            # If the text input is not a valid integer, revert to the current value
+            pass
+
     def _handle_key_event(self, event):
         """Handle keyboard events."""
+        # Handle text input if a text field is active
+        if self.active_text_field:
+            if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                # Apply the text input and clear the active text field
+                self._apply_text_input()
+                self.active_text_field = None
+            elif event.key == pygame.K_ESCAPE:
+                # Cancel text input and revert to the current value
+                self.active_text_field = None
+            elif event.key == pygame.K_BACKSPACE:
+                # Remove the last character
+                self.text_input = self.text_input[:-1]
+                self.text_input_cursor_visible = True
+                self.text_input_cursor_timer = 0
+            elif event.unicode.isdigit():
+                # Add the digit to the text input
+                self.text_input += event.unicode
+                self.text_input_cursor_visible = True
+                self.text_input_cursor_timer = 0
+            return
+
+        # Regular key handling
         if event.key == pygame.K_ESCAPE:
             if self.show_help:
                 self.show_help = False
@@ -1835,9 +1945,30 @@ class EnhancedLevelEditor:
                 button['action']()
                 return
 
-        # Check slider clicks
+        # Check slider and text field clicks
         for slider in self.sliders:
+            # Check for text field clicks if this slider has a text field
+            if slider.get('text_field'):
+                # Calculate text field position (same as in _draw_slider)
+                label_text = f"{slider['label']}:"
+                label_width = self.text_font.size(label_text)[0]
+                text_field_x = slider['rect'].x + label_width + 10
+                text_field_y = slider['rect'].y - 25
+                text_field_width = 50
+                text_field_height = 22
+                text_field_rect = pygame.Rect(text_field_x, text_field_y, text_field_width, text_field_height)
+
+                if text_field_rect.collidepoint(mouse_pos):
+                    # Clicked on text field
+                    self.active_text_field = slider
+                    self.text_input = str(slider['value'])
+                    self.text_input_cursor_visible = True
+                    self.text_input_cursor_timer = 0
+                    return
+
+            # Check for slider track clicks
             if slider['rect'].collidepoint(mouse_pos):
+                self.active_slider = slider
                 self._handle_slider_click(mouse_pos, slider)
                 return
 
@@ -1858,6 +1989,7 @@ class EnhancedLevelEditor:
             else:
                 self.paint_mode = True
                 self.last_painted_cell = None
+                self.active_mouse_button = event.button
                 self._handle_grid_click(mouse_pos, event.button)
 
     def _handle_mouse_up(self, event):
@@ -1869,6 +2001,27 @@ class EnhancedLevelEditor:
         else:
             self.paint_mode = False
             self.last_painted_cell = None
+            self.active_mouse_button = None
+            self.active_slider = None
+
+            # If we have an active text field and clicked elsewhere, apply the value
+            if self.active_text_field:
+                mouse_pos = pygame.mouse.get_pos()
+
+                # Calculate text field position (same as in _draw_slider)
+                slider = self.active_text_field
+                label_text = f"{slider['label']}:"
+                label_width = self.text_font.size(label_text)[0]
+                text_field_x = slider['rect'].x + label_width + 10
+                text_field_y = slider['rect'].y - 25
+                text_field_width = 50
+                text_field_height = 22
+                text_field_rect = pygame.Rect(text_field_x, text_field_y, text_field_width, text_field_height)
+
+                # If clicked outside the text field, apply the value
+                if not text_field_rect.collidepoint(mouse_pos):
+                    self._apply_text_input()
+                    self.active_text_field = None
 
     def _handle_mouse_motion(self, event):
         """Handle mouse motion events."""
@@ -1882,17 +2035,15 @@ class EnhancedLevelEditor:
             self.scroll_x = self.drag_start_scroll[0] + dx
             self.scroll_y = self.drag_start_scroll[1] + dy
 
-            # Apply scroll limits
-            if self.current_level:
-                max_scroll_x = max(0, self.current_level.width * CELL_SIZE * self.zoom_level - self.map_area_width)
-                max_scroll_y = max(0, self.current_level.height * CELL_SIZE * self.zoom_level - self.map_area_height)
+            # No scroll limits - allow infinite scrolling in all directions
 
-                self.scroll_x = max(-self.map_area_width // 2, min(max_scroll_x, self.scroll_x))
-                self.scroll_y = max(-self.map_area_height // 2, min(max_scroll_y, self.scroll_y))
+        elif self.active_slider:
+            # Continue adjusting slider while dragging
+            self._handle_slider_click(mouse_pos, self.active_slider)
 
-        elif self.paint_mode and self._is_in_map_area(mouse_pos):
+        elif self.paint_mode and self._is_in_map_area(mouse_pos) and self.active_mouse_button:
             # Continue painting while dragging
-            self._handle_grid_click(mouse_pos, 1, is_drag=True)
+            self._handle_grid_click(mouse_pos, self.active_mouse_button, is_drag=True)
 
     def _handle_mouse_wheel(self, event):
         """Handle mouse wheel events for zooming."""
@@ -1918,34 +2069,34 @@ class EnhancedLevelEditor:
     def set_highlight_enabled(self, enabled):
         """
         Enable or disable the interactive highlighting system.
-        
+
         Args:
             enabled (bool): Whether highlighting should be active.
         """
         self.highlight_system.set_enabled(enabled)
-        
+
     def set_highlight_alpha(self, alpha):
         """
         Set the transparency level of the highlight overlay.
-        
+
         Args:
             alpha (int): Alpha transparency value (0-255).
         """
         self.highlight_system.set_alpha(alpha)
-        
+
     def set_element_preview(self, enabled):
         """
         Enable or disable element preview in the highlight.
-        
+
         Args:
             enabled (bool): Whether to show element preview.
         """
         self.highlight_system.set_element_preview(enabled)
-        
+
     def get_highlighted_tile(self):
         """
         Get the currently highlighted tile coordinates.
-        
+
         Returns:
             tuple or None: (grid_x, grid_y) if a tile is highlighted, None otherwise.
         """

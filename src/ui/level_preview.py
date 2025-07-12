@@ -56,6 +56,7 @@ class LevelPreview:
         self.selected_action = None  # 'play', 'back', or 'continue'
         self.level = None
         self.level_info = None
+        self.show_grid = False  # Grid visibility toggle
 
         # Additional button (optional)
         self.continue_button = None
@@ -209,6 +210,10 @@ class LevelPreview:
         self.selected_action = action
         self.running = False
 
+    def toggle_grid(self):
+        """Toggle grid visibility."""
+        self.show_grid = not self.show_grid
+
     def add_continue_button(self):
         """Add a third 'Continue' button to the popup."""
         # Recalculate button positions for 3 buttons
@@ -326,8 +331,8 @@ class LevelPreview:
                     # Fallback to a colored rectangle if sprite not found
                     pygame.draw.rect(self.screen, (220, 220, 220), (cell_x, cell_y, cell_size, cell_size))
 
-                # Draw grid lines for better visibility (only if cells are large enough)
-                if cell_size > 8:
+                # Draw grid lines for better visibility (only if cells are large enough and show_grid is True)
+                if self.show_grid and cell_size > 8:
                     pygame.draw.rect(self.screen, (180, 180, 180), 
                                    (cell_x, cell_y, cell_size, cell_size), 1)
 
