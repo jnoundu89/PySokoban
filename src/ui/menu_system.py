@@ -1338,13 +1338,14 @@ class MenuSystem:
         base_section1_y = 80  # Fullscreen toggle
         base_section2_y = base_section1_y + 120  # Window size (increased spacing)
         base_section3_y = base_section2_y + 120  # Movement speed (increased spacing)
-        base_section4_y = base_section3_y + 140  # Keyboard layout (increased spacing for help text)
-        base_section5_y = base_section4_y + 120  # Deadlock toggle (increased spacing)
+        base_section4_y = base_section3_y + 140  # Mouse movement speed (increased spacing for help text)
+        base_section5_y = base_section4_y + 140  # Keyboard layout (increased spacing for help text)
+        base_section6_y = base_section5_y + 120  # Deadlock toggle (increased spacing)
 
         # Variables for scrolling
         scroll_offset = 0
         # Calculate total content height and maximum scroll value
-        total_content_height = base_section5_y + 60  # Add some padding at the bottom
+        total_content_height = base_section6_y + 60  # Add some padding at the bottom
         visible_content_height = dialog_height - 160  # Subtract space for title and buttons
         max_scroll = max(0, total_content_height - visible_content_height)
 
@@ -1405,12 +1406,23 @@ class MenuSystem:
             color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
         )
 
+        # Mouse movement speed input
+        current_mouse_speed = self.config_manager.get('game', 'mouse_movement_speed', 100)
+        section4_y = dialog_y + base_section4_y - scroll_offset
+        mouse_speed_input = TextInput(
+            right_column_x, section4_y,  # Align vertically with the label
+            input_width * 2, input_height,  # Wider input for mouse movement speed
+            min_value=50, max_value=500, current_value=current_mouse_speed,
+            label="",  # Remove label as it's now in the left column
+            color=(100, 100, 200), text_color=(0, 0, 0), bg_color=(255, 255, 255)
+        )
+
         # Keyboard layout toggle
         current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
         is_azerty = current_layout.lower() == 'azerty'
-        section4_y = dialog_y + base_section4_y - scroll_offset
+        section5_y = dialog_y + base_section5_y - scroll_offset
         keyboard_toggle = ToggleButton(
-            "AZERTY", "QWERTY", right_column_x, section4_y,  # Align vertically with the label
+            "AZERTY", "QWERTY", right_column_x, section5_y,  # Align vertically with the label
             toggle_width, toggle_height,
             is_on=is_azerty, action=None,
             color_on=(100, 180, 100), color_off=(100, 100, 180),
@@ -1419,9 +1431,9 @@ class MenuSystem:
 
         # Deadlock toggle
         show_deadlocks = self.config_manager.get('game', 'show_deadlocks', True)
-        section5_y = dialog_y + base_section5_y - scroll_offset
+        section6_y = dialog_y + base_section6_y - scroll_offset
         deadlock_toggle = ToggleButton(
-            "ON", "OFF", right_column_x, section5_y,  # Align vertically with the label
+            "ON", "OFF", right_column_x, section6_y,  # Align vertically with the label
             toggle_width, toggle_height,
             is_on=show_deadlocks, action=None,
             color_on=(100, 180, 100), color_off=(180, 100, 100),
@@ -1445,6 +1457,7 @@ class MenuSystem:
                         width_input.handle_event(event)
                         height_input.handle_event(event)
                         cooldown_input.handle_event(event)
+                        mouse_speed_input.handle_event(event)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:  # Left mouse button
                         # Check if a button was clicked
@@ -1460,6 +1473,7 @@ class MenuSystem:
                             self.config_manager.set('display', 'window_width', width_input.current_value, save=False)
                             self.config_manager.set('display', 'window_height', height_input.current_value, save=False)
                             self.config_manager.set('game', 'movement_cooldown', cooldown_input.current_value, save=False)
+                            self.config_manager.set('game', 'mouse_movement_speed', mouse_speed_input.current_value, save=False)
                             self.config_manager.set('game', 'show_deadlocks', deadlock_toggle.is_on, save=False)
 
                             # Save all settings except keyboard layout
@@ -1483,6 +1497,10 @@ class MenuSystem:
                             self.movement_cooldown_input.current_value = cooldown_input.current_value
                             self.movement_cooldown_input.text = str(cooldown_input.current_value)
 
+                            # Update mouse navigation system with new speed
+                            if hasattr(self, 'game_instance') and self.game_instance and hasattr(self.game_instance, 'mouse_navigation'):
+                                self.game_instance.mouse_navigation.update_movement_speed()
+
                             # Update keyboard layout toggle without calling the toggle method
                             # This prevents the toggle from happening when saving
                             if self.keyboard_layout_toggle.is_on != keyboard_toggle.is_on:
@@ -1505,6 +1523,7 @@ class MenuSystem:
                             width_input.handle_event(event)
                             height_input.handle_event(event)
                             cooldown_input.handle_event(event)
+                            mouse_speed_input.handle_event(event)
                     elif event.button == 4:  # Mouse wheel up
                         scroll_offset = max(0, scroll_offset - 20)
                         # Update section positions
@@ -1513,14 +1532,16 @@ class MenuSystem:
                         section3_y = dialog_y + base_section3_y - scroll_offset
                         section4_y = dialog_y + base_section4_y - scroll_offset
                         section5_y = dialog_y + base_section5_y - scroll_offset
+                        section6_y = dialog_y + base_section6_y - scroll_offset
 
                         # Update UI element positions
                         fullscreen_toggle.y = section1_y
                         width_input.y = section2_y
                         height_input.y = section2_y
                         cooldown_input.y = section3_y
-                        keyboard_toggle.y = section4_y
-                        deadlock_toggle.y = section5_y
+                        mouse_speed_input.y = section4_y
+                        keyboard_toggle.y = section5_y
+                        deadlock_toggle.y = section6_y
                     elif event.button == 5:  # Mouse wheel down
                         scroll_offset = min(max_scroll, scroll_offset + 20)
                         # Update section positions
@@ -1529,14 +1550,16 @@ class MenuSystem:
                         section3_y = dialog_y + base_section3_y - scroll_offset
                         section4_y = dialog_y + base_section4_y - scroll_offset
                         section5_y = dialog_y + base_section5_y - scroll_offset
+                        section6_y = dialog_y + base_section6_y - scroll_offset
 
                         # Update UI element positions
                         fullscreen_toggle.y = section1_y
                         width_input.y = section2_y
                         height_input.y = section2_y
                         cooldown_input.y = section3_y
-                        keyboard_toggle.y = section4_y
-                        deadlock_toggle.y = section5_y
+                        mouse_speed_input.y = section4_y
+                        keyboard_toggle.y = section5_y
+                        deadlock_toggle.y = section6_y
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if event.button == 1:  # Left mouse button
                         # Handle mouse up events for toggle buttons
@@ -1610,17 +1633,37 @@ class MenuSystem:
                     pygame.draw.rect(self.screen, (200, 200, 220), bg_rect, 1, 5)
                     self.screen.blit(help_surface, help_rect)
 
+            # Mouse movement speed section
+            if section4_y + input_height >= content_top and section4_y <= content_bottom:
+                mouse_movement_title = text_font.render("Mouse Movement Speed:", True, (50, 50, 50))
+                mouse_movement_rect = mouse_movement_title.get_rect(right=right_column_x - 20, centery=section4_y + input_height // 2)
+                self.screen.blit(mouse_movement_title, mouse_movement_rect)
+                mouse_speed_input.draw(self.screen)
+
+                # Draw help text below mouse movement speed section with better visibility
+                help_text = "Lower values = faster movement"
+                help_surface = text_font.render(help_text, True, (50, 50, 50))
+                # Position it below the input field in the right column
+                help_rect = help_surface.get_rect(left=right_column_x, top=section4_y + input_height + 30)
+                # Only draw help text if it's visible
+                if help_rect.top <= content_bottom:
+                    # Draw a light background behind the text for better readability
+                    bg_rect = pygame.Rect(help_rect.x - 5, help_rect.y - 5, help_rect.width + 10, help_rect.height + 10)
+                    pygame.draw.rect(self.screen, (230, 230, 250), bg_rect, 0, 5)
+                    pygame.draw.rect(self.screen, (200, 200, 220), bg_rect, 1, 5)
+                    self.screen.blit(help_surface, help_rect)
+
             # Keyboard layout section
-            if section4_y + toggle_height >= content_top and section4_y <= content_bottom:
+            if section5_y + toggle_height >= content_top and section5_y <= content_bottom:
                 keyboard_title = text_font.render("Keyboard Layout:", True, (50, 50, 50))
-                keyboard_rect = keyboard_title.get_rect(right=right_column_x - 20, centery=section4_y + toggle_height // 2)
+                keyboard_rect = keyboard_title.get_rect(right=right_column_x - 20, centery=section5_y + toggle_height // 2)
                 self.screen.blit(keyboard_title, keyboard_rect)
                 keyboard_toggle.draw(self.screen)
 
             # Deadlock section
-            if section5_y + toggle_height >= content_top and section5_y <= content_bottom:
+            if section6_y + toggle_height >= content_top and section6_y <= content_bottom:
                 deadlock_title = text_font.render("Show Deadlocks:", True, (50, 50, 50))
-                deadlock_rect = deadlock_title.get_rect(right=right_column_x - 20, centery=section5_y + toggle_height // 2)
+                deadlock_rect = deadlock_title.get_rect(right=right_column_x - 20, centery=section6_y + toggle_height // 2)
                 self.screen.blit(deadlock_title, deadlock_rect)
                 deadlock_toggle.draw(self.screen)
 
@@ -1649,6 +1692,7 @@ class MenuSystem:
             width_input.update(mouse_pos)
             height_input.update(mouse_pos)
             cooldown_input.update(mouse_pos)
+            mouse_speed_input.update(mouse_pos)
             keyboard_toggle.update(mouse_pos)
             deadlock_toggle.update(mouse_pos)
 
