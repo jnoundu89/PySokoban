@@ -30,7 +30,8 @@ class GUIGame(Game):
     This class extends the base Game class with GUI-specific functionality.
     """
 
-    def __init__(self, levels_dir='levels', keyboard_layout=None, skin_manager=None):
+    def __init__(self, levels_dir='levels', keyboard_layout=None, skin_manager=None,
+                 event_dispatcher=None):
         """
         Initialize the GUI version of the Sokoban game.
 
@@ -41,7 +42,10 @@ class GUIGame(Game):
                                            If None, loads from config file.
             skin_manager (EnhancedSkinManager, optional): Existing skin manager to use.
                                                          If None, creates a new one.
+            event_dispatcher (EventDispatcher, optional): Shared event dispatcher.
+                                                         If None, uses pygame.event.get() directly.
         """
+        self.event_dispatcher = event_dispatcher
         # Load config manager first to get keyboard layout
         from src.core.config_manager import get_config_manager
         self.config_manager = get_config_manager()
@@ -137,53 +141,38 @@ class GUIGame(Game):
             current_time = pygame.time.get_ticks()
 
             # Handle events
-            for event in pygame.event.get():
+            if self.event_dispatcher:
+                events = self.event_dispatcher.pump()
+            else:
+                events = pygame.event.get()
+
+            for event in events:
                 if event.type == pygame.QUIT:
                     self._quit_game()
                 elif event.type == pygame.KEYDOWN:
-                    # Check for F11 key for fullscreen toggle
-                    if event.key == pygame.K_F11:
-                        # Find the parent EnhancedSokoban instance
-                        for frame in sys._current_frames().values():
-                            try:
-                                if 'self' in frame.f_locals and hasattr(frame.f_locals['self'], 'toggle_fullscreen'):
-                                    frame.f_locals['self'].toggle_fullscreen()
-                                    break
-                            except:
-                                continue
-                    else:
-                        # Check if AI system handles this event first
-                        ai_handled = self.visual_ai_solver.handle_events([event])
+                    # Check if AI system handles this event first
+                    ai_handled = self.visual_ai_solver.handle_events([event])
 
-                        if not ai_handled:
-                            # Add key to pressed keys set
-                            self.keys_pressed.add(event.key)
-                            self._handle_key_event(event)
-                            self.last_move_time = current_time
+                    if not ai_handled:
+                        self.keys_pressed.add(event.key)
+                        self._handle_key_event(event)
+                        self.last_move_time = current_time
                 elif event.type == pygame.KEYUP:
-                    # Remove key from pressed keys set
                     self.keys_pressed.discard(event.key)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    # Handle mouse clicks for navigation
                     self._handle_mouse_click(event)
                 elif event.type == pygame.MOUSEBUTTONUP:
-                    # Handle mouse button release for drag-drop
                     self._handle_mouse_release(event)
                 elif event.type == pygame.MOUSEMOTION:
-                    # Handle mouse movement for drag-drop and path updates
                     self._handle_mouse_motion(event)
                 elif event.type == pygame.MOUSEWHEEL:
-                    # Handle zoom with mouse wheel
-                    if event.y > 0:  # Scroll up - zoom in
+                    if event.y > 0:
                         self.zoom_level = min(self.max_zoom, self.zoom_level * 1.1)
-                    else:  # Scroll down - zoom out
+                    else:
                         self.zoom_level = max(self.min_zoom, self.zoom_level / 1.1)
                 elif event.type == pygame.VIDEORESIZE:
-                    # Update renderer with new screen size
                     self.renderer.window_size = (event.w, event.h)
                     self.renderer.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-
-                    # Save new dimensions to config
                     config_manager = get_config_manager()
                     config_manager.set_display_config(event.w, event.h)
 
@@ -1518,8 +1507,10 @@ class GUIGame(Game):
         Quit the game.
         """
         self.running = False
-        self.renderer.cleanup()
-        sys.exit(0)
+        if not self.event_dispatcher:
+            # Standalone mode — clean up and exit
+            self.renderer.cleanup()
+            sys.exit(0)
 
 
 def main():

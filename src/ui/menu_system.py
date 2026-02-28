@@ -14,15 +14,6 @@ from src.ui.widgets import Button, ToggleButton, TextInput
 from src.ui.settings_dialog import GeneralSettingsDialog
 from src.ui.keybinding_dialog import KeybindingDialog
 
-# Forward declaration to avoid circular import
-# This will be used in the _run_loop method to find the EnhancedSokoban instance
-EnhancedSokoban = None
-try:
-    from src.core.game import EnhancedSokoban
-except ImportError:
-    pass  # Will be resolved at runtime
-
-
 
 class MenuSystem:
     """
@@ -139,8 +130,6 @@ class MenuSystem:
         self.subtitle_font = pygame.font.Font(None, subtitle_size)
         self.text_font = pygame.font.Font(None, text_size)
 
-        # Print font sizes for debugging
-        print(f"Updated fonts - Title: {title_size}, Subtitle: {subtitle_size}, Text: {text_size}")
 
     def _recreate_all_buttons(self):
         """Recreate all buttons, typically after a resize."""
@@ -213,8 +202,6 @@ class MenuSystem:
                    font_size=button_font_size)
         ]
 
-        # Print debug info
-        print(f"Created main menu buttons - Width: {button_width}, Height: {button_height}, Font: {button_font_size}")
 
     def _create_play_menu_buttons(self):
         """Create buttons for the play menu."""
@@ -470,87 +457,54 @@ class MenuSystem:
         """Exit the game."""
         self.running = False
 
-    def start(self):
-        """Start the menu system."""
-        self.running = True
-        self._run_loop()
+    def handle_events(self, events):
+        """Process a pre-filtered list of events (global events already handled).
 
-    def _run_loop(self):
-        """Run the main menu loop."""
-        clock = pygame.time.Clock()
+        Args:
+            events: List of pygame events (QUIT/VIDEORESIZE/F11 already consumed).
+        """
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE and self.current_state != 'main':
+                    self._change_state('main')
 
-        while self.running:
-            # Handle events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                elif event.type == pygame.VIDEORESIZE:
-                    self.screen_width, self.screen_height = event.size
-                    # Screen is resized by the main game, MenuSystem just needs to know
-                    # self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
-                    self._recreate_all_buttons()  # Recreate buttons for new size
-                elif event.type == pygame.KEYDOWN:
-                    # Check for ESC to return to main menu if not already there
-                    if event.key == pygame.K_ESCAPE and self.current_state != 'main':
-                        self._change_state('main')
+            for button in self._get_active_buttons():
+                button.handle_event(event)
 
-                # Handle button events based on current state
-                active_buttons = []
-                if self.current_state == 'main':
-                    active_buttons = self.main_menu_buttons
-                elif self.current_state == 'play':
-                    active_buttons = self.play_menu_buttons
-                elif self.current_state == 'editor':
-                    active_buttons = self.editor_menu_buttons
-                elif self.current_state == 'settings':
-                    active_buttons = self.settings_menu_buttons
-                elif self.current_state == 'skins':
-                    active_buttons = self.skins_menu_buttons
-                elif self.current_state == 'credits':
-                    active_buttons = self.credits_menu_buttons
+            if self.current_state == 'settings':
+                self._handle_settings_event(event)
 
-                for button in active_buttons:
-                    button.handle_event(event)
+    def _get_active_buttons(self):
+        """Return the button list for the current menu state."""
+        return {
+            'main': self.main_menu_buttons,
+            'play': self.play_menu_buttons,
+            'editor': self.editor_menu_buttons,
+            'settings': self.settings_menu_buttons,
+            'skins': self.skins_menu_buttons,
+            'credits': self.credits_menu_buttons,
+        }.get(self.current_state, [])
 
-                # Handle text input events in settings menu
-                if self.current_state == 'settings':
-                    if self.movement_cooldown_input and self.movement_cooldown_input.handle_event(event):
-                        # Input value changed, update config but don't save immediately
-                        new_value = int(self.movement_cooldown_input.current_value)
-                        self.config_manager.set('game', 'movement_cooldown', new_value, save=False)
+    def _handle_settings_event(self, event):
+        """Distribute an event to ALL settings widgets."""
+        if self.movement_cooldown_input and self.movement_cooldown_input.handle_event(event):
+            new_value = int(self.movement_cooldown_input.current_value)
+            self.config_manager.set('game', 'movement_cooldown', new_value, save=False)
 
-                    # Handle window width input events
-                    if self.window_width_input and self.window_width_input.handle_event(event):
-                        # Input value changed, update config but don't save immediately
-                        new_width = int(self.window_width_input.current_value)
-                        self.config_manager.set('display', 'window_width', new_width, save=False)
+        if self.window_width_input and self.window_width_input.handle_event(event):
+            new_width = int(self.window_width_input.current_value)
+            self.config_manager.set('display', 'window_width', new_width, save=False)
 
-                    # Handle window height input events
-                    if self.window_height_input and self.window_height_input.handle_event(event):
-                        # Input value changed, update config but don't save immediately
-                        new_height = int(self.window_height_input.current_value)
-                        self.config_manager.set('display', 'window_height', new_height, save=False)
+        if self.window_height_input and self.window_height_input.handle_event(event):
+            new_height = int(self.window_height_input.current_value)
+            self.config_manager.set('display', 'window_height', new_height, save=False)
 
-                    # Handle fullscreen toggle button events
-                    if self.fullscreen_toggle:
-                        if self.fullscreen_toggle.handle_event(event):
-                            # Ensure the config manager is updated with the new state
-                            self.config_manager.set('display', 'fullscreen', self.fullscreen_toggle.is_on, save=False)
-                            print(f"Fullscreen toggled to {self.fullscreen_toggle.is_on}")
+        if self.fullscreen_toggle and self.fullscreen_toggle.handle_event(event):
+            self.config_manager.set('display', 'fullscreen', self.fullscreen_toggle.is_on, save=False)
 
-                    # Handle keyboard layout toggle button events
-                    if self.keyboard_layout_toggle:
-                        if self.keyboard_layout_toggle.handle_event(event):
-                            # Ensure the config manager is updated with the new state and saved immediately
-                            layout = 'azerty' if self.keyboard_layout_toggle.is_on else 'qwerty'
-                            self.config_manager.set('game', 'keyboard_layout', layout, save=True)
-                            print(f"Keyboard layout changed to {layout}")
-
-            # Update current state
-            self.states[self.current_state]()
-
-            # Cap the frame rate
-            clock.tick(60)
+        if self.keyboard_layout_toggle and self.keyboard_layout_toggle.handle_event(event):
+            layout = 'azerty' if self.keyboard_layout_toggle.is_on else 'qwerty'
+            self.config_manager.set('game', 'keyboard_layout', layout, save=True)
 
     def _main_menu(self):
         """Display the main menu."""
@@ -667,7 +621,6 @@ class MenuSystem:
         else:
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
 
-        print(f"Fullscreen mode {'enabled' if is_fullscreen else 'disabled'}")
 
     def _toggle_keyboard_layout(self, is_azerty):
         """
@@ -676,38 +629,11 @@ class MenuSystem:
         Args:
             is_azerty (bool): True if AZERTY layout is selected, False for QWERTY.
         """
-        # Print the current keyboard layout before changing it
-        current_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
-        print(f"Current keyboard layout before toggle: {current_layout}")
-
         layout = 'azerty' if is_azerty else 'qwerty'
-        print(f"Setting keyboard layout to: {layout}")
 
         # Force direct update of the config file
         self.config_manager.config['game']['keyboard_layout'] = layout
-        save_result = self.config_manager.save()
-        print(f"Config save result: {save_result}")
-
-        # Verify the keyboard layout was set correctly
-        updated_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
-        print(f"Keyboard layout after toggle: {updated_layout}")
-
-        # Double-check by reading directly from the file
-        try:
-            import json
-            with open(self.config_manager.config_file, 'r', encoding='utf-8') as f:
-                file_config = json.load(f)
-                file_layout = file_config.get('game', {}).get('keyboard_layout', 'unknown')
-                print(f"Keyboard layout in file: {file_layout}")
-                if file_layout != layout:
-                    print(f"WARNING: File layout ({file_layout}) does not match expected layout ({layout})")
-                    # Try one more time with a direct file write
-                    file_config['game']['keyboard_layout'] = layout
-                    with open(self.config_manager.config_file, 'w', encoding='utf-8') as f2:
-                        json.dump(file_config, f2, indent=2, ensure_ascii=False)
-                    print(f"Forced direct update of config file")
-        except Exception as e:
-            print(f"Error checking config file: {e}")
+        self.config_manager.save()
 
         # Get current keybindings
         keybindings = self.config_manager.get_keybindings()
@@ -740,7 +666,6 @@ class MenuSystem:
             if keybindings.get(direction) == old_default_key and new_default_key:
                 self.config_manager.set_keybinding(direction, new_default_key, save=False)
 
-        print(f"Keyboard layout changed to {layout}")
 
     def _save_settings(self):
         """Save all settings to the config file."""
@@ -779,9 +704,6 @@ class MenuSystem:
             # Show a temporary success message
             self.show_save_success_message = True
             self.save_message_time = pygame.time.get_ticks()
-            print("Settings saved successfully")
-        else:
-            print("Failed to save settings")
 
     def _settings_menu(self):
         """Display the settings menu."""
@@ -1007,8 +929,17 @@ class MenuSystem:
 # Main function to run the menu system standalone
 def main():
     """Main function to run the menu system."""
+    from src.ui.event_dispatcher import EventDispatcher
+
     menu = MenuSystem()
-    menu.start()
+    menu.running = True
+    dispatcher = EventDispatcher(on_quit=menu._exit_game)
+    clock = pygame.time.Clock()
+    while menu.running:
+        events = dispatcher.pump()
+        menu.handle_events(events)
+        menu.states[menu.current_state]()
+        clock.tick(60)
 
 
 if __name__ == "__main__":

@@ -36,14 +36,16 @@ class EnhancedLevelEditor:
     Enhanced class for creating and editing Sokoban levels with improved interface.
     """
 
-    def __init__(self, levels_dir='levels', screen=None):
+    def __init__(self, levels_dir='levels', screen=None, event_dispatcher=None):
         """
         Initialize the enhanced level editor.
 
         Args:
             levels_dir (str, optional): Directory containing level files.
             screen (pygame.Surface, optional): Existing pygame surface to use.
+            event_dispatcher: Optional shared EventDispatcher instance.
         """
+        self.event_dispatcher = event_dispatcher
         # Only initialize pygame if not already initialized
         if not pygame.get_init():
             pygame.init()
@@ -592,7 +594,12 @@ class EnhancedLevelEditor:
 
             while self.running:
                 # Handle events
-                for event in pygame.event.get():
+                if self.event_dispatcher:
+                    events = self.event_dispatcher.pump()
+                else:
+                    events = pygame.event.get()
+
+                for event in events:
                     if event.type == pygame.QUIT:
                         self._exit_editor()
                     elif event.type == pygame.KEYDOWN:

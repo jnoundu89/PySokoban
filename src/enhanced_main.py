@@ -32,6 +32,7 @@ from src.core.constants import TITLE
 from src.editors.enhanced_level_editor import EnhancedLevelEditor
 from src.gui_main import GUIGame
 from src.level_management.level_manager import LevelManager
+from src.ui.event_dispatcher import EventDispatcher
 from src.ui.menu_system import MenuSystem
 from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
 
@@ -113,20 +114,23 @@ class EnhancedSokoban:
         # Get keyboard layout from config
         keyboard_layout = self.config_manager.get('game', 'keyboard_layout', 'qwerty')
 
+        # Create event dispatcher (central event handling)
+        self.event_dispatcher = EventDispatcher(
+            on_quit=self._handle_quit,
+            on_resize=self._handle_resize,
+            on_toggle_fullscreen=self.toggle_fullscreen,
+            on_exit_fullscreen=self.exit_fullscreen_if_active,
+            is_fullscreen=lambda: self.fullscreen,
+        )
+
         # Create components
         self.menu_system = MenuSystem(self.screen, self.screen_width, self.screen_height, levels_dir, self.skin_manager)
-        self.game = GUIGame(levels_dir, keyboard_layout=keyboard_layout, skin_manager=self.skin_manager)
-        self.editor = EnhancedLevelEditor(levels_dir, screen=self.screen)
+        self.game = GUIGame(levels_dir, keyboard_layout=keyboard_layout, skin_manager=self.skin_manager,
+                            event_dispatcher=self.event_dispatcher)
+        self.editor = EnhancedLevelEditor(levels_dir, screen=self.screen, event_dispatcher=self.event_dispatcher)
 
         # Initialize the unified AI system
         self.ai_controller = UnifiedAIController()
-        print("🤖 Unified AI System initialized with enhanced solving capabilities")
-
-        # Set up fullscreen toggle key handler
-        self.key_handlers = {
-            pygame.K_F11: self.toggle_fullscreen,
-            pygame.K_ESCAPE: self.exit_fullscreen_if_active
-        }
 
         # Set up menu actions
         self._setup_menu_actions()
@@ -134,129 +138,54 @@ class EnhancedSokoban:
         # Update all components with the maximized screen size
         self._update_components_screen_size()
 
+    def _handle_quit(self):
+        """Handle a QUIT event from the dispatcher."""
+        self.running = False
+        self.menu_system.running = False
+
+    def _handle_resize(self, width, height):
+        """Handle a VIDEORESIZE event from the dispatcher."""
+        self.screen_width, self.screen_height = width, height
+        self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        self.config_manager.set_display_config(width=width, height=height)
+        self._update_components_screen_size()
+
     def start(self):
         """Start the enhanced Sokoban game."""
         self.running = True
-        print("EnhancedSokoban start method called")
 
         while self.running:
-            print(f"Current state: {self.current_state}")
             if self.current_state == 'menu':
-                print("Running menu")
                 self._run_menu()
             elif self.current_state == 'playing':
-                print("Running game")
                 self._run_game()
             elif self.current_state == 'editor':
-                print("Running editor")
                 self._run_editor()
             else:
-                print(f"Unknown state: {self.current_state}")
                 self.running = False
 
-        print("EnhancedSokoban main loop exited")
         pygame.quit()
 
     def _run_menu(self):
         """Run the menu system."""
-        print("_run_menu method called")
         self.menu_system.running = True
-        print(f"Menu system running set to True: {self.menu_system.running}")
-
+        self.event_dispatcher.quit_requested = False
         clock = pygame.time.Clock()
-        loop_count = 0
 
         while self.menu_system.running and self.running:
-            loop_count += 1
-            if loop_count == 1:
-                print(f"Entering menu loop, running: {self.menu_system.running}")
-
-            # Handle events
-            events = pygame.event.get()
-            if loop_count <= 5:  # Debug first few loops
-                print(f"Loop {loop_count}: Got {len(events)} events")
-
-            for event in events:
-                if event.type == pygame.QUIT:
-                    print("QUIT event received")
-                    self.menu_system.running = False
-                    self.running = False
-                elif event.type == pygame.VIDEORESIZE:
-                    self.screen_width, self.screen_height = event.size
-                    self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
-                    # Save new dimensions to config
-                    self.config_manager.set_display_config(width=self.screen_width, height=self.screen_height)
-                    self._update_components_screen_size()
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_F11:
-                        self.toggle_fullscreen()
-                    elif event.key == pygame.K_ESCAPE and self.fullscreen:
-                        self.exit_fullscreen_if_active()
-                    elif event.key == pygame.K_ESCAPE and self.menu_system.current_state != 'main':
-                        self.menu_system._change_state('main')
-
-                # Handle button events
-                active_buttons = []
-                if self.menu_system.current_state == 'main':
-                    active_buttons = self.menu_system.main_menu_buttons
-                elif self.menu_system.current_state == 'play':
-                    active_buttons = self.menu_system.play_menu_buttons
-                elif self.menu_system.current_state == 'editor':
-                    active_buttons = self.menu_system.editor_menu_buttons
-                elif self.menu_system.current_state == 'settings':
-                    active_buttons = self.menu_system.settings_menu_buttons
-                elif self.menu_system.current_state == 'skins':
-                    active_buttons = self.menu_system.skins_menu_buttons
-                elif self.menu_system.current_state == 'credits':
-                    active_buttons = self.menu_system.credits_menu_buttons
-
-                for button in active_buttons:
-                    button.handle_event(event)
-
-                # Handle text input events in settings menu
-                if self.menu_system.current_state == 'settings':
-                    if self.menu_system.movement_cooldown_input:
-                        self.menu_system.movement_cooldown_input.handle_event(event)
-
-                    # Handle keyboard layout toggle button events
-                    if self.menu_system.keyboard_layout_toggle:
-                        self.menu_system.keyboard_layout_toggle.handle_event(event)
-
-            # Update current state
-            try:
-                self.menu_system.states[self.menu_system.current_state]()
-            except Exception as e:
-                print(f"Error in menu state update: {e}")
-                break
-
-            # Cap the frame rate
+            events = self.event_dispatcher.pump()
+            self.menu_system.handle_events(events)
+            self.menu_system.states[self.menu_system.current_state]()
             clock.tick(60)
 
-            # Check if running status changed
-            if loop_count <= 5:
-                print(f"End of loop {loop_count}, running: {self.menu_system.running}")
-
-        print(f"Menu system loop completed after {loop_count} iterations")
-        print(f"Final menu_system.running: {self.menu_system.running}")
-        print(f"Final self.running: {self.running}")
-
-        # Check if we're transitioning to another state or exiting the game
+        # Transition logic: determine next state after menu exits
         if not self.menu_system.running and self.current_state == 'menu':
-            # Check if a level was selected for playing
             if self.menu_system.current_state == 'start_game' and (
                     self.menu_system.selected_level_info or self.menu_system.selected_level_path):
-                if self.menu_system.selected_level_info:
-                    print(f"Starting game with selected level: {self.menu_system.selected_level_info['title']}")
-                else:
-                    print(f"Starting game with selected level: {self.menu_system.selected_level_path}")
                 self.current_state = 'playing'
-                # Reset menu state for next time
                 self.menu_system.current_state = 'main'
             else:
-                print("Menu system running is False and still in menu state, exiting game")
                 self.running = False
-        else:
-            print(f"Transitioning to state: {self.current_state}")
 
     def _run_game(self):
         """Run the game."""
@@ -265,45 +194,33 @@ class EnhancedSokoban:
             level_info = self.menu_system.selected_level_info
 
             if level_info['type'] == 'collection_level':
-                # Load a specific level from a collection
                 try:
                     from src.level_management.level_collection_parser import LevelCollectionParser
                     collection = LevelCollectionParser.parse_file(level_info['collection_file'])
                     level_title, level = collection.get_level(level_info['level_index'])
 
-                    # Set metadata
                     level.title = level_title
                     level.description = collection.description
                     level.author = collection.author
 
-                    # Set as current level
                     self.game.level_manager.current_level = level
-                    self.game.level_manager.current_level_index = -1  # Custom level
-
-                    print(f"Loaded collection level: {level_info['title']}")
+                    self.game.level_manager.current_level_index = -1
                 except Exception as e:
                     print(f"Failed to load collection level: {e}")
-                    # Fall back to first level
                     self.game.level_manager.load_level(0)
 
             elif level_info['type'] == 'single_level':
-                # Load a single level file
                 try:
                     from src.core.level import Level
                     self.game.level_manager.current_level = Level(level_file=level_info['file_path'])
-                    self.game.level_manager.current_level_index = -1  # Custom level
-                    print(f"Loaded single level: {level_info['title']}")
+                    self.game.level_manager.current_level_index = -1
                 except Exception as e:
                     print(f"Failed to load single level: {e}")
-                    # Fall back to first level
                     self.game.level_manager.load_level(0)
 
-            # Clear the selected level info
             self.menu_system.selected_level_info = None
 
-        # Legacy support for old selected_level_path
         elif self.menu_system.selected_level_path:
-            # Load the specific level (legacy)
             level_index = -1
             if self.menu_system.selected_level_path in self.game.level_manager.level_files:
                 level_index = self.game.level_manager.level_files.index(self.menu_system.selected_level_path)
@@ -311,17 +228,14 @@ class EnhancedSokoban:
             if level_index >= 0:
                 self.game.level_manager.load_level(level_index)
             else:
-                # If level not found in the list, try to load it directly
                 try:
                     from src.core.level import Level
                     self.game.level_manager.current_level = Level(level_file=self.menu_system.selected_level_path)
-                    self.game.level_manager.current_level_index = -1  # Indicate it's a custom level
+                    self.game.level_manager.current_level_index = -1
                 except Exception as e:
                     print(f"Failed to load selected level: {e}")
-                    # Fall back to first level
                     self.game.level_manager.load_level(0)
 
-            # Clear the selected level path
             self.menu_system.selected_level_path = None
 
         self.game.running = True
@@ -330,39 +244,19 @@ class EnhancedSokoban:
         # When game is closed, return to level selector (play menu)
         self.current_state = 'menu'
         self.menu_system.current_state = 'play'
-
-        # Update all components to ensure proper UI positioning when returning to menu
         self._update_components_screen_size()
-        print("Updated component screen sizes after game exit")
 
     def _run_editor(self):
         """Run the level editor."""
         try:
-            print("Starting level editor...")
             self.editor.running = True
-            print("Editor running flag set to True")
             self.editor.start()
-            print("Editor start method completed")
-
-            # When editor is closed, return to menu
-            self.current_state = 'menu'
-
-            # Reset editor view to prevent UI positioning issues when returning to menu
-            if hasattr(self.editor, '_reset_view'):
-                print("Resetting editor view")
-                self.editor._reset_view()
-
-            # Update all components to ensure proper UI positioning
-            self._update_components_screen_size()
-            print("Updated component screen sizes after editor exit")
         except Exception as e:
             print(f"Error in level editor: {e}")
             import traceback
             traceback.print_exc()
-            # Return to menu on error
+        finally:
             self.current_state = 'menu'
-
-            # Still try to reset view and update components on error
             try:
                 if hasattr(self.editor, '_reset_view'):
                     self.editor._reset_view()
@@ -381,16 +275,8 @@ class EnhancedSokoban:
 
     def _start_editor(self):
         """Start the level editor."""
-        print("_start_editor method called")
-        try:
-            self.current_state = 'editor'
-            print("Current state set to 'editor'")
-            self.menu_system.running = False
-            print("Menu system running set to False")
-        except Exception as e:
-            print(f"Error in _start_editor: {e}")
-            import traceback
-            traceback.print_exc()
+        self.current_state = 'editor'
+        self.menu_system.running = False
 
     def _show_settings(self):
         """Show the settings menu."""
@@ -423,7 +309,7 @@ class EnhancedSokoban:
 
     def _run_ai_features_menu(self):
         """Run the AI features menu."""
-        from src.ui.menu_system import Button
+        from src.ui.widgets import Button
 
         clock = pygame.time.Clock()
         running = True
@@ -493,23 +379,20 @@ class EnhancedSokoban:
         subtitle_font = self.menu_system.subtitle_font if hasattr(self.menu_system, 'subtitle_font') else pygame.font.Font(None, 36)
         text_font = self.menu_system.text_font if hasattr(self.menu_system, 'text_font') else pygame.font.Font(None, 24)
 
-        while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
+        while running and self.running:
+            events = self.event_dispatcher.pump()
+            for event in events:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        running = False
-                    elif event.key == pygame.K_F11:
-                        self.toggle_fullscreen()
 
-                # Handle button events
                 for button in ai_buttons:
                     if button.handle_event(event):
-                        if button.text == "🔙 Back to Main Menu":
+                        if button.text == "Back to Main Menu":
                             running = False
                         break
+
+            if self.event_dispatcher.quit_requested:
+                running = False
 
             # Draw AI features menu
             self.screen.fill(background_color)
@@ -554,7 +437,7 @@ class EnhancedSokoban:
 
     def _show_ai_system_info(self):
         """Show information about the AI system."""
-        from src.ui.menu_system import Button
+        from src.ui.widgets import Button
 
         # Clear any pending events before starting
         pygame.event.clear()
@@ -624,24 +507,22 @@ class EnhancedSokoban:
         screen_content_area = self.screen_height - 200
         max_scroll = max(0, content_height - screen_content_area)
 
-        while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                    running = False
-                elif event.type == pygame.KEYDOWN:
+        while running and self.running:
+            events = self.event_dispatcher.pump()
+            for event in events:
+                if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         running = False
                     elif event.key == pygame.K_UP:
                         scroll_y = max(0, scroll_y - 20)
                     elif event.key == pygame.K_DOWN:
                         scroll_y = min(max_scroll, scroll_y + 20)
-                    elif event.key == pygame.K_F11:
-                        self.toggle_fullscreen()
 
-                # Handle back button
                 if back_button.handle_event(event):
                     running = False
+
+            if self.event_dispatcher.quit_requested:
+                running = False
 
             # Draw info screen
             self.screen.fill(background_color)
@@ -899,7 +780,7 @@ class EnhancedSokoban:
 
     def _show_ai_message(self, title: str, content_lines: list):
         """Show an AI-related message screen."""
-        from src.ui.menu_system import Button
+        from src.ui.widgets import Button
 
         # Clear any pending events before starting
         pygame.event.clear()
@@ -925,20 +806,18 @@ class EnhancedSokoban:
                           button_width, button_height, action=None, 
                           font_size=24)
 
-        while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+        while running and self.running:
+            events = self.event_dispatcher.pump()
+            for event in events:
+                if event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE):
                         running = False
-                    elif event.key == pygame.K_F11:
-                        self.toggle_fullscreen()
 
-                # Handle OK button
                 if ok_button.handle_event(event):
                     running = False
+
+            if self.event_dispatcher.quit_requested:
+                running = False
 
             # Draw message screen
             self.screen.fill(background_color)

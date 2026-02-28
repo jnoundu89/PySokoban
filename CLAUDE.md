@@ -46,7 +46,7 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 | `src/core/` | Game logic & state | `Level`, `Game`, `SokobanState`, `ConfigManager`, `DeadlockDetector`, `AutoSolver`, `AudioManager` |
 | `src/ai/` | AI solvers | `UnifiedAIController`, `AlgorithmSelector`, `EnhancedSokolutionSolver`, `VisualAISolver`, `MLMetricsCollector`, `MLReportGenerator` |
 | `src/renderers/` | Display | `GUIRenderer` (PyGame), `TerminalRenderer` (ANSI) |
-| `src/ui/` | UI components | `MenuSystem`, `GeneralSettingsDialog`, `KeybindingDialog`, `LevelPreview`, `MouseNavigationSystem`, `EnhancedSkinManager`, `SkinsMenu`, `widgets` (Button, ToggleButton, TextInput) |
+| `src/ui/` | UI components | `EventDispatcher`, `MenuSystem`, `GeneralSettingsDialog`, `KeybindingDialog`, `LevelPreview`, `MouseNavigationSystem`, `EnhancedSkinManager`, `SkinsMenu`, `widgets` (Button, ToggleButton, TextInput) |
 | `src/editors/` | Level editor | `EnhancedLevelEditor` (orchestrator), `EditorRenderer`, `EditorEventHandler`, `EditorOperations` |
 | `src/level_management/` | Level loading | `LevelManager`, `LevelCollectionParser`, `EnhancedLevelCollectionParser`, `LevelSelector` |
 | `src/generation/` | Procedural generation | `ProceduralGenerator`, `LevelSolver` (BFS), `advanced/` ML |
@@ -97,7 +97,7 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 
 **Mixed concerns in renderers**: `GUIRenderer.render_level()` is 342 lines combining scaling, layer rendering, stats display, and completion messages.
 
-**No event system**: Multiple independent `pygame.event.get()` loops in `MenuSystem`, `EnhancedLevelEditor`, `GUIGame`, `SkinsMenu`, `LevelPreview`.
+**~~No event system~~**: Partially resolved — `EventDispatcher` (`src/ui/event_dispatcher.py`) centralizes QUIT/VIDEORESIZE/F11/ESC-fullscreen handling for the main path (`EnhancedSokoban` -> `MenuSystem`, `GUIGame`, `EnhancedLevelEditor`). Modal dialogs (`SkinsMenu`, `LevelPreview`, `LevelSelector`, `SettingsDialog`, `KeybindingDialog`) still use independent loops.
 
 **`EnhancedSkinManager` complexity**: 977 lines with dual sprite history tracking systems, extensive debug logging, nested state machines.
 
@@ -106,6 +106,7 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 ```
 src/main.py
   -> src/enhanced_main.py (EnhancedSokoban)
+       -> src/ui/event_dispatcher.py (EventDispatcher)
        -> src/ui/menu_system.py (MenuSystem)
             -> src/ui/settings_dialog.py (GeneralSettingsDialog)
             -> src/ui/keybinding_dialog.py (KeybindingDialog)
@@ -155,7 +156,7 @@ src/main.py
 3. ~~**Consolidate solvers**~~: DONE — Deleted 3 redundant `generation/` solvers (~2373 lines). `AutoSolver` rewritten to delegate to `AlgorithmSelector` + `EnhancedSokolutionSolver`. Only `level_solver.py` (lightweight BFS) kept for `ProceduralGenerator`.
 4. ~~**Introduce interfaces**~~: DONE — `AbstractRenderer` ABC in `src/renderers/__init__.py` (4 abstract methods). `GUIRenderer` and `TerminalRenderer` inherit from it. `Game` converted to ABC with `@abstractmethod` on `_get_input()`. `AbstractSkinManager` skipped (single implementation, premature abstraction).
 5. ~~**Fix config system**~~: Partially DONE — Shallow copy bug fixed (`copy.deepcopy`), verbose `_save_config()` simplified. DI deferred (singleton used in 11 files, genuinely one config).
-6. **Unify event handling**: Extract a common event dispatcher instead of N independent `pygame.event.get()` loops.
+6. ~~**Unify event handling**~~: Partially DONE — `EventDispatcher` class centralizes global events (QUIT, VIDEORESIZE, F11, ESC+fullscreen) for the main path. `MenuSystem` gained `handle_events(events)` method fixing settings widget bug (3 of 5 widgets were inert). F11 stack-frame hack deleted from `GUIGame`. `_quit_game()` no longer calls `sys.exit(0)` when managed. Modal dialogs unchanged (short-lived blocking loops).
 
 ## Dependencies
 
