@@ -9,6 +9,7 @@ from src.core.level import Level
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET
 from src.level_management.level_collection_parser import LevelCollectionParser
 from src.ui.skins.enhanced_skin_manager import EnhancedSkinManager
+from src.ui.widgets import Button
 
 class LevelPreview:
     """
@@ -380,55 +381,3 @@ class LevelPreview:
         return default_colors.get(display_char, default_colors[FLOOR])
 
 
-class Button:
-    """A clickable button for the level preview."""
-
-    def __init__(self, text, x, y, width, height, action=None, color=(100, 100, 200),
-                 hover_color=(130, 130, 255), text_color=(255, 255, 255), font_size=32):
-        """Initialize a button."""
-        self.text = text
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.action = action
-        self.color = color
-        self.hover_color = hover_color
-        self.text_color = text_color
-        self.current_color = self.color
-        self.font = pygame.font.Font(None, font_size)
-        self.is_pressed = False  # Track if button is being pressed
-
-    def draw(self, screen):
-        """Draw the button on the screen."""
-        pygame.draw.rect(screen, self.current_color, (self.x, self.y, self.width, self.height), 0, 10)
-        text_surface = self.font.render(self.text, True, self.text_color)
-        text_rect = text_surface.get_rect(center=(self.x + self.width // 2, self.y + self.height // 2))
-        screen.blit(text_surface, text_rect)
-
-    def is_hovered(self, pos):
-        """Check if the mouse is hovering over the button."""
-        return (self.x <= pos[0] <= self.x + self.width and
-                self.y <= pos[1] <= self.y + self.height)
-
-    def update(self, mouse_pos):
-        """Update the button's appearance based on mouse position."""
-        if self.is_hovered(mouse_pos):
-            self.current_color = self.hover_color
-        else:
-            self.current_color = self.color
-
-    def handle_event(self, event):
-        """Handle mouse events for the button."""
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.is_hovered(pygame.mouse.get_pos()):
-                self.is_pressed = True
-                return True
-        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            if self.is_pressed and self.is_hovered(pygame.mouse.get_pos()):
-                self.is_pressed = False
-                if self.action:
-                    self.action()
-                return True
-            self.is_pressed = False
-        return False

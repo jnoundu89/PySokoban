@@ -252,80 +252,50 @@ class MouseNavigationSystem:
         if not grid_pos:
             return False
 
-        # If this is the first drag movement, determine the drag direction
-        if self.drag_direction is None:
-            # Calculate direction from box to mouse
-            box_x, box_y = self.dragged_box_pos
-            mouse_x, mouse_y = grid_pos
+        # Calculate direction from box to mouse for every drag movement
+        box_x, box_y = self.dragged_box_pos
+        mouse_x, mouse_y = grid_pos
 
-            # Determine primary direction (cardinal direction only)
-            dx = mouse_x - box_x
-            dy = mouse_y - box_y
+        # Determine primary direction (cardinal direction only)
+        dx = mouse_x - box_x
+        dy = mouse_y - box_y
 
-            # Handle the case where dx and dy are equal
-            if abs(dx) == abs(dy):
-                # Choose based on which is further from zero
-                if abs(dx) > 0:
-                    # Prefer horizontal movement if both are equal and non-zero
-                    self.drag_direction = (1 if dx > 0 else -1, 0)
-                else:
-                    # Both are zero, default to up
-                    self.drag_direction = (0, -1)
-            elif abs(dx) > abs(dy):
-                # Horizontal movement dominates
-                self.drag_direction = (1 if dx > 0 else -1, 0)
+        # Handle the case where dx and dy are equal
+        if abs(dx) == abs(dy):
+            # Choose based on which is further from zero
+            if abs(dx) > 0:
+                # Prefer horizontal movement if both are equal and non-zero
+                new_direction = (1 if dx > 0 else -1, 0)
             else:
-                # Vertical movement dominates
-                self.drag_direction = (0, 1 if dy > 0 else -1)
-
-            # No need to check if player can move to the position needed to push the box
-            # since we're directly swapping player and box positions
-
-            # Convert direction tuple to string for _try_drag_box
-            dir_map = {
-                (0, -1): 'up',
-                (0, 1): 'down',
-                (-1, 0): 'left',
-                (1, 0): 'right'
-            }
-            direction_str = dir_map.get(self.drag_direction)
-
-            # Try to move the box in the determined direction
-            if direction_str:
-                success = self._try_drag_box(direction_str)
-                if success:
-                    self.last_drag_pos = mouse_pos
-                    return True
-                else:
-                    self.is_dragging = False
-                    self.drag_direction = None
-                    return False
+                # Both are zero, default to up
+                new_direction = (0, -1)
+        elif abs(dx) > abs(dy):
+            # Horizontal movement dominates
+            new_direction = (1 if dx > 0 else -1, 0)
         else:
-            # For subsequent movements, check if the mouse has moved in the same direction
-            box_x, box_y = self.dragged_box_pos
-            next_box_pos = (box_x + self.drag_direction[0], box_y + self.drag_direction[1])
+            # Vertical movement dominates
+            new_direction = (0, 1 if dy > 0 else -1)
 
-            # Check if the next position is in the same direction as the mouse
-            dx = grid_pos[0] - box_x
-            dy = grid_pos[1] - box_y
+        # Convert direction tuple to string for _try_drag_box
+        dir_map = {
+            (0, -1): 'up',
+            (0, 1): 'down',
+            (-1, 0): 'left',
+            (1, 0): 'right'
+        }
+        direction_str = dir_map.get(new_direction)
 
-            # Only continue dragging if mouse is in the same direction as the drag
-            if (self.drag_direction[0] * dx >= 0 and self.drag_direction[1] * dy >= 0):
-                # Convert direction tuple to string for _try_drag_box
-                dir_map = {
-                    (0, -1): 'up',
-                    (0, 1): 'down',
-                    (-1, 0): 'left',
-                    (1, 0): 'right'
-                }
-                direction_str = dir_map.get(self.drag_direction)
-
-                # Try to move the box in the determined direction
-                if direction_str:
-                    success = self._try_drag_box(direction_str)
-                    if success:
-                        self.last_drag_pos = mouse_pos
-                        return True
+        # Try to move the box in the determined direction
+        if direction_str:
+            success = self._try_drag_box(direction_str)
+            if success:
+                self.last_drag_pos = mouse_pos
+                self.drag_direction = new_direction  # Update the drag direction
+                return True
+            elif self.drag_direction is None:
+                # Only reset dragging if this is the first attempt
+                self.is_dragging = False
+                return False
 
         return False
 
@@ -806,9 +776,19 @@ class MouseNavigationSystem:
         if box_index == -1:
             return False  # Box not found
 
-        # Swap player and box positions
+        # Calculate player position behind the box (opposite to push direction)
+        player_x, player_y = box_x - dx, box_y - dy
+        
+        # Check if the calculated player position is valid
+        if not (0 <= player_x < self.level.width and 
+                0 <= player_y < self.level.height and
+                not self.level.is_wall(player_x, player_y) and
+                not self.level.is_box(player_x, player_y)):
+            return False
+            
+        # Update player and box positions
         old_player_pos = self.level.player_pos
-        self.level.player_pos = (box_x, box_y)
+        self.level.player_pos = (player_x, player_y)
         self.level.boxes[box_index] = (new_box_x, new_box_y)
 
         # Update our tracking variables
