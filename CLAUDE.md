@@ -79,9 +79,9 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 
 ### Known Bugs
 
-**ConfigManager.reset_to_defaults()**: Uses `self.config = self.default_config.copy()` — shallow copy, nested dicts share references. Mutations to sections corrupt defaults.
+**~~ConfigManager shallow copy~~**: FIXED — All `.copy()` on nested default dicts replaced with `copy.deepcopy()`. Defaults no longer corrupted by mutations.
 
-**ConfigManager._save_config()**: Over-engineered with backup creation, read-back verification, 8+ print statements per save.
+**~~ConfigManager._save_config() verbose logging~~**: FIXED — Simplified from ~60 lines to ~10 lines. Removed debug prints, backup creation, permission chmod, read-back verification.
 
 **DeadlockDetector corral check**: BFS with 0.1s hardcoded timeout can block the game loop.
 
@@ -154,7 +154,7 @@ src/main.py
 2. ~~**Split god classes**~~: DONE — `GUIRenderer.render_level()` split into 10 submethods via `_RenderContext` dataclass. `MenuSystem` dialogs extracted to `src/ui/settings_dialog.py` + `src/ui/keybinding_dialog.py` (~550 lines removed). `EnhancedLevelEditor` decomposed via composition into orchestrator (~646 lines) + `src/editors/editor_renderer.py` (~922 lines) + `src/editors/editor_event_handler.py` (~332 lines) + `src/editors/editor_operations.py` (~457 lines).
 3. ~~**Consolidate solvers**~~: DONE — Deleted 3 redundant `generation/` solvers (~2373 lines). `AutoSolver` rewritten to delegate to `AlgorithmSelector` + `EnhancedSokolutionSolver`. Only `level_solver.py` (lightweight BFS) kept for `ProceduralGenerator`.
 4. ~~**Introduce interfaces**~~: DONE — `AbstractRenderer` ABC in `src/renderers/__init__.py` (4 abstract methods). `GUIRenderer` and `TerminalRenderer` inherit from it. `Game` converted to ABC with `@abstractmethod` on `_get_input()`. `AbstractSkinManager` skipped (single implementation, premature abstraction).
-5. **Fix config system**: Replace global singleton with dependency injection, fix shallow copy bug, remove verbose logging.
+5. ~~**Fix config system**~~: Partially DONE — Shallow copy bug fixed (`copy.deepcopy`), verbose `_save_config()` simplified. DI deferred (singleton used in 11 files, genuinely one config).
 6. **Unify event handling**: Extract a common event dispatcher instead of N independent `pygame.event.get()` loops.
 
 ## Dependencies

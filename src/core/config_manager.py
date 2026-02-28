@@ -7,6 +7,7 @@ This module provides persistent configuration storage and retrieval for:
 - Other game preferences
 """
 
+import copy
 import os
 import json
 from typing import Dict, Any, Optional
@@ -84,7 +85,7 @@ class ConfigManager:
                     loaded_config = json.load(f)
 
                 # Merge with defaults to ensure all keys exist
-                config = self.default_config.copy()
+                config = copy.deepcopy(self.default_config)
                 for section in loaded_config:
                     if section in config:
                         config[section].update(loaded_config[section])
@@ -94,9 +95,9 @@ class ConfigManager:
                 return config
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Warning: Could not load config file: {e}")
-                return self.default_config.copy()
+                return copy.deepcopy(self.default_config)
         else:
-            return self.default_config.copy()
+            return copy.deepcopy(self.default_config)
 
     def _save_config(self) -> bool:
         """
@@ -106,56 +107,9 @@ class ConfigManager:
             bool: True if saved successfully, False otherwise.
         """
         try:
-            # Print the current keyboard layout before saving
-            keyboard_layout = self.config.get('game', {}).get('keyboard_layout', 'unknown')
-            print(f"ConfigManager: Saving keyboard_layout={keyboard_layout} to {self.config_file}")
-
-            # Check if the config file exists and is writable
-            if os.path.exists(self.config_file):
-                if not os.access(self.config_file, os.W_OK):
-                    print(f"ConfigManager: WARNING - Config file {self.config_file} is not writable!")
-                    # Try to make the file writable
-                    try:
-                        import stat
-                        current_permissions = os.stat(self.config_file).st_mode
-                        os.chmod(self.config_file, current_permissions | stat.S_IWUSR)
-                        print(f"ConfigManager: Attempted to make config file writable")
-                    except Exception as e:
-                        print(f"ConfigManager: Failed to make config file writable: {e}")
-
-            # Ensure directory exists
             os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
-
-            # Print the full config for debugging
-            print(f"ConfigManager: Full config to save: {self.config}")
-
-            # Try to create a backup of the config file first
-            if os.path.exists(self.config_file):
-                backup_file = f"{self.config_file}.bak"
-                try:
-                    import shutil
-                    shutil.copy2(self.config_file, backup_file)
-                    print(f"ConfigManager: Created backup of config file at {backup_file}")
-                except Exception as e:
-                    print(f"ConfigManager: Failed to create backup of config file: {e}")
-
-            # Write the config file
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
-
-            # Verify the file was written correctly
-            print(f"ConfigManager: Config file saved successfully")
-
-            # Read the file back to verify the changes were saved
-            try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    saved_config = json.load(f)
-                    saved_keyboard_layout = saved_config.get('game', {}).get('keyboard_layout', 'unknown')
-                    print(f"ConfigManager: Verified saved keyboard_layout={saved_keyboard_layout}")
-                    if saved_keyboard_layout != keyboard_layout:
-                        print(f"ConfigManager: WARNING - Saved keyboard layout ({saved_keyboard_layout}) does not match expected value ({keyboard_layout})")
-            except Exception as e:
-                print(f"ConfigManager: Error verifying saved config: {e}")
             return True
         except IOError as e:
             print(f"Warning: Could not save config file: {e}")
@@ -204,7 +158,7 @@ class ConfigManager:
         Returns:
             Dict[str, Any]: Skin configuration.
         """
-        return self.config.get('skin', self.default_config['skin'].copy())
+        return self.config.get('skin', copy.deepcopy(self.default_config['skin']))
 
     def set_skin_config(self, current_skin: str, tile_size: int, save: bool = True) -> bool:
         """
@@ -232,7 +186,7 @@ class ConfigManager:
         Returns:
             Dict[str, Any]: Display configuration.
         """
-        return self.config.get('display', self.default_config['display'].copy())
+        return self.config.get('display', copy.deepcopy(self.default_config['display']))
 
     def set_display_config(self, width: int = None, height: int = None, 
                          fullscreen: bool = None, save: bool = True) -> bool:
@@ -266,7 +220,7 @@ class ConfigManager:
         Returns:
             Dict[str, Any]: Game configuration.
         """
-        return self.config.get('game', self.default_config['game'].copy())
+        return self.config.get('game', copy.deepcopy(self.default_config['game']))
 
     def set_game_config(self, keyboard_layout: str = None, show_grid: bool = None,
                        zoom_level: float = None, movement_cooldown: int = None, 
@@ -323,7 +277,7 @@ class ConfigManager:
         Returns:
             Dict[str, str]: Keybindings configuration.
         """
-        return self.config.get('keybindings', self.default_config['keybindings'].copy())
+        return self.config.get('keybindings', copy.deepcopy(self.default_config['keybindings']))
 
     def set_keybinding(self, action: str, key: str, save: bool = True) -> bool:
         """
@@ -349,7 +303,7 @@ class ConfigManager:
         Returns:
             bool: True if reset successfully, False otherwise.
         """
-        self.config['keybindings'] = self.default_config['keybindings'].copy()
+        self.config['keybindings'] = copy.deepcopy(self.default_config['keybindings'])
         if save:
             return self._save_config()
         return True
@@ -361,7 +315,7 @@ class ConfigManager:
         Returns:
             bool: True if reset successfully, False otherwise.
         """
-        self.config = self.default_config.copy()
+        self.config = copy.deepcopy(self.default_config)
         return self._save_config()
 
 
