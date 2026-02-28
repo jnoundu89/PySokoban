@@ -2,125 +2,60 @@
 Auto Solver for Sokoban levels.
 
 This module provides functionality to automatically solve Sokoban levels
-and animate the solution step by step using both basic BFS and advanced A* algorithms.
+and animate the solution step by step, delegating to EnhancedSokolutionSolver.
 """
 
 import time
 import pygame
-from src.generation.level_solver import SokobanSolver
-from src.generation.advanced_solver import AdvancedSokobanSolver
-from src.generation.expert_solver import ExpertSokobanSolver
-from src.generation.sokolution_solver import SokolutionSolver, ALGORITHM_GREEDY, ALGORITHM_ASTAR, MODE_FORWARD, MODE_BIDIRECTIONAL
+from src.ai.algorithm_selector import AlgorithmSelector, Algorithm
+from src.ai.enhanced_sokolution_solver import EnhancedSokolutionSolver, SearchMode, SolutionData
+
+
+# Map Algorithm enum to human-readable solver type strings
+_SOLVER_TYPE_NAMES = {
+    Algorithm.BFS: "Basic BFS",
+    Algorithm.ASTAR: "Advanced A*",
+    Algorithm.IDA_STAR: "Expert IDA*",
+    Algorithm.GREEDY: "Greedy",
+    Algorithm.BIDIRECTIONAL_GREEDY: "Sokolution Bidirectional Greedy",
+}
+
+# Solver limits per algorithm: (max_states, time_limit)
+_SOLVER_LIMITS = {
+    Algorithm.BFS: (75000, 10.0),
+    Algorithm.ASTAR: (1000000, 120.0),
+    Algorithm.IDA_STAR: (2000000, 300.0),
+    Algorithm.GREEDY: (2000000, 600.0),
+    Algorithm.BIDIRECTIONAL_GREEDY: (2000000, 600.0),
+}
 
 
 class AutoSolver:
     """
     Class for automatically solving Sokoban levels and animating the solution.
+    Delegates to EnhancedSokolutionSolver with algorithm selection via AlgorithmSelector.
     """
 
     def __init__(self, level, renderer=None, skin_manager=None):
-        """
-        Initialize the auto solver.
-
-        Args:
-            level (Level): The level to solve.
-            renderer (GUIRenderer, optional): Renderer for animation.
-            skin_manager (EnhancedSkinManager, optional): Skin manager for sprites.
-        """
         self.level = level
         self.renderer = renderer
         self.skin_manager = skin_manager
 
-        # Automatically choose solver based on level complexity
-        self.complexity_score = self._calculate_complexity_score(level)
-        self.solver = self._create_appropriate_solver(level)
+        self.selector = AlgorithmSelector()
+        self.complexity_score = self.selector.complexity_analyzer.calculate_complexity_score(level)
+        self.algorithm = self.selector.select_optimal_algorithm(level)
+        self.solver_type = _SOLVER_TYPE_NAMES.get(self.algorithm, self.algorithm.value)
 
         self.solution = None
+        self._last_result = None  # SolutionData from last solve
         self.is_solving = False
         self.is_animating = False
 
-    def _calculate_complexity_score(self, level):
-        """
-        Calculate level complexity score.
-
-        Args:
-            level (Level): The level to analyze.
-
-        Returns:
-            float: Complexity score.
-        """
-        level_size = level.width * level.height
-        box_count = len(level.boxes)
-        target_count = len(level.targets)
-
-        # Enhanced complexity calculation
-        complexity_score = (level_size * 0.5) + (box_count * 15) + (target_count * 10)
-
-        # Add penalty for large levels with many boxes
-        if box_count > 5 and level_size > 150:
-            complexity_score *= 1.5
-
-        # Add extra penalty for very complex levels
-        if box_count > 8 and level_size > 200:
-            complexity_score *= 1.2
-
-        return complexity_score
-
-    def _create_appropriate_solver(self, level):
-        """
-        Create the appropriate solver based on level complexity.
-
-        Args:
-            level (Level): The level to solve.
-
-        Returns:
-            Solver instance (either SokobanSolver or AdvancedSokobanSolver).
-        """
-        complexity_score = self.complexity_score
-
-        # Determine complexity category and solver
-        if complexity_score < 50:
-            # Simple level - use basic BFS
-            complexity = "Simple"
-            max_states = 25000
-            max_time = 5.0
-            solver = SokobanSolver(max_states=max_states, max_time=max_time)
-            solver_type = "Basic BFS"
-        elif complexity_score < 80:
-            # Medium level - use basic BFS with higher limits
-            complexity = "Medium"
-            max_states = 75000
-            max_time = 10.0
-            solver = SokobanSolver(max_states=max_states, max_time=max_time)
-            solver_type = "Basic BFS"
-        elif complexity_score < 200:
-            # Complex level - use advanced A* solver
-            complexity = "Complex"
-            max_states = 1000000
-            max_time = 120.0
-            solver = AdvancedSokobanSolver(level, max_states=max_states, time_limit=max_time)
-            solver_type = "Advanced A*"
-        elif complexity_score < 300:
-            # Expert level - use IDA* expert solver
-            complexity = "Expert"
-            max_time = 300.0  # 5 minutes for expert levels
-            solver = ExpertSokobanSolver(level, time_limit=max_time)
-            solver_type = "Expert IDA*"
-            max_states = "unlimited"
-        else:
-            # Master level - use Sokolution solver with bidirectional greedy search
-            complexity = "Master"
-            max_time = 600.0  # 10 minutes for master levels
-            solver = SokolutionSolver(level, algorithm=ALGORITHM_GREEDY, mode=MODE_BIDIRECTIONAL, 
-                                     max_states=2000000, time_limit=max_time)
-            solver_type = "Sokolution Bidirectional Greedy"
-            max_states = 2000000
-
-        print(f"Level complexity: {complexity} (score: {complexity_score:.1f})")
-        print(f"Using {solver_type} solver")
-        print(f"Solver limits: {max_states} states, {max_time}s timeout")
-
-        return solver
+        category = self.selector._get_complexity_category(self.complexity_score)
+        max_states, time_limit = _SOLVER_LIMITS.get(self.algorithm, (1000000, 120.0))
+        print(f"Level complexity: {category} (score: {self.complexity_score:.1f})")
+        print(f"Using {self.solver_type} solver")
+        print(f"Solver limits: {max_states} states, {time_limit}s timeout")
 
     def solve_level(self, progress_callback=None):
         """
@@ -137,25 +72,24 @@ class AutoSolver:
 
         self.is_solving = True
         self.solution = None
+        self._last_result = None
 
         try:
-            # Report progress
             if progress_callback:
                 progress_callback("Analyzing level...")
 
-            # Use different solving approaches based on solver type
-            if isinstance(self.solver, (AdvancedSokobanSolver, ExpertSokobanSolver, SokolutionSolver)):
-                # Advanced solvers with direct solve method
-                self.solution = self.solver.solve(progress_callback)
-                success = self.solution is not None
-            else:
-                # Basic BFS solver
-                level_copy = self._create_level_copy()
-                success = self.solver.is_solvable(level_copy)
-                if success:
-                    self.solution = self.solver.get_solution()
+            max_states, time_limit = _SOLVER_LIMITS.get(self.algorithm, (1000000, 120.0))
+            solver = EnhancedSokolutionSolver(self.level, max_states, time_limit)
 
-            if success and self.solution:
+            mode = SearchMode.BIDIRECTIONAL if self.algorithm == Algorithm.BIDIRECTIONAL_GREEDY else SearchMode.FORWARD
+            algorithm = Algorithm.GREEDY if self.algorithm == Algorithm.BIDIRECTIONAL_GREEDY else self.algorithm
+
+            result = solver.solve(algorithm, mode, progress_callback)
+
+            if result and result.moves:
+                self.solution = result.moves
+                self._last_result = result
+
                 if progress_callback:
                     progress_callback(f"Solution found! {len(self.solution)} moves")
 
@@ -175,21 +109,6 @@ class AutoSolver:
             self.is_solving = False
             return False
 
-    def _create_level_copy(self):
-        """
-        Create a copy of the level for solving.
-
-        Returns:
-            Level: A copy of the current level.
-        """
-        from src.core.level import Level
-
-        # Create level data string
-        level_data = self.level.get_state_string()
-
-        # Create new level from data
-        return Level(level_data=level_data)
-
     def get_solution_info(self):
         """
         Get information about the current solution.
@@ -200,22 +119,14 @@ class AutoSolver:
         if not self.solution:
             return None
 
-        solver_type = 'Basic BFS'
-        if isinstance(self.solver, AdvancedSokobanSolver):
-            solver_type = 'Advanced A*'
-        elif isinstance(self.solver, ExpertSokobanSolver):
-            solver_type = 'Expert IDA*'
-        elif isinstance(self.solver, SokolutionSolver):
-            solver_type = f'Sokolution {self.solver.algorithm} ({self.solver.mode})'
-
         return {
             'moves': len(self.solution),
             'solution': self.solution.copy(),
             'complexity_score': self.complexity_score,
-            'solver_type': solver_type
+            'solver_type': self.solver_type
         }
 
-    def execute_solution_live(self, move_delay=500, show_grid=False, zoom_level=1.0, 
+    def execute_solution_live(self, move_delay=500, show_grid=False, zoom_level=1.0,
                             scroll_x=0, scroll_y=0, level_manager=None):
         """
         Execute the solution by taking control of the level and animating moves.
@@ -234,7 +145,7 @@ class AutoSolver:
         self.is_animating = True
 
         try:
-            print(f"🤖 AI executing solution: {len(self.solution)} moves")
+            print(f"AI executing solution: {len(self.solution)} moves")
 
             for i, move in enumerate(self.solution):
                 # Check for quit events
@@ -257,12 +168,12 @@ class AutoSolver:
                     # Execute the move
                     moved = self.level.move(dx, dy)
 
-                    print(f"🤖 AI Move {i+1}/{len(self.solution)}: {move} -> {'✅' if moved else '❌'}")
+                    print(f"AI Move {i+1}/{len(self.solution)}: {move} -> {'OK' if moved else 'FAIL'}")
 
                     # Render the current state
                     if self.renderer and level_manager:
                         self.renderer.render_level(
-                            self.level, level_manager, show_grid, 
+                            self.level, level_manager, show_grid,
                             zoom_level, scroll_x, scroll_y, self.skin_manager,
                             show_completion_message=False
                         )
@@ -273,10 +184,8 @@ class AutoSolver:
 
                     # Check if level is completed
                     if self.level.is_completed():
-                        print("🎉 Level solved by AI! Well done!")
-                        # Wait for a moment
+                        print("Level solved by AI!")
                         pygame.time.wait(1000)
-                        # Show level completion screen
                         if hasattr(level_manager, '_show_level_completion_screen'):
                             level_manager._show_level_completion_screen()
                         self.is_animating = False

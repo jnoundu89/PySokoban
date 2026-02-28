@@ -26,7 +26,6 @@ from ..core.level import Level
 from ..level_management.level_manager import LevelManager
 from ..ui.skins.enhanced_skin_manager import EnhancedSkinManager
 from ..generation.procedural_generator import ProceduralGenerator
-from ..core.auto_solver import AutoSolver
 from ..ui.interactive_highlight import EditorHighlight
 from .editor_renderer import EditorRenderer
 from .editor_event_handler import EditorEventHandler

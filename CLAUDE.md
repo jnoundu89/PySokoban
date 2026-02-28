@@ -49,7 +49,7 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 | `src/ui/` | UI components | `MenuSystem`, `GeneralSettingsDialog`, `KeybindingDialog`, `LevelPreview`, `MouseNavigationSystem`, `EnhancedSkinManager`, `SkinsMenu`, `widgets` (Button, ToggleButton, TextInput) |
 | `src/editors/` | Level editor | `EnhancedLevelEditor` (orchestrator), `EditorRenderer`, `EditorEventHandler`, `EditorOperations` |
 | `src/level_management/` | Level loading | `LevelManager`, `LevelCollectionParser`, `EnhancedLevelCollectionParser`, `LevelSelector` |
-| `src/generation/` | Procedural generation | `ProceduralGenerator`, `SokolutionSolver`, solvers, `advanced/` ML |
+| `src/generation/` | Procedural generation | `ProceduralGenerator`, `LevelSolver` (BFS), `advanced/` ML |
 
 ### Key Patterns
 
@@ -75,15 +75,7 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 - `src/level_management/level_collection_parser.py` — base parser, used by `level_manager.py`
 - `src/level_management/enhanced_level_collection_parser.py` — enhanced variant, imported by `level_collection_parser.py`
 
-**2. Solver duplication across `src/ai/` and `src/generation/`**:
-- `src/generation/level_solver.py` (250) — basic BFS solver
-- `src/generation/advanced_solver.py` (537) — A* solver
-- `src/generation/expert_solver.py` (395) — IDA* solver
-- `src/generation/sokolution_solver.py` (1441) — bidirectional solver
-- `src/ai/enhanced_sokolution_solver.py` (1377) — the production solver with all algorithms
-- `src/core/auto_solver.py` (295) — orchestrator that imports all 4 `generation/` solvers
-
-The `generation/` solvers are used only by `auto_solver.py` and `procedural_generator.py`. The `ai/` solver is the production solver used by `UnifiedAIController`.
+**2. ~~Solver duplication~~**: DONE — Deleted 3 redundant solvers (`advanced_solver.py`, `expert_solver.py`, `sokolution_solver.py` totaling ~2373 lines). `AutoSolver` now delegates to `AlgorithmSelector` + `EnhancedSokolutionSolver`. Only `src/generation/level_solver.py` (250 lines, lightweight BFS) remains for fast solvability testing in `ProceduralGenerator`.
 
 ### Known Bugs
 
@@ -139,10 +131,8 @@ src/main.py
        -> src/ai/visual_ai_solver.py (VisualAISolver)
        -> src/core/config_manager.py (singleton)
        -> src/core/auto_solver.py (AutoSolver)
-            -> src/generation/level_solver.py
-            -> src/generation/advanced_solver.py
-            -> src/generation/expert_solver.py
-            -> src/generation/sokolution_solver.py
+            -> src/ai/algorithm_selector.py
+            -> src/ai/enhanced_sokolution_solver.py
 ```
 
 ### Size Hotspots (largest files)
@@ -153,7 +143,6 @@ src/main.py
 | `src/renderers/gui_renderer.py` | ~958 | `render_level()` split into 10 submethods via `_RenderContext` |
 | `src/editors/editor_renderer.py` | ~922 | Extracted from `EnhancedLevelEditor` |
 | `src/editors/enhanced_level_editor.py` | ~646 | Orchestrator; delegates to 3 composition classes |
-| `src/generation/sokolution_solver.py` | 1441 | Overlaps with `ai/enhanced_sokolution_solver.py` |
 | `src/ai/enhanced_sokolution_solver.py` | ~1280 | Core solver — large but well-structured |
 | `src/ui/skins/enhanced_skin_manager.py` | 977 | Over-complex, dual tracking systems |
 | `src/ui/mouse_navigation.py` | 888 | Too many concerns in one class |
@@ -163,7 +152,7 @@ src/main.py
 
 1. ~~**Extract shared UI components**~~: DONE — `src/ui/widgets.py` (Button, ToggleButton, TextInput). All modules import from widgets.
 2. ~~**Split god classes**~~: DONE — `GUIRenderer.render_level()` split into 10 submethods via `_RenderContext` dataclass. `MenuSystem` dialogs extracted to `src/ui/settings_dialog.py` + `src/ui/keybinding_dialog.py` (~550 lines removed). `EnhancedLevelEditor` decomposed via composition into orchestrator (~646 lines) + `src/editors/editor_renderer.py` (~922 lines) + `src/editors/editor_event_handler.py` (~332 lines) + `src/editors/editor_operations.py` (~457 lines).
-3. **Consolidate solvers**: The 4 solvers in `generation/` + `auto_solver.py` orchestrator overlap with `ai/enhanced_sokolution_solver.py`. Unify into one solver module.
+3. ~~**Consolidate solvers**~~: DONE — Deleted 3 redundant `generation/` solvers (~2373 lines). `AutoSolver` rewritten to delegate to `AlgorithmSelector` + `EnhancedSokolutionSolver`. Only `level_solver.py` (lightweight BFS) kept for `ProceduralGenerator`.
 4. **Introduce interfaces**: `AbstractRenderer`, `AbstractSkinManager` to enable polymorphism.
 5. **Fix config system**: Replace global singleton with dependency injection, fix shallow copy bug, remove verbose logging.
 6. **Unify event handling**: Extract a common event dispatcher instead of N independent `pygame.event.get()` loops.

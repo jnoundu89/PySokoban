@@ -49,34 +49,35 @@ def test_auto_solver():
         solution_info = auto_solver.get_solution_info()
         print(f"\n✅ SUCCESS!")
         print(f"Solution length: {solution_info['moves']} moves")
-        print(f"Moves breakdown: {solution_info['moves_breakdown']}")
+        print(f"Solver: {solution_info['solver_type']}")
         print(f"Solution: {' -> '.join(solution_info['solution'])}")
-        
+
         # Test that the solution actually works
         print("\nVerifying solution...")
         test_level = Level(level_data=level_string)
-        
+
+        direction_map = {
+            'UP': (0, -1), 'DOWN': (0, 1),
+            'LEFT': (-1, 0), 'RIGHT': (1, 0)
+        }
+
         for i, move in enumerate(solution_info['solution']):
-            dx, dy = 0, 0
-            if move == 'up':
-                dy = -1
-            elif move == 'down':
-                dy = 1
-            elif move == 'left':
-                dx = -1
-            elif move == 'right':
-                dx = 1
-            
+            if move in direction_map:
+                dx, dy = direction_map[move]
+            else:
+                print(f"Unknown move: {move}")
+                return False
+
             moved = test_level.move(dx, dy)
             if not moved:
-                print(f"❌ Move {i+1} ({move}) failed!")
+                print(f"Move {i+1} ({move}) failed!")
                 return False
-        
+
         if test_level.is_completed():
-            print("✅ Solution verified successfully!")
+            print("Solution verified successfully!")
             return True
         else:
-            print("❌ Solution does not complete the level!")
+            print("Solution does not complete the level!")
             return False
     else:
         print("❌ FAILED: No solution found")
@@ -114,7 +115,7 @@ def test_complex_level():
         solution_info = auto_solver.get_solution_info()
         print(f"\n✅ SUCCESS!")
         print(f"Solution length: {solution_info['moves']} moves")
-        print(f"Moves breakdown: {solution_info['moves_breakdown']}")
+        print(f"Solver: {solution_info['solver_type']}")
         print(f"Solution: {' -> '.join(solution_info['solution'])}")
         return True
     else:
