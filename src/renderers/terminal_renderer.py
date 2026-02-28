@@ -7,9 +7,10 @@ This module provides functionality for rendering the game in a terminal environm
 import os
 import platform
 from src.core.constants import DISPLAY_CHARS, COLORS
+from src.renderers import AbstractRenderer
 
 
-class TerminalRenderer:
+class TerminalRenderer(AbstractRenderer):
     """
     Class for rendering the Sokoban game in a terminal.
 
@@ -135,7 +136,7 @@ class TerminalRenderer:
                 completion_msg += " Press 'n' for the next level."
             print("\n" + completion_msg)
 
-    def render_help(self):
+    def render_help(self, keybindings=None):
         """
         Render the help information in the terminal.
         """
@@ -155,7 +156,7 @@ Controls:
         """
         print(help_text)
 
-    def render_welcome_screen(self):
+    def render_welcome_screen(self, keybindings=None):
         """
         Render the welcome screen in the terminal.
         """

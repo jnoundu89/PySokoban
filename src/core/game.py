@@ -6,10 +6,12 @@ This module contains the core game logic for the Sokoban game.
 
 import sys
 import time
+from abc import ABC, abstractmethod
 from src.core.constants import KEY_BINDINGS, QWERTY, AZERTY, DEFAULT_KEYBOARD
+from src.renderers import AbstractRenderer
 
 
-class Game:
+class Game(ABC):
     """
     Main class for the Sokoban game.
 
@@ -17,7 +19,7 @@ class Game:
     handling user input, and managing the game loop.
     """
 
-    def __init__(self, level_manager, renderer, keyboard_layout=DEFAULT_KEYBOARD):
+    def __init__(self, level_manager, renderer: AbstractRenderer, keyboard_layout=DEFAULT_KEYBOARD):
         """
         Initialize the Sokoban game.
 
@@ -110,6 +112,7 @@ class Game:
                     input()
                     self._quit_game()
 
+    @abstractmethod
     def _get_input(self):
         """
         Get user input.
@@ -117,8 +120,7 @@ class Game:
         Returns:
             str: The action corresponding to the key pressed.
         """
-        # This method will be implemented differently in terminal and GUI versions
-        raise NotImplementedError("This method should be implemented by subclasses")
+        ...
 
     def _handle_movement(self, direction):
         """

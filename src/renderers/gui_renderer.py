@@ -10,6 +10,7 @@ import pygame
 from dataclasses import dataclass
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET, CELL_SIZE
 from src.core.config_manager import get_config_manager
+from src.renderers import AbstractRenderer
 from src.ui.interactive_highlight import GameplayHighlight
 
 
@@ -27,7 +28,7 @@ class _RenderContext:
     stats_font: object
 
 
-class GUIRenderer:
+class GUIRenderer(AbstractRenderer):
     """
     Class for rendering the Sokoban game with a GUI using Pygame.
 

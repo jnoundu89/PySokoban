@@ -91,9 +91,9 @@ The **enhanced** mode is the main application. It composes `MenuSystem`, `LevelM
 
 ### Architectural Issues
 
-**No base interfaces**: No abstract `Renderer`, `SkinManager`, `Editor`, or `Button` interface.
+**~~No base interfaces~~**: RESOLVED — `AbstractRenderer` ABC added; `Game` converted to proper ABC. `AbstractSkinManager`/`AbstractEditor` skipped (single implementations).
 
-**`Game` vs `EnhancedSokoban`**: `Game` is an abstract base with `_get_input()` raising `NotImplementedError` (should use ABC). `EnhancedSokoban` doesn't inherit from `Game` — completely parallel implementation.
+**`Game` vs `EnhancedSokoban`**: `Game` is a proper ABC with `@abstractmethod` on `_get_input()`. `EnhancedSokoban` doesn't inherit from `Game` — completely parallel implementation.
 
 **Mixed concerns in renderers**: `GUIRenderer.render_level()` is 342 lines combining scaling, layer rendering, stats display, and completion messages.
 
@@ -153,7 +153,7 @@ src/main.py
 1. ~~**Extract shared UI components**~~: DONE — `src/ui/widgets.py` (Button, ToggleButton, TextInput). All modules import from widgets.
 2. ~~**Split god classes**~~: DONE — `GUIRenderer.render_level()` split into 10 submethods via `_RenderContext` dataclass. `MenuSystem` dialogs extracted to `src/ui/settings_dialog.py` + `src/ui/keybinding_dialog.py` (~550 lines removed). `EnhancedLevelEditor` decomposed via composition into orchestrator (~646 lines) + `src/editors/editor_renderer.py` (~922 lines) + `src/editors/editor_event_handler.py` (~332 lines) + `src/editors/editor_operations.py` (~457 lines).
 3. ~~**Consolidate solvers**~~: DONE — Deleted 3 redundant `generation/` solvers (~2373 lines). `AutoSolver` rewritten to delegate to `AlgorithmSelector` + `EnhancedSokolutionSolver`. Only `level_solver.py` (lightweight BFS) kept for `ProceduralGenerator`.
-4. **Introduce interfaces**: `AbstractRenderer`, `AbstractSkinManager` to enable polymorphism.
+4. ~~**Introduce interfaces**~~: DONE — `AbstractRenderer` ABC in `src/renderers/__init__.py` (4 abstract methods). `GUIRenderer` and `TerminalRenderer` inherit from it. `Game` converted to ABC with `@abstractmethod` on `_get_input()`. `AbstractSkinManager` skipped (single implementation, premature abstraction).
 5. **Fix config system**: Replace global singleton with dependency injection, fix shallow copy bug, remove verbose logging.
 6. **Unify event handling**: Extract a common event dispatcher instead of N independent `pygame.event.get()` loops.
 
