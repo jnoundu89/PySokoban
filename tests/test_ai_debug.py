@@ -66,7 +66,7 @@ def test_trivial_level():
         
         # Test 3: Essayer chaque algorithme individuellement
         print("\n🔧 Test 3: Test individuel des algorithmes")
-        algorithms_to_test = [Algorithm.FESS, Algorithm.BFS, Algorithm.ASTAR, Algorithm.GREEDY]
+        algorithms_to_test = [Algorithm.BFS, Algorithm.ASTAR, Algorithm.GREEDY]
         
         for algorithm in algorithms_to_test:
             print(f"\n   Test avec {algorithm.value}:")

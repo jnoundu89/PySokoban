@@ -929,9 +929,7 @@ class EnhancedSokolutionSolver:
             progress_callback(f"🔍 Démarrage solver {algorithm.value} (mode {mode.value}) - Complexité: {level_complexity}")
         
         # Sélection de l'algorithme de recherche
-        if algorithm == Algorithm.FESS:
-            solution_moves = self._fess_search(progress_callback)
-        elif algorithm == Algorithm.BFS:
+        if algorithm == Algorithm.BFS:
             solution_moves = self._bfs_search(progress_callback)
         elif algorithm == Algorithm.ASTAR:
             solution_moves = self._astar_search(progress_callback)
@@ -1045,91 +1043,6 @@ class EnhancedSokolutionSolver:
         """Vérifie si on est dans les limites de temps et d'états."""
         return (time.time() - self.start_time <= self.time_limit and
                 self.states_explored <= self.max_states)
-    
-    def _fess_search(self, progress_callback: Optional[Callable] = None) -> Optional[List[str]]:
-        """
-        Implémentation du vrai algorithme FESS (Feature Space Search).
-        
-        Basé sur Shoham and Schaeffer [2020] - implémentation authentique
-        qui utilise l'espace de features 4D et les advisors domain-spécifiques.
-        """
-        if progress_callback:
-            progress_callback("🔬 Initialisation du vrai FESS (Shoham & Schaeffer 2020)")
-        
-        # Utiliser le vrai moteur de recherche FESS
-        from .authentic_fess import FESSSearchEngine
-        
-        fess_engine = FESSSearchEngine(
-            level=self.level,
-            max_states=self.max_states,
-            time_limit=self.time_limit
-        )
-        
-        # Lancer la recherche authentique FESS
-        solution_moves = fess_engine.search(progress_callback)
-        
-        # Mettre à jour nos métriques avec celles du moteur FESS
-        fess_stats = fess_engine.get_statistics()
-        self.states_explored = fess_stats['search_statistics']['states_explored']
-        self.states_generated = fess_stats['search_statistics']['states_generated']
-        
-        return solution_moves
-    
-    def _adapt_fess_parameters(self, current_state: SokolutionState,
-                              last_best_h: float, stagnation_counter: int) -> float:
-        """
-        Adapte dynamiquement les paramètres FESS basé sur le progrès.
-        
-        Cette fonction ajuste les poids et stratégies selon la performance
-        de la recherche actuelle.
-        """
-        base_factor = 1.0
-        
-        # Si on stagne, augmenter l'exploration
-        if stagnation_counter > 500:
-            base_factor *= 1.2  # Augmenter l'exploration
-        elif stagnation_counter > 1000:
-            base_factor *= 1.5  # Exploration plus agressive
-        
-        # Si on progresse bien, rester concentré
-        if current_state.h_cost < last_best_h:
-            base_factor *= 0.9  # Rester plus concentré
-        
-        # Adaptation basée sur la profondeur
-        depth_factor = 1.0 + (current_state.g_cost * 0.001)
-        
-        return base_factor * depth_factor
-    
-    def _apply_fess_bonuses(self, state: SokolutionState, feature_extractor: FeatureExtractor):
-        """
-        Applique des bonus/malus spécifiques FESS basés sur les features.
-        """
-        # Bonus pour les configurations prometteuses
-        boxes_on_targets = len([box for box in state.boxes if box in self.level.targets])
-        total_boxes = len(state.boxes)
-        
-        if total_boxes > 0:
-            progress_ratio = boxes_on_targets / total_boxes
-            
-            # Bonus significatif si beaucoup de progrès
-            if progress_ratio > 0.8:
-                state.f_cost *= 0.5  # Forte priorité
-            elif progress_ratio > 0.6:
-                state.f_cost *= 0.8  # Priorité modérée
-        
-        # Malus pour les positions dangereuses (deadlocks potentiels)
-        dangerous_boxes = sum(1 for box in state.boxes
-                            if box in feature_extractor.deadlock_zones)
-        if dangerous_boxes > 0:
-            danger_ratio = dangerous_boxes / total_boxes
-            state.f_cost *= (1.0 + danger_ratio * 2.0)  # Pénaliser les configurations dangereuses
-        
-        # Bonus pour la mobilité du joueur
-        player_connectivity = feature_extractor._calculate_player_connectivity(state)
-        if player_connectivity > 0.7:
-            state.f_cost *= 0.95  # Léger bonus pour bonne connectivité
-    
-    # Les autres implémentations d'algorithmes suivent...
     
     def _bfs_search(self, progress_callback: Optional[Callable] = None) -> Optional[List[str]]:
         """Implémentation BFS."""

@@ -34,13 +34,13 @@ def test_corrected_trivial_level():
         # Test de résolution
         ai_controller = UnifiedAIController()
         
-        print("\n🤖 Test de résolution avec FESS:")
+        print("\n🤖 Test de résolution avec A*:")
         def progress_callback(message):
             print(f"   📍 {message}")
         
         request = SolveRequest(
             level=level,
-            algorithm=Algorithm.FESS,
+            algorithm=Algorithm.ASTAR,
             time_limit=30.0,
             collect_ml_metrics=False
         )
@@ -49,7 +49,7 @@ def test_corrected_trivial_level():
         result = ai_controller.solve_level(request, progress_callback)
         end_time = time.time()
         
-        print(f"\n📊 Résultats FESS:")
+        print(f"\n📊 Résultats A*:")
         print(f"   Succès: {result.success}")
         print(f"   Temps: {end_time - start_time:.3f}s")
         
@@ -103,7 +103,7 @@ def test_famous_thinking_rabbit_level():
             print(f"   📍 {message}")
         
         # Test avec différents algorithmes
-        algorithms_to_test = [Algorithm.BFS, Algorithm.ASTAR, Algorithm.FESS]
+        algorithms_to_test = [Algorithm.BFS, Algorithm.ASTAR]
         
         for algorithm in algorithms_to_test:
             print(f"\n🔧 Test avec {algorithm.value}:")
