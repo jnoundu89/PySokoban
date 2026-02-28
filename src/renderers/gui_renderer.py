@@ -7,9 +7,24 @@ using Pygame.
 
 import os
 import pygame
+from dataclasses import dataclass
 from src.core.constants import WALL, FLOOR, PLAYER, BOX, TARGET, PLAYER_ON_TARGET, BOX_ON_TARGET, CELL_SIZE
 from src.core.config_manager import get_config_manager
 from src.ui.interactive_highlight import GameplayHighlight
+
+
+@dataclass
+class _RenderContext:
+    """Per-frame computed values for rendering."""
+    screen_width: int
+    screen_height: int
+    cell_size_scaled: int
+    offset_x: float
+    offset_y: float
+    scaled_assets: dict
+    background_layer: dict
+    foreground_layer: dict
+    stats_font: object
 
 
 class GUIRenderer:
@@ -123,7 +138,7 @@ class GUIRenderer:
         """Create a surface for a wall."""
         surface = pygame.Surface((CELL_SIZE, CELL_SIZE))
         surface.fill(self.colors['dark_gray'])
-        pygame.draw.rect(surface, self.colors['gray'], 
+        pygame.draw.rect(surface, self.colors['gray'],
                          pygame.Rect(2, 2, CELL_SIZE-4, CELL_SIZE-4))
         return surface
 
@@ -137,7 +152,7 @@ class GUIRenderer:
         """Create a surface for the player."""
         surface = pygame.Surface((CELL_SIZE, CELL_SIZE))
         surface.fill(self.colors['light_gray'])  # Floor background
-        pygame.draw.circle(surface, self.colors['blue'], 
+        pygame.draw.circle(surface, self.colors['blue'],
                           (CELL_SIZE // 2, CELL_SIZE // 2), CELL_SIZE // 3)
         return surface
 
@@ -145,8 +160,8 @@ class GUIRenderer:
         """Create a surface for a box."""
         surface = pygame.Surface((CELL_SIZE, CELL_SIZE))
         surface.fill(self.colors['light_gray'])  # Floor background
-        pygame.draw.rect(surface, self.colors['brown'], 
-                         pygame.Rect(CELL_SIZE//6, CELL_SIZE//6, 
+        pygame.draw.rect(surface, self.colors['brown'],
+                         pygame.Rect(CELL_SIZE//6, CELL_SIZE//6,
                                      CELL_SIZE*2//3, CELL_SIZE*2//3))
         return surface
 
@@ -154,7 +169,7 @@ class GUIRenderer:
         """Create a surface for a target."""
         surface = pygame.Surface((CELL_SIZE, CELL_SIZE))
         surface.fill(self.colors['light_gray'])  # Floor background
-        pygame.draw.circle(surface, self.colors['red'], 
+        pygame.draw.circle(surface, self.colors['red'],
                           (CELL_SIZE // 2, CELL_SIZE // 2), CELL_SIZE // 6)
         return surface
 
@@ -162,9 +177,9 @@ class GUIRenderer:
         """Create a surface for the player on a target."""
         surface = pygame.Surface((CELL_SIZE, CELL_SIZE))
         surface.fill(self.colors['light_gray'])  # Floor background
-        pygame.draw.circle(surface, self.colors['red'], 
+        pygame.draw.circle(surface, self.colors['red'],
                           (CELL_SIZE // 2, CELL_SIZE // 2), CELL_SIZE // 6)
-        pygame.draw.circle(surface, self.colors['blue'], 
+        pygame.draw.circle(surface, self.colors['blue'],
                           (CELL_SIZE // 2, CELL_SIZE // 2), CELL_SIZE // 3)
         return surface
 
@@ -172,10 +187,10 @@ class GUIRenderer:
         """Create a surface for a box on a target."""
         surface = pygame.Surface((CELL_SIZE, CELL_SIZE))
         surface.fill(self.colors['light_gray'])  # Floor background
-        pygame.draw.circle(surface, self.colors['red'], 
+        pygame.draw.circle(surface, self.colors['red'],
                           (CELL_SIZE // 2, CELL_SIZE // 2), CELL_SIZE // 4)
-        pygame.draw.rect(surface, self.colors['green'], 
-                         pygame.Rect(CELL_SIZE//6, CELL_SIZE//6, 
+        pygame.draw.rect(surface, self.colors['green'],
+                         pygame.Rect(CELL_SIZE//6, CELL_SIZE//6,
                                      CELL_SIZE*2//3, CELL_SIZE*2//3))
         return surface
 
@@ -200,38 +215,108 @@ class GUIRenderer:
         # Get current screen size
         current_screen_width, current_screen_height = self.screen.get_size()
 
+        # Compute layout (sets self.scale_factor, returns offsets)
+        offset_x, offset_y = self._compute_render_layout(
+            level, zoom_level, scroll_x, scroll_y, current_screen_width, current_screen_height
+        )
+
+        # Clear the screen
+        self.screen.fill(self.colors['background'])
+
+        # Prepare scaled assets and layers
+        scaled_assets, background_layer, foreground_layer = self._prepare_scaled_assets(skin_manager)
+
+        # Build render context
+        cell_size_scaled = int(CELL_SIZE * self.scale_factor)
+        stats_font = pygame.font.Font(None, int(24 * max(1, self.scale_factor)))
+        ctx = _RenderContext(
+            screen_width=current_screen_width,
+            screen_height=current_screen_height,
+            cell_size_scaled=cell_size_scaled,
+            offset_x=offset_x,
+            offset_y=offset_y,
+            scaled_assets=scaled_assets,
+            background_layer=background_layer,
+            foreground_layer=foreground_layer,
+            stats_font=stats_font,
+        )
+
+        # Render layers
+        self._render_background(ctx, level)
+        self._render_foreground(ctx, level, skin_manager)
+
+        if show_grid:
+            self._render_grid_lines(ctx, level)
+
+        self._render_highlight(ctx, level, mouse_pos, scroll_x, scroll_y)
+        self._render_stats(ctx, level)
+        self._render_level_info(ctx, level, level_manager)
+        self._render_metadata(ctx, level, level_manager)
+
+        if level.is_completed() and show_completion_message:
+            self._render_completion_overlay(ctx, level_manager)
+
+        # Update the display
+        pygame.display.flip()
+
+        return self.screen
+
+    def _compute_render_layout(self, level, zoom_level, scroll_x, scroll_y, screen_width, screen_height):
+        """
+        Compute layout offsets and set self.scale_factor.
+
+        Args:
+            level: The Level object to render.
+            zoom_level: Zoom level for the display.
+            scroll_x: Horizontal scroll offset.
+            scroll_y: Vertical scroll offset.
+            screen_width: Current screen width.
+            screen_height: Current screen height.
+
+        Returns:
+            tuple: (offset_x, offset_y) pixel offsets for the level origin.
+        """
         # Calculate base window size needed for the level
         base_cell_size = CELL_SIZE * zoom_level
         base_window_width = level.width * base_cell_size
         base_window_height = level.height * base_cell_size + 100  # Extra space for stats
 
         # Check if we're in a resized window (including fullscreen)
-        if current_screen_width > base_window_width or current_screen_height > base_window_height:
+        if screen_width > base_window_width or screen_height > base_window_height:
             # We're in a larger window, calculate scaling
-            width_scale = current_screen_width / base_window_width
-            height_scale = current_screen_height / base_window_height
+            width_scale = screen_width / base_window_width
+            height_scale = screen_height / base_window_height
             self.scale_factor = min(width_scale, height_scale, zoom_level) * 0.9  # Use 90% of available space
 
             # Calculate centered position with scroll offset
-            offset_x = (current_screen_width - (base_window_width * self.scale_factor / zoom_level)) // 2 + scroll_x
-            offset_y = (current_screen_height - (base_window_height * self.scale_factor / zoom_level)) // 2 + scroll_y
+            offset_x = (screen_width - (base_window_width * self.scale_factor / zoom_level)) // 2 + scroll_x
+            offset_y = (screen_height - (base_window_height * self.scale_factor / zoom_level)) // 2 + scroll_y
         else:
             # We're in a normal window, use zoom level directly
-            if base_window_width <= current_screen_width and base_window_height <= current_screen_height:
+            if base_window_width <= screen_width and base_window_height <= screen_height:
                 self.scale_factor = zoom_level
-                offset_x = (current_screen_width - base_window_width) // 2 + scroll_x
-                offset_y = (current_screen_height - base_window_height) // 2 + scroll_y
+                offset_x = (screen_width - base_window_width) // 2 + scroll_x
+                offset_y = (screen_height - base_window_height) // 2 + scroll_y
             else:
                 # Need to fit in window
-                width_scale = current_screen_width / base_window_width
-                height_scale = (current_screen_height - 100) / (base_window_height - 100)
+                width_scale = screen_width / base_window_width
+                height_scale = (screen_height - 100) / (base_window_height - 100)
                 self.scale_factor = min(width_scale, height_scale) * 0.9
-                offset_x = (current_screen_width - (level.width * CELL_SIZE * self.scale_factor)) // 2 + scroll_x
-                offset_y = (current_screen_height - (level.height * CELL_SIZE * self.scale_factor + 100)) // 2 + scroll_y
+                offset_x = (screen_width - (level.width * CELL_SIZE * self.scale_factor)) // 2 + scroll_x
+                offset_y = (screen_height - (level.height * CELL_SIZE * self.scale_factor + 100)) // 2 + scroll_y
 
-        # Clear the screen
-        self.screen.fill(self.colors['background'])
+        return offset_x, offset_y
 
+    def _prepare_scaled_assets(self, skin_manager):
+        """
+        Prepare scaled assets and layer dictionaries for rendering.
+
+        Args:
+            skin_manager: Optional enhanced skin manager for directional sprites.
+
+        Returns:
+            tuple: (scaled_assets, background_layer, foreground_layer) dictionaries.
+        """
         # Get assets from skin manager if available, otherwise use default
         if skin_manager:
             assets_to_use = skin_manager.get_skin()
@@ -261,9 +346,6 @@ class GUIRenderer:
             else:
                 scaled_assets = self.assets
 
-        # Render the level using layers
-        cell_size_scaled = int(CELL_SIZE * self.scale_factor)
-
         # Get layer assets if skin manager is available
         background_layer = {}
         foreground_layer = {}
@@ -289,40 +371,57 @@ class GUIRenderer:
                     scaled_foreground[key] = pygame.transform.scale(asset, (scaled_size, scaled_size))
                 foreground_layer = scaled_foreground
 
-        # First pass: Render background layer (floor)
+        return scaled_assets, background_layer, foreground_layer
+
+    def _render_background(self, ctx, level):
+        """
+        Render the background layer (floor tiles).
+
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+        """
         for y in range(level.height):
             for x in range(level.width):
-                pos_x = offset_x + x * cell_size_scaled
-                pos_y = offset_y + y * cell_size_scaled
+                pos_x = ctx.offset_x + x * ctx.cell_size_scaled
+                pos_y = ctx.offset_y + y * ctx.cell_size_scaled
                 pos = (pos_x, pos_y)
 
                 # Always render floor in background
-                if FLOOR in background_layer:
-                    self.screen.blit(background_layer[FLOOR], pos)
-                elif FLOOR in scaled_assets:
-                    self.screen.blit(scaled_assets[FLOOR], pos)
+                if FLOOR in ctx.background_layer:
+                    self.screen.blit(ctx.background_layer[FLOOR], pos)
+                elif FLOOR in ctx.scaled_assets:
+                    self.screen.blit(ctx.scaled_assets[FLOOR], pos)
 
-        # Second pass: Render foreground layer (walls, targets, player, boxes)
+    def _render_foreground(self, ctx, level, skin_manager):
+        """
+        Render the foreground layer (walls, targets, player, boxes).
+
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+            skin_manager: Optional enhanced skin manager for directional sprites.
+        """
         for y in range(level.height):
             for x in range(level.width):
                 char = level.get_display_char(x, y)
-                pos_x = offset_x + x * cell_size_scaled
-                pos_y = offset_y + y * cell_size_scaled
+                pos_x = ctx.offset_x + x * ctx.cell_size_scaled
+                pos_y = ctx.offset_y + y * ctx.cell_size_scaled
                 pos = (pos_x, pos_y)
 
                 if char == WALL:
                     # Render wall
-                    if WALL in foreground_layer:
-                        self.screen.blit(foreground_layer[WALL], pos)
-                    elif WALL in scaled_assets:
-                        self.screen.blit(scaled_assets[WALL], pos)
+                    if WALL in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[WALL], pos)
+                    elif WALL in ctx.scaled_assets:
+                        self.screen.blit(ctx.scaled_assets[WALL], pos)
 
                 elif char == TARGET:
                     # Render target
-                    if TARGET in foreground_layer:
-                        self.screen.blit(foreground_layer[TARGET], pos)
-                    elif TARGET in scaled_assets:
-                        self.screen.blit(scaled_assets[TARGET], pos)
+                    if TARGET in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[TARGET], pos)
+                    elif TARGET in ctx.scaled_assets:
+                        self.screen.blit(ctx.scaled_assets[TARGET], pos)
 
                 elif char == PLAYER:
                     # Render player
@@ -334,24 +433,24 @@ class GUIRenderer:
                                 target_size = int(CELL_SIZE * self.scale_factor)
                                 player_sprite = pygame.transform.scale(player_sprite, (target_size, target_size))
                             self.screen.blit(player_sprite, pos)
-                    elif PLAYER in foreground_layer:
-                        self.screen.blit(foreground_layer[PLAYER], pos)
-                    elif PLAYER in scaled_assets:
-                        self.screen.blit(scaled_assets[PLAYER], pos)
+                    elif PLAYER in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[PLAYER], pos)
+                    elif PLAYER in ctx.scaled_assets:
+                        self.screen.blit(ctx.scaled_assets[PLAYER], pos)
 
                 elif char == BOX:
                     # Render box
-                    if BOX in foreground_layer:
-                        self.screen.blit(foreground_layer[BOX], pos)
-                    elif BOX in scaled_assets:
-                        self.screen.blit(scaled_assets[BOX], pos)
+                    if BOX in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[BOX], pos)
+                    elif BOX in ctx.scaled_assets:
+                        self.screen.blit(ctx.scaled_assets[BOX], pos)
 
                 elif char == PLAYER_ON_TARGET:
                     # Render target first
-                    if TARGET in foreground_layer:
-                        self.screen.blit(foreground_layer[TARGET], pos)
-                    elif TARGET in scaled_assets:
-                        self.screen.blit(scaled_assets[TARGET], pos)
+                    if TARGET in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[TARGET], pos)
+                    elif TARGET in ctx.scaled_assets:
+                        self.screen.blit(ctx.scaled_assets[TARGET], pos)
 
                     # Then render player on top
                     if skin_manager:
@@ -362,111 +461,156 @@ class GUIRenderer:
                                 target_size = int(CELL_SIZE * self.scale_factor)
                                 player_sprite = pygame.transform.scale(player_sprite, (target_size, target_size))
                             self.screen.blit(player_sprite, pos)
-                    elif PLAYER in foreground_layer:
-                        self.screen.blit(foreground_layer[PLAYER], pos)
-                    elif PLAYER_ON_TARGET in scaled_assets:  # Fallback to combined sprite
-                        self.screen.blit(scaled_assets[PLAYER_ON_TARGET], pos)
+                    elif PLAYER in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[PLAYER], pos)
+                    elif PLAYER_ON_TARGET in ctx.scaled_assets:  # Fallback to combined sprite
+                        self.screen.blit(ctx.scaled_assets[PLAYER_ON_TARGET], pos)
 
                 elif char == BOX_ON_TARGET:
                     # Use the specific box_on_target sprite as requested
-                    if BOX_ON_TARGET in foreground_layer:
-                        self.screen.blit(foreground_layer[BOX_ON_TARGET], pos)
-                    elif BOX_ON_TARGET in scaled_assets:
-                        self.screen.blit(scaled_assets[BOX_ON_TARGET], pos)
+                    if BOX_ON_TARGET in ctx.foreground_layer:
+                        self.screen.blit(ctx.foreground_layer[BOX_ON_TARGET], pos)
+                    elif BOX_ON_TARGET in ctx.scaled_assets:
+                        self.screen.blit(ctx.scaled_assets[BOX_ON_TARGET], pos)
 
-        # Draw grid if enabled
-        if show_grid and self.scale_factor >= 0.5:  # Only show grid when zoomed in enough
-            # Get grid color from config
-            grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
-            grid_color = tuple(grid_color_list)
+    def _render_grid_lines(self, ctx, level):
+        """
+        Render grid overlay lines.
 
-            # Vertical lines
-            for x in range(level.width + 1):
-                line_x = offset_x + x * cell_size_scaled
-                start_y = offset_y
-                end_y = offset_y + level.height * cell_size_scaled
-                if 0 <= line_x <= current_screen_width:
-                    pygame.draw.line(self.screen, grid_color, (line_x, start_y), (line_x, end_y), 1)
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+        """
+        if self.scale_factor < 0.5:  # Only show grid when zoomed in enough
+            return
 
-            # Horizontal lines
-            for y in range(level.height + 1):
-                line_y = offset_y + y * cell_size_scaled
-                start_x = offset_x
-                end_x = offset_x + level.width * cell_size_scaled
-                if 0 <= line_y <= current_screen_height:
-                    pygame.draw.line(self.screen, grid_color, (start_x, line_y), (end_x, line_y), 1)
+        # Get grid color from config
+        grid_color_list = self.config_manager.get('game', 'grid_color', [255, 255, 255])
+        grid_color = tuple(grid_color_list)
 
-        # Update and render interactive highlighting
-        if mouse_pos:
-            # Update player position for movement hints
-            self.highlight_system.set_player_position(level.player_pos)
-            
-            # Calculate map area bounds for highlighting
-            map_area_x = offset_x
-            map_area_y = offset_y
-            map_area_width = level.width * cell_size_scaled
-            map_area_height = level.height * cell_size_scaled
-            
-            # Update highlight position based on mouse
-            self.highlight_system.update_mouse_position(
-                mouse_pos, map_area_x, map_area_y, map_area_width, map_area_height,
-                level.width, level.height, cell_size_scaled, scroll_x, scroll_y
-            )
-            
-            # Render the highlight overlay
-            self.highlight_system.render_highlight(
-                self.screen, map_area_x, map_area_y, cell_size_scaled, scroll_x, scroll_y
-            )
+        # Vertical lines
+        for x in range(level.width + 1):
+            line_x = ctx.offset_x + x * ctx.cell_size_scaled
+            start_y = ctx.offset_y
+            end_y = ctx.offset_y + level.height * ctx.cell_size_scaled
+            if 0 <= line_x <= ctx.screen_width:
+                pygame.draw.line(self.screen, grid_color, (line_x, start_y), (line_x, end_y), 1)
 
-        # Render game statistics
+        # Horizontal lines
+        for y in range(level.height + 1):
+            line_y = ctx.offset_y + y * ctx.cell_size_scaled
+            start_x = ctx.offset_x
+            end_x = ctx.offset_x + level.width * ctx.cell_size_scaled
+            if 0 <= line_y <= ctx.screen_height:
+                pygame.draw.line(self.screen, grid_color, (start_x, line_y), (end_x, line_y), 1)
+
+    def _render_highlight(self, ctx, level, mouse_pos, scroll_x, scroll_y):
+        """
+        Update and render interactive highlighting.
+
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+            mouse_pos: Optional mouse position for interactive highlighting.
+            scroll_x: Horizontal scroll offset.
+            scroll_y: Vertical scroll offset.
+        """
+        if not mouse_pos:
+            return
+
+        # Update player position for movement hints
+        self.highlight_system.set_player_position(level.player_pos)
+
+        # Calculate map area bounds for highlighting
+        map_area_x = ctx.offset_x
+        map_area_y = ctx.offset_y
+        map_area_width = level.width * ctx.cell_size_scaled
+        map_area_height = level.height * ctx.cell_size_scaled
+
+        # Update highlight position based on mouse
+        self.highlight_system.update_mouse_position(
+            mouse_pos, map_area_x, map_area_y, map_area_width, map_area_height,
+            level.width, level.height, ctx.cell_size_scaled, scroll_x, scroll_y
+        )
+
+        # Render the highlight overlay
+        self.highlight_system.render_highlight(
+            self.screen, map_area_x, map_area_y, ctx.cell_size_scaled, scroll_x, scroll_y
+        )
+
+    def _render_stats(self, ctx, level):
+        """
+        Render game statistics (moves and pushes counters).
+
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+        """
         stats_text = f"Moves: {level.moves}  Pushes: {level.pushes}"
-        stats_font = pygame.font.Font(None, int(24 * max(1, self.scale_factor)))
-        stats_surface = stats_font.render(stats_text, True, self.colors['black'])
-        stats_pos = (offset_x + 10, offset_y + level.height * cell_size_scaled + 10)
+        stats_surface = ctx.stats_font.render(stats_text, True, self.colors['black'])
+        stats_pos = (ctx.offset_x + 10, ctx.offset_y + level.height * ctx.cell_size_scaled + 10)
         self.screen.blit(stats_surface, stats_pos)
 
-        # Render level information if level manager is provided
-        if level_manager:
-            level_info = f"Level {level_manager.get_current_level_number()} of {level_manager.get_level_count()}"
-            level_surface = stats_font.render(level_info, True, self.colors['black'])
-            level_rect = level_surface.get_rect()
-            level_rect.right = current_screen_width - 10
-            level_rect.top = offset_y + level.height * cell_size_scaled + 10
-            self.screen.blit(level_surface, level_rect)
+    def _render_level_info(self, ctx, level, level_manager):
+        """
+        Render level number and collection information.
 
-            # Render collection information if available
-            collection_info = level_manager.get_current_collection_info()
-            if collection_info:
-                collection_text = f"Collection: {collection_info['title']}"
-                if collection_info['current_level_title']:
-                    collection_text += f" - {collection_info['current_level_title']}"
-                collection_surface = stats_font.render(collection_text, True, self.colors['blue'])
-                collection_pos = (offset_x + 10, offset_y + level.height * cell_size_scaled + 35)
-                self.screen.blit(collection_surface, collection_pos)
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+            level_manager: Optional LevelManager object for additional information.
+        """
+        if not level_manager:
+            return
 
-                # Show collection progress
-                progress_text = f"Level {collection_info['current_level_index']} of {collection_info['level_count']} in collection"
-                progress_surface = stats_font.render(progress_text, True, self.colors['gray'])
-                progress_rect = progress_surface.get_rect()
-                progress_rect.right = current_screen_width - 10
-                progress_rect.top = offset_y + level.height * cell_size_scaled + 35
-                self.screen.blit(progress_surface, progress_rect)
+        level_info = f"Level {level_manager.get_current_level_number()} of {level_manager.get_level_count()}"
+        level_surface = ctx.stats_font.render(level_info, True, self.colors['black'])
+        level_rect = level_surface.get_rect()
+        level_rect.right = ctx.screen_width - 10
+        level_rect.top = ctx.offset_y + level.height * ctx.cell_size_scaled + 10
+        self.screen.blit(level_surface, level_rect)
 
-        # Render level metadata (title, description, author)
+        # Render collection information if available
+        collection_info = level_manager.get_current_collection_info()
+        if collection_info:
+            collection_text = f"Collection: {collection_info['title']}"
+            if collection_info['current_level_title']:
+                collection_text += f" - {collection_info['current_level_title']}"
+            collection_surface = ctx.stats_font.render(collection_text, True, self.colors['blue'])
+            collection_pos = (ctx.offset_x + 10, ctx.offset_y + level.height * ctx.cell_size_scaled + 35)
+            self.screen.blit(collection_surface, collection_pos)
+
+            # Show collection progress
+            progress_text = f"Level {collection_info['current_level_index']} of {collection_info['level_count']} in collection"
+            progress_surface = ctx.stats_font.render(progress_text, True, self.colors['gray'])
+            progress_rect = progress_surface.get_rect()
+            progress_rect.right = ctx.screen_width - 10
+            progress_rect.top = ctx.offset_y + level.height * ctx.cell_size_scaled + 35
+            self.screen.blit(progress_surface, progress_rect)
+
+    def _render_metadata(self, ctx, level, level_manager):
+        """
+        Render level metadata (title, author, description).
+
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level: The Level object to render.
+            level_manager: Optional LevelManager object for additional information.
+        """
         metadata = level_manager.get_level_metadata() if level_manager else {}
-        y_offset = offset_y + level.height * cell_size_scaled + (60 if level_manager and level_manager.get_current_collection_info() else 35)
+        y_offset = ctx.offset_y + level.height * ctx.cell_size_scaled + (60 if level_manager and level_manager.get_current_collection_info() else 35)
 
         if metadata.get('title') and metadata['title'] != '':
             title_text = f"Title: {metadata['title']}"
-            title_surface = stats_font.render(title_text, True, self.colors['black'])
-            title_pos = (offset_x + 10, y_offset)
+            title_surface = ctx.stats_font.render(title_text, True, self.colors['black'])
+            title_pos = (ctx.offset_x + 10, y_offset)
             self.screen.blit(title_surface, title_pos)
             y_offset += 25
 
         if metadata.get('author') and metadata['author'] != '':
             author_text = f"Author: {metadata['author']}"
-            author_surface = stats_font.render(author_text, True, self.colors['black'])
-            author_pos = (offset_x + 10, y_offset)
+            author_surface = ctx.stats_font.render(author_text, True, self.colors['black'])
+            author_pos = (ctx.offset_x + 10, y_offset)
             self.screen.blit(author_surface, author_pos)
             y_offset += 25
 
@@ -491,37 +635,38 @@ class GUIRenderer:
 
                 for i, line in enumerate(lines[:2]):  # Show max 2 lines
                     desc_text = f"Description: {line}" if i == 0 else f"             {line}"
-                    desc_surface = stats_font.render(desc_text, True, self.colors['black'])
-                    desc_pos = (offset_x + 10, y_offset + i * 20)
+                    desc_surface = ctx.stats_font.render(desc_text, True, self.colors['black'])
+                    desc_pos = (ctx.offset_x + 10, y_offset + i * 20)
                     self.screen.blit(desc_surface, desc_pos)
             else:
                 desc_text = f"Description: {description}"
-                desc_surface = stats_font.render(desc_text, True, self.colors['black'])
-                desc_pos = (offset_x + 10, y_offset)
+                desc_surface = ctx.stats_font.render(desc_text, True, self.colors['black'])
+                desc_pos = (ctx.offset_x + 10, y_offset)
                 self.screen.blit(desc_surface, desc_pos)
 
-        # Render completion message if level is completed and show_completion_message is True
-        if level.is_completed() and show_completion_message:
-            completion_text = "Level completed!"
-            if level_manager and level_manager.has_next_level():
-                completion_text += " Press 'n' for next level."
+    def _render_completion_overlay(self, ctx, level_manager):
+        """
+        Render the level completion overlay message.
 
-            # Create a semi-transparent overlay
-            overlay = pygame.Surface((current_screen_width, current_screen_height))
-            overlay.set_alpha(150)
-            overlay.fill(self.colors['black'])
-            self.screen.blit(overlay, (0, 0))
+        Args:
+            ctx: _RenderContext with per-frame rendering values.
+            level_manager: Optional LevelManager object for additional information.
+        """
+        completion_text = "Level completed!"
+        if level_manager and level_manager.has_next_level():
+            completion_text += " Press 'n' for next level."
 
-            # Render the completion message with scaled font
-            completion_font = pygame.font.Font(None, int(36 * max(1, self.scale_factor)))
-            completion_surface = completion_font.render(completion_text, True, self.colors['white'])
-            completion_rect = completion_surface.get_rect(center=(current_screen_width // 2, current_screen_height // 2))
-            self.screen.blit(completion_surface, completion_rect)
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((ctx.screen_width, ctx.screen_height))
+        overlay.set_alpha(150)
+        overlay.fill(self.colors['black'])
+        self.screen.blit(overlay, (0, 0))
 
-        # Update the display
-        pygame.display.flip()
-
-        return self.screen
+        # Render the completion message with scaled font
+        completion_font = pygame.font.Font(None, int(36 * max(1, self.scale_factor)))
+        completion_surface = completion_font.render(completion_text, True, self.colors['white'])
+        completion_rect = completion_surface.get_rect(center=(ctx.screen_width // 2, ctx.screen_height // 2))
+        self.screen.blit(completion_surface, completion_rect)
 
     def render_welcome_screen(self, keybindings=None):
         """
@@ -773,34 +918,34 @@ class GUIRenderer:
     def set_highlight_enabled(self, enabled):
         """
         Enable or disable the interactive highlighting system.
-        
+
         Args:
             enabled (bool): Whether highlighting should be active.
         """
         self.highlight_system.set_enabled(enabled)
-        
+
     def set_highlight_alpha(self, alpha):
         """
         Set the transparency level of the highlight overlay.
-        
+
         Args:
             alpha (int): Alpha transparency value (0-255).
         """
         self.highlight_system.set_alpha(alpha)
-        
+
     def set_movement_hints(self, enabled):
         """
         Enable or disable movement hints in the highlighting system.
-        
+
         Args:
             enabled (bool): Whether to show movement hints.
         """
         self.highlight_system.set_movement_hints(enabled)
-        
+
     def get_highlighted_tile(self):
         """
         Get the currently highlighted tile coordinates.
-        
+
         Returns:
             tuple or None: (grid_x, grid_y) if a tile is highlighted, None otherwise.
         """
