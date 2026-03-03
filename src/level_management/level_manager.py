@@ -36,6 +36,7 @@ class LevelManager:
         self.current_level_metrics = None
         self.current_collection = None
         self.current_collection_index = -1
+        self.current_collection_file = None
 
         self._load_level_files()
 
@@ -107,6 +108,7 @@ class LevelManager:
                     self.current_level = level
                     self.current_collection = collection
                     self.current_collection_index = 0
+                    self.current_collection_file = filepath
                 else:
                     return False
             else:
@@ -114,6 +116,7 @@ class LevelManager:
                 self.current_level = Level(level_file=filepath)
                 self.current_collection = None
                 self.current_collection_index = -1
+                self.current_collection_file = None
 
             self.current_level_index = level_index
             self.current_level_metrics = None  # Reset metrics for loaded levels

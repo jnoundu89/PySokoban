@@ -622,7 +622,13 @@ class GUIGame(Game):
         self.keys_pressed.clear()
 
         # Get the collection file
-        collection_file = self.level_manager.level_files[self.level_manager.current_level_index]
+        idx = self.level_manager.current_level_index
+        if 0 <= idx < len(self.level_manager.level_files):
+            collection_file = self.level_manager.level_files[idx]
+        elif self.level_manager.current_collection_file:
+            collection_file = self.level_manager.current_collection_file
+        else:
+            collection_file = ''
 
         # Create a LevelInfo object
         from src.level_management.level_selector import LevelInfo

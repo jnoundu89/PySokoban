@@ -204,7 +204,15 @@ class EnhancedSokoban:
                     level.author = collection.author
 
                     self.game.level_manager.current_level = level
-                    self.game.level_manager.current_level_index = -1
+                    self.game.level_manager.current_collection = collection
+                    self.game.level_manager.current_collection_index = level_info['level_index']
+                    self.game.level_manager.current_collection_file = level_info['collection_file']
+                    # Find the file index in level_files, or -1 if not found
+                    lm = self.game.level_manager
+                    if level_info['collection_file'] in lm.level_files:
+                        lm.current_level_index = lm.level_files.index(level_info['collection_file'])
+                    else:
+                        lm.current_level_index = -1
                 except Exception as e:
                     print(f"Failed to load collection level: {e}")
                     self.game.level_manager.load_level(0)
