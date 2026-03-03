@@ -38,6 +38,8 @@ class Level:
         self.moves = 0
         self.pushes = 0
         self.history = []  # Stack to store game state for undo functionality
+        self.redo_stack = []  # Stack to store undone states for redo functionality
+        self.reverse_mode = False  # Pull mode toggle
 
         # Metadata
         self.title = title
@@ -139,6 +141,7 @@ class Level:
         self.moves = 0
         self.pushes = 0
         self.history = []
+        self.redo_stack = []
 
     def get_cell(self, x, y):
         """
@@ -226,6 +229,7 @@ class Level:
     def move(self, dx, dy):
         """
         Move the player in the specified direction if possible.
+        In reverse mode, uses pull mechanics instead of push.
 
         Args:
             dx (int): X direction (-1, 0, or 1).
@@ -234,6 +238,9 @@ class Level:
         Returns:
             bool: True if the move was successful, False otherwise.
         """
+        if self.reverse_mode:
+            return self.pull(dx, dy)
+
         if not self.can_move(dx, dy):
             return False
 
@@ -262,6 +269,7 @@ class Level:
     def _save_state(self):
         """
         Save the current game state for undo functionality.
+        A new move invalidates the redo stack.
         """
         state = {
             'player_pos': self.player_pos,
@@ -270,10 +278,11 @@ class Level:
             'pushes': self.pushes
         }
         self.history.append(state)
+        self.redo_stack.clear()
 
     def undo(self):
         """
-        Undo the last move if possible.
+        Undo the last move if possible. Saves current state to redo stack.
 
         Returns:
             bool: True if the undo was successful, False otherwise.
@@ -281,7 +290,41 @@ class Level:
         if not self.history:
             return False
 
+        # Save current state to redo stack before restoring
+        self.redo_stack.append({
+            'player_pos': self.player_pos,
+            'boxes': self.boxes.copy(),
+            'moves': self.moves,
+            'pushes': self.pushes
+        })
+
         state = self.history.pop()
+        self.player_pos = state['player_pos']
+        self.boxes = state['boxes']
+        self.moves = state['moves']
+        self.pushes = state['pushes']
+
+        return True
+
+    def redo(self):
+        """
+        Redo the last undone move if possible.
+
+        Returns:
+            bool: True if the redo was successful, False otherwise.
+        """
+        if not self.redo_stack:
+            return False
+
+        # Save current state to history before restoring
+        self.history.append({
+            'player_pos': self.player_pos,
+            'boxes': self.boxes.copy(),
+            'moves': self.moves,
+            'pushes': self.pushes
+        })
+
+        state = self.redo_stack.pop()
         self.player_pos = state['player_pos']
         self.boxes = state['boxes']
         self.moves = state['moves']
@@ -382,6 +425,76 @@ class Level:
 
         return '\n'.join(rows)
 
+    def toggle_reverse_mode(self):
+        """Toggle between push and pull (reverse) mode."""
+        self.reverse_mode = not self.reverse_mode
+        return self.reverse_mode
+
+    def can_pull(self, dx, dy):
+        """
+        Check if the player can pull a box in the specified direction.
+        In pull mode, the player moves in direction (dx,dy) and drags
+        the box behind them (at player_pos before moving) if there is one
+        at player_pos - (dx,dy).
+
+        Args:
+            dx (int): X direction.
+            dy (int): Y direction.
+
+        Returns:
+            bool: True if the pull is valid (player can move forward).
+        """
+        x, y = self.player_pos
+        new_x, new_y = x + dx, y + dy
+
+        # Player destination must not be a wall
+        if self.is_wall(new_x, new_y):
+            return False
+
+        # Player destination must not be a box
+        if self.is_box(new_x, new_y):
+            return False
+
+        return True
+
+    def pull(self, dx, dy):
+        """
+        Execute a pull move: player moves forward, box behind follows into
+        the player's old position.
+
+        Args:
+            dx (int): X direction.
+            dy (int): Y direction.
+
+        Returns:
+            bool: True if the move was successful.
+        """
+        if not self.can_pull(dx, dy):
+            return False
+
+        self._save_state()
+
+        x, y = self.player_pos
+        new_x, new_y = x + dx, y + dy
+
+        # Check if there's a box behind the player (opposite of move direction)
+        behind_x, behind_y = x - dx, y - dy
+        pulling_box = False
+
+        for i, (box_x, box_y) in enumerate(self.boxes):
+            if (box_x, box_y) == (behind_x, behind_y):
+                # Pull the box into the player's old position
+                self.boxes[i] = (x, y)
+                pulling_box = True
+                self.pushes += 1
+                break
+
+        # Move the player
+        self.player_pos = (new_x, new_y)
+        self.moves += 1
+
+        return True
+
     def reset(self):
         """
         Reset the level to its initial state.
@@ -394,3 +507,4 @@ class Level:
             self.moves = 0
             self.pushes = 0
             self.history = []
+            self.redo_stack = []

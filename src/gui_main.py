@@ -21,6 +21,10 @@ from src.ai.visual_ai_solver import VisualAISolver
 from src.ai.algorithm_selector import Algorithm
 from src.core.deadlock_detector import DeadlockDetector
 from src.ui.mouse_navigation import MouseNavigationSystem
+from src.core.snapshot_manager import SnapshotManager
+from src.core.game_history import GameHistoryManager
+from src.ui.solution_replay import SolutionReplayController
+from src.ai.solution_optimizer import SolutionOptimizer
 
 
 class GUIGame(Game):
@@ -96,6 +100,18 @@ class GUIGame(Game):
         # Advanced mouse navigation system
         self.mouse_navigation = MouseNavigationSystem()
 
+        # Snapshot manager for save/load game states
+        self.snapshot_manager = SnapshotManager()
+
+        # Game history manager for choice point navigation
+        self.history_manager = GameHistoryManager()
+
+        # Solution replay controller (active during replay)
+        self.replay_controller = None
+
+        # Solution optimizer
+        self.solution_optimizer = SolutionOptimizer()
+
         # Load custom keybindings from config
         self.custom_keybindings = self.config_manager.get_keybindings()
 
@@ -140,6 +156,12 @@ class GUIGame(Game):
         while self.running:
             current_time = pygame.time.get_ticks()
 
+            # --- Replay mode: delegate to replay controller ---
+            if self.replay_controller:
+                self._run_replay_frame(current_time)
+                clock.tick(60)
+                continue
+
             # Handle events
             if self.event_dispatcher:
                 events = self.event_dispatcher.pump()
@@ -161,10 +183,6 @@ class GUIGame(Game):
                     self.keys_pressed.discard(event.key)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     self._handle_mouse_click(event)
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    self._handle_mouse_release(event)
-                elif event.type == pygame.MOUSEMOTION:
-                    self._handle_mouse_motion(event)
                 elif event.type == pygame.MOUSEWHEEL:
                     if event.y > 0:
                         self.zoom_level = min(self.max_zoom, self.zoom_level * 1.1)
@@ -197,6 +215,10 @@ class GUIGame(Game):
                 # Render mouse navigation overlay
                 self._render_mouse_navigation()
 
+                # Render reverse mode indicator
+                if self.level_manager.current_level and self.level_manager.current_level.reverse_mode:
+                    self._render_reverse_mode_indicator()
+
                 # Update the display to show all rendered content
                 pygame.display.flip()
 
@@ -215,11 +237,17 @@ class GUIGame(Game):
             self.show_help = False
             return
 
+        # Cancel mouse auto-navigation on any keyboard input
+        if self.mouse_navigation.is_moving:
+            self.mouse_navigation.clear_navigation()
+
         # Get the key name
         key_name = pygame.key.name(event.key)
 
-        # Check for Escape key to return to level selector
+        # Check for Escape key: cancel lift-and-drop or return to selector
         if key_name == 'escape':
+            if self.mouse_navigation.handle_right_click():
+                return  # Cancelled lift mode
             self._return_to_level_selector()
             return
 
@@ -284,13 +312,7 @@ class GUIGame(Game):
                     self._handle_movement('right')
                 elif action == 'reset':
                     self.level_manager.reset_current_level()
-                    # Reset sprite history for the reset level
-                    self.skin_manager.reset_sprite_history()
-                    # Reset deadlock detector for the reset level
-                    self.deadlock_detector = None
-                    self.deadlock_notification_shown = False
-                    # Clear mouse navigation
-                    self.mouse_navigation.clear_navigation()
+                    self._reset_level_state()
                 elif action == 'quit':
                     self._quit_game()
                 elif action == 'next':
@@ -300,16 +322,35 @@ class GUIGame(Game):
                     # Go to previous level
                     self._prev_level()
                 elif action == 'undo':
-                    # Undo the move in the game state
-                    if self.level_manager.current_level.undo():
-                        # Get previous sprite from history
-                        # This will pop the current sprite and return the previous one
-                        # When undoing multiple moves, this will return each previous sprite in reverse order
-                        prev_sprite = self.skin_manager.get_previous_sprite()
-                        prev_sprite_info = self.skin_manager.get_sprite_info(prev_sprite) if prev_sprite else "None"
-                        print(f"UNDO: Restored to sprite: {prev_sprite_info}")
+                    # Check for Ctrl+Z -> choice point undo
+                    mods = pygame.key.get_mods()
+                    if mods & pygame.KMOD_CTRL:
+                        undos = self.history_manager.undo_to_previous_choice_point(
+                            self.level_manager.current_level)
+                        if undos > 0:
+                            self.skin_manager.reset_sprite_history()
                     else:
-                        print("UNDO: No moves to undo")
+                        if self.level_manager.current_level.undo():
+                            self.skin_manager.get_previous_sprite()
+                elif action == 'redo':
+                    if self.level_manager.current_level.redo():
+                        self.skin_manager.get_player_sprite(advance_animation=True)
+                elif action == 'snapshot_save':
+                    name = self.snapshot_manager.save_snapshot(
+                        self.level_manager.current_level)
+                    self._show_in_game_popup("Snapshot", f"Saved: {name}", timeout=1500)
+                elif action == 'snapshot_load':
+                    if self.snapshot_manager.load_latest(
+                            self.level_manager.current_level):
+                        self.skin_manager.reset_sprite_history()
+                        self.mouse_navigation.clear_navigation()
+                        self._show_in_game_popup("Snapshot", "Loaded latest snapshot", timeout=1500)
+                elif action == 'reverse_mode':
+                    is_reverse = self.level_manager.current_level.toggle_reverse_mode()
+                    mode_str = "PULL (Reverse)" if is_reverse else "PUSH (Normal)"
+                    self._show_in_game_popup("Mode", f"Mode: {mode_str}", timeout=1500)
+                elif action == 'optimize_solution':
+                    self._optimize_last_solution()
                 elif action == 'help':
                     self.show_help = True
                 elif action == 'grid':
@@ -402,11 +443,12 @@ class GUIGame(Game):
 
         # If the player moved, advance the animation
         if moved:
+            # Record move for choice point tracking
+            self.history_manager.record_move(
+                self.level_manager.current_level, is_pushing)
+
             # Get the player sprite with advance_animation=True to move to the next frame
             player_sprite = self.skin_manager.get_player_sprite(advance_animation=True)
-            sprite_info = self.skin_manager.get_sprite_info(player_sprite)
-            print(f"MOVEMENT_COMPLETE: Advanced animation to sprite: {sprite_info}")
-            print(f"MOVEMENT_DEBUG: Move #{self.skin_manager.move_counter - 1}, Direction: {direction}, State: {self.skin_manager.current_player_state}")
 
             # Check for deadlocks after the move
             if self.deadlock_detector is None:
@@ -451,6 +493,15 @@ class GUIGame(Game):
         """
         pass
 
+    def _reset_level_state(self):
+        """Reset all per-level state trackers."""
+        self.skin_manager.reset_sprite_history()
+        self.deadlock_detector = None
+        self.deadlock_notification_shown = False
+        self.mouse_navigation.clear_navigation()
+        self.history_manager.clear()
+        self.snapshot_manager.clear()
+
     def _next_level(self):
         """
         Go to the next level, prioritizing collection navigation.
@@ -458,23 +509,11 @@ class GUIGame(Game):
         # First try to go to next level in current collection
         if self.level_manager.has_next_level_in_collection():
             self.level_manager.next_level_in_collection()
-            # Reset sprite history for the new level
-            self.skin_manager.reset_sprite_history()
-            # Reset deadlock detector for the new level
-            self.deadlock_detector = None
-            self.deadlock_notification_shown = False
-            # Clear mouse navigation for new level
-            self.mouse_navigation.clear_navigation()
+            self._reset_level_state()
         # If no more levels in collection, try next level file
         elif self.level_manager.has_next_level():
             self.level_manager.next_level()
-            # Reset sprite history for the new level
-            self.skin_manager.reset_sprite_history()
-            # Reset deadlock detector for the new level
-            self.deadlock_detector = None
-            self.deadlock_notification_shown = False
-            # Clear mouse navigation for new level
-            self.mouse_navigation.clear_navigation()
+            self._reset_level_state()
         else:
             # No more levels, return to selector
             self._return_to_level_selector()
@@ -486,23 +525,11 @@ class GUIGame(Game):
         # First try to go to previous level in current collection
         if self.level_manager.has_prev_level_in_collection():
             self.level_manager.prev_level_in_collection()
-            # Reset sprite history for the new level
-            self.skin_manager.reset_sprite_history()
-            # Reset deadlock detector for the new level
-            self.deadlock_detector = None
-            self.deadlock_notification_shown = False
-            # Clear mouse navigation for new level
-            self.mouse_navigation.clear_navigation()
+            self._reset_level_state()
         # If no more levels in collection, try previous level file
         elif self.level_manager.has_prev_level():
             self.level_manager.prev_level()
-            # Reset sprite history for the new level
-            self.skin_manager.reset_sprite_history()
-            # Reset deadlock detector for the new level
-            self.deadlock_detector = None
-            self.deadlock_notification_shown = False
-            # Clear mouse navigation for new level
-            self.mouse_navigation.clear_navigation()
+            self._reset_level_state()
 
     def _return_to_level_selector(self):
         """
@@ -1210,7 +1237,7 @@ class GUIGame(Game):
 
     def _animate_solution_after_solving(self, solve_result):
         """
-        Animate the solution after it has been found.
+        Animate the solution using the VCR-style SolutionReplayController.
 
         Args:
             solve_result: The SolveResult containing the solution
@@ -1222,61 +1249,64 @@ class GUIGame(Game):
         if not moves:
             return
 
-        # Reset level to initial state
-        self.level_manager.current_level.reset()
+        # Store last solution for optimizer
+        self._last_solution_moves = list(moves)
 
-        # Show animation start message
-        total_moves = len(moves)
-        self._render_enhanced_solving_overlay(f"🎬 Animating solution: {total_moves} moves")
+        # Create replay controller and enter replay mode
+        self.replay_controller = SolutionReplayController(
+            self.level_manager.current_level,
+            moves,
+            self.renderer,
+            self.skin_manager
+        )
+        self.replay_controller.play()
+
+    def _run_replay_frame(self, current_time):
+        """Run one frame of the replay controller."""
+        rc = self.replay_controller
+
+        # Handle events
+        if self.event_dispatcher:
+            events = self.event_dispatcher.pump()
+        else:
+            events = pygame.event.get()
+
+        for event in events:
+            if event.type == pygame.QUIT:
+                self.replay_controller = None
+                self._quit_game()
+                return
+            rc.handle_event(event)
+
+        # Update playback
+        if not rc.update(current_time):
+            # Replay finished or exited
+            # Apply final state to the actual level
+            rc.apply_state(self.level_manager.current_level)
+            self.replay_controller = None
+            self.skin_manager.reset_sprite_history()
+            return
+
+        # Apply current state to the level for rendering
+        rc.apply_state(self.level_manager.current_level)
+
+        # Render
+        mouse_pos = pygame.mouse.get_pos()
+        self.renderer.render_level(
+            self.level_manager.current_level,
+            self.level_manager,
+            self.show_grid,
+            self.zoom_level,
+            self.scroll_x,
+            self.scroll_y,
+            self.skin_manager,
+            show_completion_message=False,
+            mouse_pos=mouse_pos
+        )
+
+        # Render VCR controls overlay
+        rc.render_controls(self.renderer.screen)
         pygame.display.flip()
-        pygame.time.wait(1000)  # Give user time to read
-
-        # Animate each move
-        for i, move in enumerate(moves):
-            # Check for user input to skip animation
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        # Skip to end
-                        self._execute_remaining_moves(moves[i:])
-                        return
-                    elif event.key == pygame.K_ESCAPE:
-                        return
-                elif event.type == pygame.QUIT:
-                    return
-
-            # Execute the move
-            success = self._execute_ai_move(move)
-
-            # Render current state
-            mouse_pos = pygame.mouse.get_pos()
-            self.renderer.render_level(
-                self.level_manager.current_level,
-                self.level_manager,
-                self.show_grid,
-                self.zoom_level,
-                self.scroll_x,
-                self.scroll_y,
-                self.skin_manager,
-                show_completion_message=False,
-                mouse_pos=mouse_pos
-            )
-
-            # Show progress overlay
-            progress = (i + 1) / total_moves * 100
-            overlay_text = f"🤖 AI Solution: Move {i+1}/{total_moves} ({progress:.1f}%)\n"
-            overlay_text += f"Direction: {move} -> {'✅' if success else '❌'}\n"
-            overlay_text += "SPACE: Skip animation | ESC: Stop"
-
-            self._render_enhanced_solving_overlay(overlay_text)
-            pygame.display.flip()
-
-            # Animation delay
-            pygame.time.wait(300)  # 300ms per move
-
-            # Check if level is completed
-            if self.level_manager.current_level.is_completed():
-                break
 
     def _execute_ai_move(self, move: str) -> bool:
         """Execute a move from the AI solution."""
@@ -1315,64 +1345,45 @@ class GUIGame(Game):
         )
         pygame.display.flip()
 
+    def _optimize_last_solution(self):
+        """Optimize the last AI solution and show results."""
+        if not hasattr(self, '_last_solution_moves') or not self._last_solution_moves:
+            self._show_in_game_popup("Optimizer", "No solution to optimize", timeout=2000)
+            return
+
+        optimized = self.solution_optimizer.optimize(
+            self.level_manager.current_level,
+            self._last_solution_moves
+        )
+        stats = self.solution_optimizer.get_optimization_stats(
+            self._last_solution_moves, optimized
+        )
+
+        self._last_solution_moves = optimized
+        msg = (f"Moves: {stats['original_moves']} -> {stats['optimized_moves']} "
+               f"(-{stats['moves_saved']}, {stats['reduction_percent']:.1f}%)")
+        self._show_in_game_popup("Optimized!", msg, timeout=3000)
+
+    def _render_reverse_mode_indicator(self):
+        """Render a visual indicator when reverse (pull) mode is active."""
+        screen = self.renderer.screen
+        font = pygame.font.Font(None, 24)
+        text = font.render("REVERSE MODE (Pull)", True, (255, 100, 100))
+        bg = pygame.Surface((text.get_width() + 16, text.get_height() + 8), pygame.SRCALPHA)
+        bg.fill((0, 0, 0, 160))
+        screen.blit(bg, (screen.get_width() - bg.get_width() - 10, 10))
+        screen.blit(text, (screen.get_width() - text.get_width() - 18, 14))
+
     def _handle_mouse_click(self, event):
-        """
-        Handle mouse click events for navigation.
-
-        Args:
-            event: Pygame mouse button down event.
-        """
+        """Handle mouse click events for navigation and box pushing."""
         if not self.level_manager.current_level or self.show_help:
             return
 
-        # Update mouse navigation system with current level
         self.mouse_navigation.set_level(self.level_manager.current_level)
-
-        # Calculate map area parameters
         map_area_x, map_area_y, cell_size = self._get_map_area_params()
 
-        # Handle left click for navigation
-        if event.button == 1:  # Left click
-            # Check if starting a drag operation
-            if self.mouse_navigation.handle_mouse_drag_start(
-                event.pos, map_area_x, map_area_y, cell_size,
-                self.scroll_x, self.scroll_y
-            ):
-                return  # Drag started, don't process as navigation click
-
-            # Handle navigation click
-            self.mouse_navigation.handle_mouse_click(
-                event.pos, event.button, map_area_x, map_area_y, cell_size,
-                self.scroll_x, self.scroll_y
-            )
-
-    def _handle_mouse_release(self, event):
-        """
-        Handle mouse button release events.
-
-        Args:
-            event: Pygame mouse button up event.
-        """
-        if event.button == 1:  # Left click release
-            self.mouse_navigation.handle_mouse_drag_end()
-
-    def _handle_mouse_motion(self, event):
-        """
-        Handle mouse motion events for drag operations.
-
-        Args:
-            event: Pygame mouse motion event.
-        """
-        if not self.level_manager.current_level or self.show_help:
-            return
-
-        # Calculate map area parameters
-        map_area_x, map_area_y, cell_size = self._get_map_area_params()
-
-        # Handle drag motion
-        self.mouse_navigation.handle_mouse_drag(
-            event.pos, map_area_x, map_area_y, cell_size,
-            self.scroll_x, self.scroll_y
+        self.mouse_navigation.handle_mouse_click(
+            event.pos, event.button, map_area_x, map_area_y, cell_size
         )
 
     def _update_mouse_navigation(self, current_time):
@@ -1396,8 +1407,7 @@ class GUIGame(Game):
         map_area_x, map_area_y, cell_size = self._get_map_area_params()
 
         self.mouse_navigation.update_mouse_position(
-            mouse_pos, map_area_x, map_area_y, cell_size,
-            self.scroll_x, self.scroll_y
+            mouse_pos, map_area_x, map_area_y, cell_size
         )
 
         # Update automatic movement
@@ -1427,9 +1437,7 @@ class GUIGame(Game):
                 self.skin_manager.update_player_state(direction, is_pushing, is_blocked)
 
                 # Advance animation
-                player_sprite = self.skin_manager.get_player_sprite(advance_animation=True)
-                sprite_info = self.skin_manager.get_sprite_info(player_sprite)
-                print(f"MOUSE_NAVIGATION: Advanced animation to sprite: {sprite_info}")
+                self.skin_manager.get_player_sprite(advance_animation=True)
 
             # Check for level completion
             if self.level_manager.current_level.is_completed():
@@ -1455,8 +1463,7 @@ class GUIGame(Game):
 
         # Render navigation guideline and highlights
         self.mouse_navigation.render_navigation(
-            self.renderer.screen, map_area_x, map_area_y, cell_size,
-            self.scroll_x, self.scroll_y
+            self.renderer.screen, map_area_x, map_area_y, cell_size
         )
 
     def _get_map_area_params(self):

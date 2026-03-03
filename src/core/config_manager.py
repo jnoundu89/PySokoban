@@ -46,7 +46,9 @@ class ConfigManager:
                 'movement_cooldown': 200,
                 'mouse_movement_speed': 100,
                 'grid_color': [255, 255, 255],
-                'show_deadlocks': True
+                'show_deadlocks': True,
+                'mouse_pusher_tracking': False,
+                'pusher_tracking_radius': 2
             },
             'keybindings': {
                 'up': 'up',
@@ -58,10 +60,15 @@ class ConfigManager:
                 'next': 'n',
                 'previous': 'p',
                 'undo': 'u',
+                'redo': 'y',
                 'help': 'h',
                 'grid': 'g',
                 'fullscreen': 'f11',
-                'solve': 's'
+                'solve': 's',
+                'snapshot_save': 'f5',
+                'snapshot_load': 'f9',
+                'reverse_mode': 'x',
+                'optimize_solution': 'o'
             }
         }
 
