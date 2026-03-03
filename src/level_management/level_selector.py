@@ -546,7 +546,7 @@ class LevelSelector:
         """
         # Always load the level when this method is called to ensure fresh data
         try:
-            if level_info.is_from_collection:
+            if level_info.is_from_collection and level_info.level_index >= 0:
                 collection = LevelCollectionParser.parse_file(level_info.collection_file)
                 _, level = collection.get_level(level_info.level_index)
             else:

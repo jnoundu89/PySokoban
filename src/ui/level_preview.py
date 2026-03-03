@@ -149,7 +149,7 @@ class LevelPreview:
 
         # Load the level
         try:
-            if level_info.is_from_collection:
+            if level_info.is_from_collection and level_info.level_index >= 0:
                 collection = LevelCollectionParser.parse_file(level_info.collection_file)
                 _, self.level = collection.get_level(level_info.level_index)
             else:

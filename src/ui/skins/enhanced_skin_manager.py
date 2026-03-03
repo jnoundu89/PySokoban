@@ -523,18 +523,8 @@ class EnhancedSkinManager:
             self._load_current_skin()
 
     def _log_debug(self, message, category="GENERAL"):
-        """
-        Log debug message with timestamp and category.
-        
-        Args:
-            message (str): Debug message to log
-            category (str): Category of the debug message
-        """
-        import time
-        current_time = time.time()
-        elapsed = current_time - self.start_time
-        timestamp = f"[{elapsed:.3f}s]"
-        print(f"{timestamp} [{category}] {message}")
+        """Log debug message. Disabled by default to avoid console spam."""
+        pass
 
     def get_sprite_info(self, sprite):
         """
