@@ -247,6 +247,7 @@ class EnhancedSokoban:
             self.menu_system.selected_level_path = None
 
         self.game.running = True
+        self.skin_manager.reset_sprite_history()
         self.game.game_loop()
 
         # When game is closed, return to level selector (play menu)
