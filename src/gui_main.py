@@ -683,14 +683,11 @@ class GUIGame(Game):
             if has_next_level:
                 # Proceed to the next level
                 self.level_manager.next_level_in_collection()
+                self._reset_level_state()
             else:
                 # Replay the current level
                 self.level_manager.reset_current_level()
-                # Reset sprite history for the reset level
-                self.skin_manager.reset_sprite_history()
-                # Reset deadlock detector for the reset level
-                self.deadlock_detector = None
-                self.deadlock_notification_shown = False
+                self._reset_level_state()
         else:
             # Return to level selection
             self._return_to_level_selector()
