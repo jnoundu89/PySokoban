@@ -2,13 +2,23 @@
 Auto Solver for Sokoban levels.
 
 This module provides functionality to automatically solve Sokoban levels
-and animate the solution step by step, delegating to EnhancedSokolutionSolver.
+and animate the solution step by step.
+
+Solveur préféré : **Festival** (FESS, Yaron Shoham, MIT), quand son binaire est
+présent. Repli sur EnhancedSokolutionSolver sinon, pour que le jeu marche sans
+dépendance externe.
+
+L'écart entre les deux n'est pas une nuance. Mesuré le 2026-08-11, XSokoban,
+60 s par niveau : EnhancedSokolutionSolver résout **1 niveau sur 10**, Festival
+les **90 sur 90**. Voir src/ai/festival_solver.py pour le pourquoi et
+l'installation du binaire.
 """
 
 import time
 import pygame
 from src.ai.algorithm_selector import AlgorithmSelector, Algorithm
 from src.ai.enhanced_sokolution_solver import EnhancedSokolutionSolver, SearchMode, SolutionData
+from src.ai.festival_solver import FestivalSolver, SolutionRefusee, disponible as festival_disponible
 
 
 # Map Algorithm enum to human-readable solver type strings
@@ -29,6 +39,11 @@ _SOLVER_LIMITS = {
     Algorithm.BIDIRECTIONAL_GREEDY: (2000000, 600.0),
 }
 
+# Budget accordé à Festival, en secondes. 600 s est la convention de la
+# recherche Sokoban pour un niveau. En pratique la médiane des 90 XSokoban est
+# à 1 s et le pire niveau à 101 s : le budget ne sert qu'aux cas pathologiques.
+_FESTIVAL_BUDGET = 600.0
+
 
 class AutoSolver:
     """
@@ -44,7 +59,13 @@ class AutoSolver:
         self.selector = AlgorithmSelector()
         self.complexity_score = self.selector.complexity_analyzer.calculate_complexity_score(level)
         self.algorithm = self.selector.select_optimal_algorithm(level)
-        self.solver_type = _SOLVER_TYPE_NAMES.get(self.algorithm, self.algorithm.value)
+
+        # Festival d'abord s'il est installé. Le sélecteur d'algorithme reste
+        # calculé : il sert au repli, et son score de complexité est affiché
+        # ailleurs dans l'interface.
+        self.use_festival = festival_disponible()
+        self.solver_type = ("Festival 3.1 (FESS)" if self.use_festival
+                            else _SOLVER_TYPE_NAMES.get(self.algorithm, self.algorithm.value))
 
         self.solution = None
         self._last_result = None  # SolutionData from last solve
@@ -55,7 +76,12 @@ class AutoSolver:
         max_states, time_limit = _SOLVER_LIMITS.get(self.algorithm, (1000000, 120.0))
         print(f"Level complexity: {category} (score: {self.complexity_score:.1f})")
         print(f"Using {self.solver_type} solver")
-        print(f"Solver limits: {max_states} states, {time_limit}s timeout")
+        if self.use_festival:
+            print(f"Solver limits: {_FESTIVAL_BUDGET}s timeout, 1 core")
+        else:
+            print(f"Solver limits: {max_states} states, {time_limit}s timeout")
+            print("Festival introuvable — repli sur le solveur interne, qui "
+                  "résout 1 XSokoban sur 10. Voir src/ai/festival_solver.py.")
 
     def solve_level(self, progress_callback=None):
         """
@@ -77,6 +103,9 @@ class AutoSolver:
         try:
             if progress_callback:
                 progress_callback("Analyzing level...")
+
+            if self.use_festival:
+                return self._solve_with_festival(progress_callback)
 
             max_states, time_limit = _SOLVER_LIMITS.get(self.algorithm, (1000000, 120.0))
             solver = EnhancedSokolutionSolver(self.level, max_states, time_limit)
@@ -108,6 +137,44 @@ class AutoSolver:
 
             self.is_solving = False
             return False
+
+    def _solve_with_festival(self, progress_callback=None):
+        """Résoudre via Festival. Rend True si une solution VÉRIFIÉE existe.
+
+        Une solution que Festival annonce mais que le moteur de ce dépôt refuse
+        de rejouer n'est pas retournée : FestivalSolver lève SolutionRefusee, et
+        on retombe sur le solveur interne. C'est le contrôle qui manquait à la
+        tentative FESS précédente, où un benchmark de 90 échecs sur 90 a
+        coexisté des mois avec une documentation annonçant la réussite.
+        """
+        try:
+            result = FestivalSolver(self.level, time_limit=_FESTIVAL_BUDGET).solve(
+                progress_callback)
+        except SolutionRefusee as e:
+            # Cas grave : le solveur marche, mais nos règles et les siennes ne
+            # s'accordent pas. Le dire fort, et ne pas livrer la solution.
+            print(f"[Festival] SOLUTION REFUSÉE — {e}")
+            if progress_callback:
+                progress_callback("Festival : solution incohérente, repli")
+            self.use_festival = False
+            self.is_solving = False
+            return self.solve_level(progress_callback)
+        except Exception as e:
+            print(f"[Festival] indisponible ({e}) — repli sur le solveur interne")
+            self.use_festival = False
+            self.is_solving = False
+            return self.solve_level(progress_callback)
+
+        self.is_solving = False
+        if result and result.moves:
+            self.solution = result.moves
+            self._last_result = result
+            if progress_callback:
+                progress_callback(f"Solution found! {len(self.solution)} moves")
+            return True
+        if progress_callback:
+            progress_callback("No solution found")
+        return False
 
     def get_solution_info(self):
         """
